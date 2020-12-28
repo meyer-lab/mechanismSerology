@@ -29,7 +29,7 @@ jobs:
           output/*.svg
           output/*.docx
     - name: Deploy 🚀
-      uses: JamesIves/github-pages-deploy-action@3.6.2
+      uses: JamesIves/github-pages-deploy-action@3.7.1
       if: github.ref == 'refs/heads/master'
       with:
         ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
