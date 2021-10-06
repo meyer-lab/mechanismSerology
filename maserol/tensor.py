@@ -6,7 +6,7 @@ from scipy.linalg import khatri_rao
 import tensorly as tl
 from tensorly.decomposition._cp import initialize_cp
 from tensorly.cp_tensor import CPTensor
-from .dataImport import createCube
+from .import_alter import createCube
 
 tl.set_backend("numpy")
 

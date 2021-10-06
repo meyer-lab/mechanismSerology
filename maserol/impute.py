@@ -2,7 +2,7 @@
 
 import numpy as np
 import tensorly as tl
-from .dataImport import createCube
+from .import_alter import createCube
 from .tensor import perform_CMTF
 
 

@@ -7,7 +7,7 @@ import seaborn as sns
 from string import ascii_lowercase
 from .common import subplotLabel, getSetup
 from ..tensor import perform_CMTF
-from ..dataImport import getAxes, load_file
+from ..import_alter import getAxes, load_file
 from matplotlib import gridspec, pyplot as plt
 
 

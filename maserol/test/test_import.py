@@ -1,7 +1,7 @@
 """
 Unit test file.
 """
-from ..dataImport import load_file, importLuminex, createCube
+from ..import_alter import load_file, importLuminex, createCube
 
 
 def test_files():
