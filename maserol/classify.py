@@ -1,6 +1,6 @@
 """ Regression methods using Factorized Data. """
 from sklearn.metrics import accuracy_score
-from .dataImport import load_file, importAlterDF, selectAlter
+from .import_alter import load_file, importAlterDF, selectAlter
 from .regression import RegressionHelper
 
 

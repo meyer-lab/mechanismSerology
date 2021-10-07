@@ -2,7 +2,7 @@
 Unit test file.
 """
 import numpy as np
-from ..dataImport import createCube
+from ..import_alter import createCube
 from ..tensor import perform_CMTF
 
 

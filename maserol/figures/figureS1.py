@@ -4,7 +4,7 @@ This creates Figure S1.
 import numpy as np
 from .common import subplotLabel, getSetup
 from ..regression import function_prediction
-from ..dataImport import functions
+from ..import_alter import functions
 from ..tensor import perform_CMTF
 
 

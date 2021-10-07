@@ -9,7 +9,7 @@ from ..impute import evaluate_missing
 from ..regression import function_prediction
 from ..classify import class_predictions
 from ..tensor import perform_CMTF
-from ..dataImport import functions, createCube
+from ..import_alter import functions, createCube
 
 
 def makeFigure():

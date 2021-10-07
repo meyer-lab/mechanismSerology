@@ -8,7 +8,7 @@ from sklearn.linear_model import ElasticNetCV, LogisticRegressionCV
 from sklearn.gaussian_process import GaussianProcessClassifier, GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel, RBF, WhiteKernel
 from scipy.stats import pearsonr
-from .dataImport import (
+from .import_alter import (
     importFunction,
     functions,
     importAlterDF,
