@@ -1,60 +1,56 @@
 """
-This creates Figure 1.
+This creates Figure 0.
 """
-
 import numpy as np
-from statsmodels.multivariate.pca import PCA
+import tensorly as tl
+from scipy.optimize import least_squares
 from .common import subplotLabel, getSetup
-from ..impute import evaluate_missing
-from ..regression import function_prediction
-from ..classify import class_predictions
-from ..tensor import perform_CMTF
-from ..import_alter import functions, createCube
+from ..import_alter import createCube, getAxes
 
 
 def makeFigure():
-    """Get a list of the axis objects and create a figure"""
-    # Get list of axis objects
-    ax, f = getSetup((6, 3), (1, 2))
+    """ Compare genotype vs non-genotype specific readings. """
+    cube, _ = createCube()
+    _, detections, _ = getAxes()
 
-    comps = np.arange(1, 13)
-    TMTFR2X = np.zeros(comps.shape)
-    PCAR2X = np.zeros(comps.shape)
+    cube = tl.unfold(cube[:, 1:11, :], 1)
+    cube = np.delete(cube, 3, axis=1)
+    detections = detections[1:11]
+    detections = [x[:2] + "γ" + x[3:] if x[:2] == "Fc" else x for x in detections]
+    del detections[3]
 
-    tOrig, mOrig = createCube()
+    # Remove fully missing subjects
+    missing = np.all(np.isnan(cube), axis=0)
+    cube = cube[:, ~missing]
 
-    tMat = np.reshape(tOrig, (181, -1))
-    tMat = tMat[:, ~np.all(np.isnan(tMat), axis=0)]
-    tMat = np.hstack((tMat, mOrig))
+    axs, fig = getSetup((8, 8), (3, 3))
 
-    sizePCA = comps * np.sum(tMat.shape)
-    sizeTfac = comps * (np.sum(tOrig.shape) + mOrig.shape[1])
+    for ii, ax in enumerate(axs):
+        groupi = ii - (ii % 3)
+        xi = groupi + [1, 1, 2][ii % 3]
+        yi = groupi + [0, 2, 0][ii % 3]
 
-    for i, cc in enumerate(comps):
-        outt = PCA(tMat, ncomp=cc, missing="fill-em", standardize=False, demean=False, normalize=False)
-        recon = outt.scores @ outt.loadings.T
-        PCAR2X[i] = np.nanvar(tMat - recon) / np.nanvar(tMat)
+        data = cube[(xi, yi), :]
+        miss = np.all(np.isfinite(data), axis=0)
+        data = data[:, miss]
 
-        _, _, TMTFR2X[i] = perform_CMTF(tOrig, mOrig, r=cc)
+        ax.scatter(data[0, :], data[1, :], s=0.3)
 
-    ax[0].scatter(comps, TMTFR2X, color="k", s=10)
-    ax[0].set_ylabel("TMTF R2X")
-    ax[0].set_xlabel("Number of Components")
-    ax[0].set_xticks([x for x in comps])
-    ax[0].set_xticklabels([x for x in comps])
-    ax[0].set_ylim(0, 1)
-    ax[0].set_xlim(0.0, np.amax(comps) + 0.5)
+        def pfunc(x, p):
+            return np.power(x, p[0]) * p[1]
 
-    ax[1].set_xscale("log", base=2)
-    ax[1].plot(sizePCA, PCAR2X, "r.", label="PCA")
-    ax[1].plot(sizeTfac, 1.0 - TMTFR2X, "k.", label="TMTF")
-    ax[1].set_ylabel("Normalized Unexplained Variance")
-    ax[1].set_xlabel("Size of Factorization")
-    ax[1].set_ylim(bottom=0.0)
-    ax[1].set_xlim(2 ** 8, 2 ** 12)
-    ax[1].legend()
+        popt = least_squares(lambda x: pfunc(data[0, :], x) - data[1, :], x0=[1.0, 1.0], jac="3-point")
+        linx = np.linspace(0.0, np.amax(data[0, :]), num=100)
+        liny = pfunc(linx, popt.x)
+        ax.plot(linx, liny, "r-")
 
-    # Add subplot labels
-    subplotLabel(ax)
+        ax.set_xlabel(detections[xi])
+        ax.set_ylabel(detections[yi])
+        ax.set_xticks(ax.get_xticks().tolist())
+        ax.set_xticklabels(ax.get_xticks().tolist(), rotation=20, ha="right")
+        ax.set_ylim(bottom=-2000, top=180000)
+        ax.set_xlim(left=-2000, right=180000)
 
-    return f
+    subplotLabel(axs)
+
+    return fig
