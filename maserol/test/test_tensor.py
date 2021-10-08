@@ -2,7 +2,7 @@
 Unit test file.
 """
 import numpy as np
-from test_import_alter import createCube
+from ..import_alter import createCube
 from tensorpac import perform_CMTF
 
 
