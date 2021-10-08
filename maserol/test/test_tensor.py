@@ -2,14 +2,16 @@
 Unit test file.
 """
 import numpy as np
-from tensorpac import perform_CMTF
+from ..import_alter import createCube
+from ..tensor import perform_CMTF
 
 
 def test_R2X():
     """ Test to ensure R2X for higher components is larger. """
     arr = []
     for i in range(1, 5):
-        facT, facM, tensorR2X = perform_CMTF(r=i)
+        cube, glycube = createCube()
+        facT, facM, tensorR2X = perform_CMTF(cube, glycube, r=i)
         assert np.all(np.isfinite(facT.factors[0]))
         assert np.all(np.isfinite(facT.factors[1]))
         assert np.all(np.isfinite(facT.factors[2]))
