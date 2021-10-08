@@ -3,7 +3,7 @@ Unit test file.
 """
 import numpy as np
 from ..import_alter import createCube
-from tensorpac import perform_CMTF
+from ..tensor import perform_CMTF
 
 
 def test_R2X():
