@@ -23,6 +23,8 @@ features_name = 'MGH_Features'
 'SpaceX_Features'
 
 def generateCube(data_name,features_name,ant_col,rec_col):
+    #SpaceX data- ant_col = 2, rec_col = 3
+    # MGH data - ant_col = 0, rec_col = 1
 
     data = load_file(data_name)
     data = data.values[:,1:]
@@ -57,21 +59,14 @@ def generateCube(data_name,features_name,ant_col,rec_col):
     assert ~np.any(np.all(np.isnan(data_cube), axis=(0, 2)))
     assert ~np.any(np.all(np.isnan(data_cube), axis=(1, 2)))
 
-    return data_cube, data
+    #Check data order (SpaceX)
+    assert(SpaceX_cube[116,5,0] == data[116,70])
+    assert(SpaceX_cube[0,0,13] == data[0,13])
+    assert(SpaceX_cube[66,3,4] == data[66,46])
 
-d_name = 'SpaceX_Sero.Data' #'MGH_Sero.Neut.WHO124.log10'
-f_name = 'SpaceX_Features' #'MGH_Features'
-antigen_col = 2 #0
-receptor_col = 3 #1
+    #Check data order (MGH)
+    #assert(MGH_cube[60,5,7] == data[60,52])
+    #assert(MGH_cube[0,9,8] == data[0,89] )
+    #assert(MGH_cube[578,4,0] == data[578,36])
 
-data_cube, data = generateCube(d_name,f_name,antigen_col,receptor_col)
-
-#Checking data order (MGH)
-#assert(MGH_cube[60,5,7] == data[60,52])
-#assert(MGH_cube[0,9,8] == data[0,89] )
-#assert(MGH_cube[578,4,0] == data[578,36])
-
-#Checking data order (SpaceX)
-assert(SpaceX_cube[116,5,0] == data[116,70])
-assert(SpaceX_cube[0,0,13] == data[0,13])
-assert(SpaceX_cube[66,3,4] == data[66,46])
+    return data_cube
