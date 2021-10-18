@@ -13,14 +13,6 @@ def load_file(name):
     data = pd.read_csv(join(path_here, "maserol/data/kaplonek2021/" + name + ".csv"), delimiter=",", comment="#")
 
     return data
-ant_col = 0
-rec_col = 1
-ant_col = 2
-rec_col = 3
-data_name = 'MGH_Sero.Neut.WHO124.log10'
-features_name = 'MGH_Features'
-'SpaceX_Sero.Data'
-'SpaceX_Features'
 
 def generateCube(data_name,features_name,ant_col,rec_col):
     #SpaceX data- ant_col = 2, rec_col = 3
