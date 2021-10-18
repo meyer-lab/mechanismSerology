@@ -60,13 +60,13 @@ def generateCube(data_name,features_name,ant_col,rec_col):
     assert ~np.any(np.all(np.isnan(data_cube), axis=(1, 2)))
 
     #Check data order (SpaceX)
-    assert(SpaceX_cube[116,5,0] == data[116,70])
-    assert(SpaceX_cube[0,0,13] == data[0,13])
-    assert(SpaceX_cube[66,3,4] == data[66,46])
+    assert(data_cube[116,5,0] == data[116,70])
+    assert(data_cube[0,0,13] == data[0,13])
+    assert(data_cube[66,3,4] == data[66,46])
 
     #Check data order (MGH)
-    #assert(MGH_cube[60,5,7] == data[60,52])
-    #assert(MGH_cube[0,9,8] == data[0,89] )
-    #assert(MGH_cube[578,4,0] == data[578,36])
+    #assert(data_cube[60,5,7] == data[60,52])
+    #assert(data_cube[0,9,8] == data[0,89] )
+    #assert(data_cube[578,4,0] == data[578,36])
 
     return data_cube
