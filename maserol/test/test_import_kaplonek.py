@@ -1,7 +1,7 @@
 from os.path import join, dirname
 path_here = dirname(dirname(__file__))
 
-from ..import_kaplonek import load_file, importSpaceX, cubeSpaceX, flattenSpaceX, importMGH, cubeMGH,flattenMGH
+from ..import_kaplonek import *
 
 def test_files():
     """ Test that files are successfully loaded. """
