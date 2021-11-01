@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 # r = # of antibody types/bead
 from valentbind import polyfc
-from import_kaplonek import flattenSpaceX
+from .import_kaplonek import flattenSpaceX
 
 #first function: generate abundance and Ka matrices from random values
 
