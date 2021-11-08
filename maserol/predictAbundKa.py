@@ -2,6 +2,7 @@ import numpy as np
 from valentbind import polyfc
 from scipy.optimize import least_squares, minimize
 import scipy as scipy
+from tensorly.tenalg import khatri_rao
 import matplotlib.pyplot as plt
 
 """
@@ -13,48 +14,58 @@ Runs polyfc 9,828 times
 
 """
 
-def initial_AbundKa(flatCube, n_ab=1):
+def initial_AbundKa(cube, n_ab=1):
     """
     generate abundance and Ka matrices from random values
-    flatCube.shape == n_rec * (n_subj * n_Ag)
+    cube.shape == n_subj * n_rec * n_Ag
     """
-    R_guess = np.random.randint(4, high=11, size=(n_ab, flatCube.shape[1]), dtype=int)
-    Ka_guess = np.random.randint(1e6, high=9e6, size=(flatCube.shape[0], n_ab), dtype=int)
-    RKa_combined = np.concatenate((R_guess.T,Ka_guess))
-    return RKa_combined
+    R_subj_guess = np.random.randint(1, high=5, size=(cube.shape[0], n_ab), dtype=int)
+    R_Ag_guess = np.random.randint(1, high=5, size=(cube.shape[2], n_ab), dtype=int)
+    Ka_guess = np.random.randint(1e6, high=9e6, size=(cube.shape[1], n_ab), dtype=int)
+    return R_subj_guess, R_Ag_guess, Ka_guess
 
-
-def infer_Lbound(R, Ka, L0=1e-9, KxStar=1e-12):
+def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     """
     pass the matrices generated above into polyfc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten
     """
-
-    Lbound_guess = np.zeros((Ka.shape[0], R.shape[0]))
-    #Lbound_guess = 6x1638
+    Lbound_cube = np.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
+    # Lbound_guess = 6x1638
     LigC = np.array([1])
     Ka = Ka[:,np.newaxis]
-    for ii in range(Lbound_guess.shape[0]):
-        for xx in range(Lbound_guess.shape[1]):
-            Lbound_guess[ii,xx] = polyfc(L0, KxStar, 2, R[xx,:], LigC, Ka[ii,:])[0]
-    return Lbound_guess
+    for jj in range(Lbound_cube.shape[1]):
+        for ii in range(Lbound_cube.shape[0]):
+            for kk in range(Lbound_cube.shape[2]):
+                Lbound_cube[ii,jj,kk] = polyfc(L0, KxStar, 2, R_subj[ii,:] * R_Ag[kk,:], LigC, Ka[jj,:])[0]
+    return Lbound_cube
 
 
-def model_lossfunc(RKa_temp):
+def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
     """
         Loss function, comparing model output and flattened tensor
     """
-    flatCube, _, _ = flattenSpaceX()
-    RKa_temp = RKa_temp[:,np.newaxis]
-    Lbound_guess = infer_Lbound(RKa_temp[:flatCube.shape[1],:],RKa_temp[flatCube.shape[1]:,:])
-    model_loss = np.nansum((Lbound_guess - flatCube)**2)
-    print(model_loss)
+    # unflatten to three matrices
+    n_subj, n_rec, n_Ag = cube.shape
+    n_ab = len(x) / np.sum(cube.shape)
+    R_subj = x[0:(n_subj*n_ab)].reshape(n_subj, n_ab)
+    R_Ag = x[(n_subj*n_ab):((n_subj+n_Ag)*n_ab)].reshape(n_Ag, n_ab)
+    Ka = x[((n_subj+n_Ag)*n_ab):((n_subj+n_Ag+n_rec)*n_ab)].reshape(n_rec, n_ab)
+
+    Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
+    model_loss = np.nansum((Lbound - cube)**2)
+    print("Model loss: ", model_loss)
     return model_loss
 
-def optimize_lossfunc(RKa,flatCube):
+def optimize_lossfunc(cube, n_ab=1):
     """
         Optimization method to minimize model_lossfunc output
     """
+
+    R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, n_ab=n_ab)
+    x0 = np.concatenate((R_subj_guess.flatten(), R_Ag_guess.flatten(), Ka_guess.flatten()))
+
+    opt = minimize(model_lossfunc, x0, args=(cube), bounds=None, constraints=())
+    ## TODO: positive bound for opt
     ls_sol = least_squares(model_lossfunc,RKa[:,0])
     RKa_opt = ls_sol.x
     RKa_opt = RKa_opt[:,np.newaxis]
