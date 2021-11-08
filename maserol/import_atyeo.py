@@ -55,3 +55,23 @@ def createCube():
 
     return cube 
 
+
+def flattenCube():
+    """ Get and flatten the antigen cube. """
+    subject, receptor, antigen = getAxes()
+    
+    cube = createCube()
+    
+    flatCube = np.full((len(receptor), (len(subject) * len(antigen))), np.nan)
+    
+    first_ind = 0
+    last_ind = len(antigen)
+    for subject_ind in range(len(subject)):
+        for receptor_ind in range(len(receptor)):
+            flatCube[receptor_ind, first_ind:last_ind] = cube[subject_ind, receptor_ind,:]
+
+        first_ind += len(antigen)
+        last_ind += len(antigen)
+        
+    return flatCube
+
