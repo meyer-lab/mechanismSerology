@@ -34,4 +34,4 @@ output/manuscript.docx: venv output/manuscript.md $(patsubst %, output/figure%.s
 		output/manuscript.md
 
 clean:
-	rm -rf output venv pylint.log
+	rm -rf output venv
