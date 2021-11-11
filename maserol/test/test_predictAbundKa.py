@@ -1,8 +1,8 @@
-from ..predictAbundKa import initial_AbundKa, optimize_lossfunc, compare
+from ..predictAbundKa import initial_AbundKa, optimize_lossfunc
 from ..import_kaplonek import *
 
 def test_SpaceX():
-    flatCube, _, _ = flattenSpaceX()
-    RKa_combined = initial_AbundKa(flatCube, 1)
-    RKa_opt = optimize_lossfunc(RKa_combined, flatCube)
-    compare(RKa_opt,flatCube)
+    cube = cubeSpaceX()
+    R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, 1)
+    RKa_opt = optimize_lossfunc(cube, 1)
+    #compare(RKa_opt, cube)
