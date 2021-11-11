@@ -1,18 +1,19 @@
-import numpy as np
-from valentbind import polyfc
-from import_kaplonek import cubeSpaceX
-from scipy.optimize import least_squares, minimize
-import scipy as scipy
-from tensorly.tenalg import khatri_rao
-import matplotlib.pyplot as plt
-
 """
 Currently runs polyfc to compare with SpaceX data with 6 receptors, 117 subjects, and 14 antigens.
 Polyfc is ran with initial guesses for abundance (117x1) and (14x1)  and Ka for each receptor (6x1).
 Polyfc output is compared to SpaceX data and cost function is minimzied through scipy.optimize.minimize.
 Total fitting parameters = 147
-
 """
+import numpy as np
+from valentbind import polyfc
+from .data.kaplonek import cubeSpaceX
+from scipy.optimize import least_squares, minimize
+import scipy as scipy
+from tensorly.tenalg import khatri_rao
+import matplotlib.pyplot as plt
+
+
+
 
 def initial_AbundKa(cube, n_ab=1):
     """
@@ -47,7 +48,6 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
     # unflatten to three matrices
     n_subj, n_rec, n_Ag = cube.shape
     n_ab = len(x) / np.sum(cube.shape)
-
 
     R_subj = x[0:int(n_subj*n_ab)].reshape(int(n_subj), int(n_ab))
     R_Ag = x[int(n_subj*n_ab):(int(n_subj+n_Ag)*int(n_ab))].reshape(int(n_Ag), int(n_ab))
