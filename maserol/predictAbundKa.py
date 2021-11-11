@@ -10,6 +10,36 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 
+def Req_func(Req, Rtot: np.ndarray, L0fA, AKxStar):
+    """ Mass balance. """
+    pPhisum = 1 + np.dot(AKxStar, Req.T)
+    one = L0fA * Req
+    # j and l might need to be swapped in second term
+    two = np.einsum("ijkl,jmlki->imkj", one, pPhisum)
+    return Req + two - Rtot[:, :, :, np.newaxis]
+
+
+def Lbnd(L0: float, KxStar, Rtot, Kav):
+    """
+    The main function.
+    """
+    L0fA = L0 * 2.0 * Kav
+    AKxStar = Kav * KxStar
+
+    # TODO: Figure out the shape of Req
+    # Req should have one extra dimension compared to Rtot, because Rtot is shared across detections
+    Req = np.zeros((Rtot.shape[0], Rtot.shape[1], Rtot.shape[2], Kav.shape[0]))
+
+    # TODO: Just get sizes to match, then figure out solver
+
+    balance = Req_func(Req, Rtot, L0fA, AKxStar)
+    assert balance.size == Req.size
+
+    Phisum = np.dot(AKxStar, Req.T)
+    print(Phisum.shape)
+    return L0 / KxStar * (np.square(1 + Phisum) - 1)
+
+
 def initial_AbundKa(cube, n_ab=1):
     """
     generate abundance and Ka matrices from random values
@@ -31,6 +61,11 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     LigC = np.array([1])
     Ka = np.exp(Ka[:, np.newaxis])
     RR = np.einsum("ij,kj->ijk", R_subj, R_Ag)
+
+    lOut = Lbnd(L0, KxStar, RR, Ka)
+    print(lOut.shape)
+    print(Lbound_cube.shape)
+    assert lOut.shape == Lbound_cube.shape
 
     it = np.nditer(Lbound_cube, flags=['multi_index'])
     for _ in it:
