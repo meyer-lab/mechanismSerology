@@ -1,5 +1,5 @@
-from ..predictAbundKa import initial_AbundKa, model_lossfunc
-from ..data.kaplonek import flattenSpaceX
+from ..predictAbundKa import initial_AbundKa, optimize_lossfunc
+from ..data.kaplonek import cubeSpaceX
 
 
 def test_SpaceX():
