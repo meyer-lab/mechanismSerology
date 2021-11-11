@@ -6,9 +6,7 @@ Total fitting parameters = 147
 """
 import numpy as np
 from valentbind import polyfc
-from .data.kaplonek import cubeSpaceX
-from scipy.optimize import least_squares, minimize
-from tensorly.tenalg import khatri_rao
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 
@@ -17,9 +15,9 @@ def initial_AbundKa(cube, n_ab=1):
     generate abundance and Ka matrices from random values
     cube.shape == n_subj * n_rec * n_Ag
     """
-    R_subj_guess = np.random.randint(1, high=5, size=(cube.shape[0], n_ab), dtype=int)
-    R_Ag_guess = np.random.randint(1, high=5, size=(cube.shape[2], n_ab), dtype=int)
-    Ka_guess = np.random.randint(1e6, high=9e6, size=(cube.shape[1], n_ab), dtype=int)
+    R_subj_guess = np.random.lognormal(size=(cube.shape[0], n_ab))
+    R_Ag_guess = np.random.lognormal(size=(cube.shape[2], n_ab))
+    Ka_guess = np.random.lognormal(6, size=(cube.shape[1], n_ab))
     return R_subj_guess, R_Ag_guess, np.log(Ka_guess)
 
 
@@ -31,11 +29,14 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     Lbound_cube = np.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
     # Lbound_guess = 6x1638
     LigC = np.array([1])
-    Ka = Ka[:, np.newaxis]
-    for jj in range(Lbound_cube.shape[1]):
-        for ii in range(Lbound_cube.shape[0]):
-            for kk in range(Lbound_cube.shape[2]):
-                Lbound_cube[ii, jj, kk] = polyfc(L0, KxStar, 2, R_subj[ii, :] * R_Ag[kk, :], LigC, np.exp(Ka[jj, :]))[0]
+    Ka = np.exp(Ka[:, np.newaxis])
+    RR = np.einsum("ij,kj->ijk", R_subj, R_Ag)
+
+    it = np.nditer(Lbound_cube, flags=['multi_index'])
+    for _ in it:
+        ii, jj, kk = it.multi_index
+        Lbound_cube[ii, jj, kk] = polyfc(L0, KxStar, 2, RR[ii, :, kk], LigC, Ka[jj, :])[0]
+
     return Lbound_cube
 
 
