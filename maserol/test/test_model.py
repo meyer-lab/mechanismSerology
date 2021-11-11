@@ -4,6 +4,7 @@ Test any functionality that is related to the binding model
 
 from ..model import human_affinity
 
+
 def test_import_affinity():
     """ Test that affinity file is loaded correctly. """
     df = human_affinity()

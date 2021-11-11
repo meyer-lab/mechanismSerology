@@ -1,7 +1,7 @@
+from ..import_kaplonek import *
 from os.path import join, dirname
 path_here = dirname(dirname(__file__))
 
-from ..import_kaplonek import *
 
 def test_imports():
     """ Test that files are successfully loaded. """

@@ -1,6 +1,7 @@
 import numpy as np
 from valentbind import polyfc
 
+
 def initial_AbundKa(flatCube, n_ab=1):
     """
     generate abundance and Ka matrices from random values
@@ -20,7 +21,7 @@ def infer_Lbound(R, Ka, L0=1e-9, KxStar=1e-12):
     LigC = np.array([1])
     for ii in range(Lbound_guess.shape[0]):
         for xx in range(Lbound_guess.shape[1]):
-            Lbound_guess[ii,xx] = polyfc(L0, KxStar, 2, R[:, xx], LigC, Ka[[ii], :])[0]
+            Lbound_guess[ii, xx] = polyfc(L0, KxStar, 2, R[:, xx], LigC, Ka[[ii], :])[0]
     return Lbound_guess
 
 
