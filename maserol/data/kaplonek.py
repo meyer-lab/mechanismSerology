@@ -12,7 +12,7 @@ path_here = dirname(dirname(__file__))
 
 def load_file(name):
     """ Return a requested data file. """
-    data = pd.read_csv(join(path_here, "maserol/data/kaplonek2021/" + name + ".csv"), delimiter=",", comment="#")
+    data = pd.read_csv(join(path_here, "data/kaplonek2021/" + name + ".csv"), delimiter=",", comment="#")
 
     return data
 
