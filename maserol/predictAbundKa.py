@@ -93,19 +93,17 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
     return model_loss
 
 
-def optimize_lossfunc(cube, n_ab=1):
+def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     """
         Optimization method to minimize model_lossfunc output
     """
-
     R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, n_ab=n_ab)
     x0 = np.concatenate((R_subj_guess.flatten(), R_Ag_guess.flatten(), Ka_guess.flatten()))
     bnds = ((0, np.inf), ) * len(x0)
 
-    opt = minimize(model_lossfunc, x0, args=(cube, 1e-9, 1e-12), bounds=bnds, options={"maxiter": 10})
+    opt = minimize(model_lossfunc, x0, args=(cube, 1e-9, 1e-12), bounds=bnds, options={"maxiter": maxiter})
 
-    RKa_opt = opt.x
-    RKa_opt = RKa_opt[:, np.newaxis]
+    RKa_opt = opt.x[:, np.newaxis]
     return RKa_opt
 
 
