@@ -5,39 +5,44 @@ Polyfc output is compared to SpaceX data and cost function is minimzied through 
 Total fitting parameters = 147
 """
 import numpy as np
-from valentbind import polyfc
-from scipy.optimize import minimize
+from scipy.optimize import minimize, least_squares
 import matplotlib.pyplot as plt
 
 
-def Req_func(Req, Rtot: np.ndarray, L0fA, AKxStar):
+def Req_func(Req: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Kav: np.ndarray):
     """ Mass balance. """
-    pPhisum = 1 + np.dot(AKxStar, Req.T)
-    one = L0fA * Req
-    # j and l might need to be swapped in second term
-    two = np.einsum("ijkl,jmlki->imkj", one, pPhisum)
-    return Req + two - Rtot[:, :, :, np.newaxis]
-
-
-def Lbnd(L0: float, KxStar, Rtot, Kav):
-    """
-    The main function.
-    """
-    L0fA = L0 * 2.0 * Kav
+    L0fA = L0 * 2 * Kav
     AKxStar = Kav * KxStar
-
-    # TODO: Figure out the shape of Req
-    # Req should have one extra dimension compared to Rtot, because Rtot is shared across detections
-    Req = np.zeros((Rtot.shape[0], Rtot.shape[1], Rtot.shape[2], Kav.shape[0]))
-
-    # TODO: Just get sizes to match, then figure out solver
-
-    balance = Req_func(Req, Rtot, L0fA, AKxStar)
-    assert balance.size == Req.size
-
     Phisum = np.dot(AKxStar, Req.T)
-    print(Phisum.shape)
-    return L0 / KxStar * (np.square(1 + Phisum) - 1)
+    term = np.einsum("ij,kil,ilk->kil", L0fA, Req, 1 + Phisum)
+    return Req + term - Rtot
+
+
+def lBnd(L0: float, KxStar, Rtot, Kav):
+    """
+    The main function. Generate all info for heterogenenous binding case
+    L0: concentration of ligand complexes.
+    KxStar: detailed balance-corrected Kx.
+    Rtot: numbers of each receptor appearing on the cell.
+    Kav: a matrix of Ka values. row = ligands, col = receptors
+    """
+    # Run least squares to get Req
+    def bal(x):
+        xR = np.reshape(x, Rtot.shape)
+        return Req_func(xR, Rtot, L0, KxStar, Kav).flatten()
+
+    x0 = np.zeros_like(Rtot.flatten())
+    bounds = (np.full_like(Rtot.flatten(), -1e-9), Rtot.flatten() + 1e-9)
+    lsq = least_squares(bal, x0, bounds=bounds, jac="cs", jac_sparsity=np.eye(x0.size))
+    assert lsq.success, "Failure in rootfinding. " + str(lsq)
+
+    Req = np.reshape(lsq.x, Rtot.shape)
+
+    AKxStar = Kav * KxStar
+    Phisum = np.dot(AKxStar, Req.T)
+
+    Lbound = L0 / KxStar * ((1 + Phisum) ** 2 - 1)
+    return np.squeeze(Lbound).T
 
 
 def initial_AbundKa(cube, n_ab=1):
@@ -58,19 +63,11 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     """
     Lbound_cube = np.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
     # Lbound_guess = 6x1638
-    LigC = np.array([1])
     Ka = np.exp(Ka[:, np.newaxis])
     RR = np.einsum("ij,kj->ijk", R_subj, R_Ag)
 
-    lOut = Lbnd(L0, KxStar, RR, Ka)
-    print(lOut.shape)
-    print(Lbound_cube.shape)
-    assert lOut.shape == Lbound_cube.shape
-
-    it = np.nditer(Lbound_cube, flags=['multi_index'])
-    for _ in it:
-        ii, jj, kk = it.multi_index
-        Lbound_cube[ii, jj, kk] = polyfc(L0, KxStar, 2, RR[ii, :, kk], LigC, Ka[jj, :])[0]
+    for jj in range(Lbound_cube.shape[1]):
+        Lbound_cube[:, jj, :] = lBnd(L0, KxStar, RR, Ka[jj, :])
 
     return Lbound_cube
 
