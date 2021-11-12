@@ -5,6 +5,7 @@ Polyfc output is compared to SpaceX data and cost function is minimzied through 
 Total fitting parameters = 147
 """
 import numpy as np
+from scipy.sparse import csr_matrix
 from jax import jacrev
 import jax.numpy as jnp
 from scipy.optimize import minimize, least_squares
@@ -35,8 +36,14 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
 
     jacc = jacrev(bal)
 
+    def jaccFunc(x):
+        J = jacc(x)
+        J = csr_matrix(J)
+        J.eliminate_zeros()
+        return J
+
     x0 = np.zeros_like(Rtot.flatten())
-    lsq = least_squares(bal, x0, jac=jacc, xtol=1e-9, tr_solver="lsmr")
+    lsq = least_squares(bal, x0, jac=jaccFunc, xtol=1e-9, verbose=2, tr_solver="lsmr")
     assert lsq.success, "Failure in rootfinding. " + str(lsq)
 
     Req = np.reshape(lsq.x, Rtot.shape)
