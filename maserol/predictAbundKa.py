@@ -5,6 +5,8 @@ Polyfc output is compared to SpaceX data and cost function is minimzied through 
 Total fitting parameters = 147
 """
 import numpy as np
+from jax import jacrev
+import jax.numpy as jnp
 from scipy.optimize import minimize, least_squares
 import matplotlib.pyplot as plt
 
@@ -13,8 +15,8 @@ def Req_func(Req: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Kav: n
     """ Mass balance. """
     L0fA = L0 * 2 * Kav
     AKxStar = Kav * KxStar
-    Phisum = np.dot(AKxStar, Req.T)
-    term = np.einsum("ij,kil,ilk->kil", L0fA, Req, 1 + Phisum)
+    Phisum = jnp.dot(AKxStar, Req.T)
+    term = jnp.einsum("ij,kil,ilk->kil", L0fA, Req, 1 + Phisum)
     return Req + term - Rtot
 
 
@@ -31,9 +33,10 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
         xR = np.reshape(x, Rtot.shape)
         return Req_func(xR, Rtot, L0, KxStar, Kav).flatten()
 
+    jacc = jacrev(bal)
+
     x0 = np.zeros_like(Rtot.flatten())
-    bounds = (np.full_like(Rtot.flatten(), -1e-9), Rtot.flatten() + 1e-9)
-    lsq = least_squares(bal, x0, bounds=bounds, jac="cs", jac_sparsity=np.eye(x0.size))
+    lsq = least_squares(bal, x0, jac=jacc, xtol=1e-9, tr_solver="lsmr")
     assert lsq.success, "Failure in rootfinding. " + str(lsq)
 
     Req = np.reshape(lsq.x, Rtot.shape)
