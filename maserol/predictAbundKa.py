@@ -6,7 +6,7 @@ Total fitting parameters = 147
 """
 import numpy as np
 from scipy.sparse import csr_matrix
-from jax import jacrev
+from jax import jacrev, jit
 import jax.numpy as jnp
 from scipy.optimize import minimize, least_squares
 import matplotlib.pyplot as plt
@@ -34,16 +34,16 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
         xR = np.reshape(x, Rtot.shape)
         return Req_func(xR, Rtot, L0, KxStar, Kav).flatten()
 
-    jacc = jacrev(bal)
+    jacc = jit(jacrev(bal))
 
     def jaccFunc(x):
-        J = jacc(x)
-        J = csr_matrix(J)
+        J = csr_matrix(jacc(x))
         J.eliminate_zeros()
         return J
 
-    x0 = np.zeros_like(Rtot.flatten())
-    lsq = least_squares(bal, x0, jac=jaccFunc, xtol=1e-9, verbose=2, tr_solver="lsmr")
+    x0 = Rtot.flatten() / 1000.0
+    bnd = (0.0, Rtot.flatten())
+    lsq = least_squares(bal, x0, jac=jaccFunc, bounds=bnd, xtol=1e-9, tr_solver="lsmr")
     assert lsq.success, "Failure in rootfinding. " + str(lsq)
 
     Req = np.reshape(lsq.x, Rtot.shape)
