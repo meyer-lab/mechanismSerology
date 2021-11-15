@@ -1,6 +1,6 @@
-# Dissecting systems serology with structured factorization
+# Dissecting systems serology with a mechanistic binding model
 
-![tests](https://github.com/meyer-lab/mechanismSerology/workflows/Run%20tests/badge.svg?branch=master)
+[![Test](https://github.com/meyer-lab/mechanismSerology/actions/workflows/pytest.yml/badge.svg)](https://github.com/meyer-lab/mechanismSerology/actions/workflows/pytest.yml)
 [![codecov](https://codecov.io/gh/meyer-lab/mechanismSerology/branch/master/graph/badge.svg)](https://codecov.io/gh/meyer-lab/mechanismSerology)
 
 [Manuscript Build](https://meyer-lab.github.io/mechanismSerology/manuscript.html)
