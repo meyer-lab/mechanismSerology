@@ -7,9 +7,13 @@ Total fitting parameters = 147
 import numpy as np
 from scipy.sparse import csr_matrix
 from jax import jacrev, jit
+from jax.config import config
 import jax.numpy as jnp
 from scipy.optimize import minimize, least_squares
 import matplotlib.pyplot as plt
+
+
+config.update("jax_enable_x64", True)
 
 
 def Req_func(Req: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Kav: np.ndarray):
@@ -41,8 +45,9 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
         J.eliminate_zeros()
         return J
 
-    x0 = Rtot.flatten() / 1000.0
+    x0 = Rtot.flatten()
     bnd = (0.0, Rtot.flatten())
+    x0 = x0 / (1.0 + 2.0 * L0 * np.amax(Kav)) # Monovalent guess using highest affinity
     lsq = least_squares(bal, x0, jac=jaccFunc, bounds=bnd, xtol=1e-9, tr_solver="lsmr")
     assert lsq.success, "Failure in rootfinding. " + str(lsq)
 
@@ -114,7 +119,7 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     return RKa_opt
 
 
-def compare(Rka_opt, cube):
+def compare(RKa_opt, cube):
     """
     Uses optimal parameters from optimize_lossfunc to run the model
     Generates prelim figures to compare experimental and model results
