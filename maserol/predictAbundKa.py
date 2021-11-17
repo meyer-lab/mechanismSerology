@@ -11,6 +11,7 @@ from jax.config import config
 import jax.numpy as jnp
 from scipy.optimize import minimize, least_squares
 import matplotlib.pyplot as plt
+from .model import lBnd
 
 
 config.update("jax_enable_x64", True)
