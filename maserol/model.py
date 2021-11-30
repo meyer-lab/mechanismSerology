@@ -35,7 +35,8 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     AKxStar = Kav * KxStar
 
     x0 = Rtot.flatten()
-    bnd = (0.0, Rtot.flatten())
+    #bnd = (0.0, Rtot.flatten())
+    bnd = (0.0, np.inf)
 
     # Run least squares to get Req
     def bal(x):

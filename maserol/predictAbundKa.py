@@ -4,20 +4,25 @@ Polyfc is ran with initial guesses for abundance (117x1) and (14x1)  and Ka for 
 Polyfc output is compared to SpaceX data and cost function is minimzied through scipy.optimize.minimize.
 Total fitting parameters = 147
 """
+# %%
 import numpy as np
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-from .model import lBnd
+from model import lBnd
+import pickle
+from scipy.stats import pearsonr
 
-
+# %%
 def initial_AbundKa(cube, n_ab=1):
     """
     generate abundance and Ka matrices from random values
     cube.shape == n_subj * n_rec * n_Ag
     """
+    
     R_subj_guess = np.random.lognormal(size=(cube.shape[0], n_ab))
     R_Ag_guess = np.random.lognormal(size=(cube.shape[2], n_ab))
-    Ka_guess = np.random.lognormal(6, size=(cube.shape[1], n_ab))
+    Ka_guess = np.random.lognormal(11, size=(cube.shape[1], n_ab))
+    print(Ka_guess)
     return R_subj_guess, R_Ag_guess, np.log(Ka_guess)
 
 
@@ -51,6 +56,17 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
 
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
     model_loss = np.nansum((Lbound - cube)**2)
+    
+    pickle.dump(model_loss, open('SpaceX_modelloss.p', 'wb'))
+    all_modelloss = []
+    with (open("SpaceX_modelloss.p", "rb")) as openfile:
+        while True:
+            try:
+
+                all_modelloss.append(pickle.load(openfile))
+            except EOFError:
+                break
+
     print("Model loss: ", model_loss)
     return model_loss
 
@@ -68,13 +84,95 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     RKa_opt = opt.x[:, np.newaxis]
     return RKa_opt
 
-
-def compare(RKa_opt, cube):
+# %%
+def compare(RKa_opt, cube, rec_names, ant_names):
     """
     Uses optimal parameters from optimize_lossfunc to run the model
     Generates prelim figures to compare experimental and model results
+    R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar
     """
-    Lbound_model = infer_Lbound(RKa_opt[:cube.shape[1], :], RKa_opt[cube.shape[1]:, :])
 
-    for ii in range(cube.shape[0]):
-        plt.plot(cube[ii, :], Lbound_model[ii, :])
+    n_subj, n_rec, n_Ag = cube.shape
+    n_ab = int(len(RKa_opt) / np.sum(cube.shape))
+
+    R_subj = RKa_opt[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
+    R_Ag = RKa_opt[(n_subj * n_ab):((n_subj + n_Ag) * n_ab)].reshape(n_Ag, n_ab)
+    Ka = RKa_opt[(n_subj + n_Ag) * n_ab:(n_subj + n_Ag + n_rec) * n_ab].reshape(n_rec, n_ab)
+    Lbound_model = infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12)
+
+    #cube = cube.reshape((n_subj*n_Ag), n_rec)
+    #Lbound_model = Lbound_model.reshape((n_subj*n_Ag), n_rec)
+    
+    coeff = np.zeros([n_rec,n_Ag])
+    for ii in range(cube.shape[1]):
+        for jj in range(cube.shape[2]):
+            #ax, fig = plt.subplots()
+            #plt.scatter(cube[:,ii,0], Lbound_model[:,ii,0])
+        
+            coeff[ii,jj], _ = pearsonr(cube[:,ii,jj],Lbound_model[:,ii,jj])
+    
+            #plt.legend(coeff[ii,:])
+    
+            #plt.xlabel('Actual')
+            #plt.ylabel('Predicted')
+            #plt.title(['SpaceX data:', ant_names[0],'and',rec_names[ii]])
+            #plt.show()
+    print(coeff)  
+
+    fig, ax = plt.subplots()
+    fig = ax.imshow(coeff)  
+
+    # Show all ticks and label them with the respective list entries
+
+
+    plt.xticks(np.arange(len(ant_names)),ant_names)
+    plt.yticks(np.arange(len(rec_names)),rec_names)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+         rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    for i in range(len(ant_names)):
+        for j in range(len(rec_names)):
+            text = ax.text(i, j, round(coeff[j, i],2),
+                ha="center", va="center", color="w")
+               
+
+
+
+
+    plt.show() 
+    return coeff       
+    
+
+# run below to obtain optimal parameters
+#%%
+from data.kaplonek import cubeSpaceX, importSpaceX
+#from data.atyeo import createCube
+cube = cubeSpaceX()
+_,_,_,rec_names,ant_names = importSpaceX()
+
+cube = cube[:10,:,:]
+RKa_opt = optimize_lossfunc(cube, n_ab=1, maxiter=100)
+
+with open("SpaceX_optparams.pkl", "wb") as output_file:
+    pickle.dump(RKa_opt, output_file)
+
+
+# run below to generate figures
+# %%
+from data.kaplonek import cubeSpaceX, importSpaceX
+#from data.atyeo import createCube
+cube = cubeSpaceX()
+cube = cube[:10,:,:]
+_,_,_,rec_names,ant_names = importSpaceX()
+
+with open("SpaceX_optparams.pkl", "rb") as open_file:
+    optparams = pickle.load(open_file)
+
+optparams = (np.asarray(optparams)).flatten()
+print(optparams)
+
+coeff = compare(optparams,cube, rec_names, ant_names)
+
