@@ -1,8 +1,9 @@
+#%%
+
 from os.path import join, dirname
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
 path_here = dirname(dirname(__file__))
 
 # import .read_csv
@@ -38,6 +39,9 @@ def importSpaceX():
 def cubeSpaceX():
     [SX_data, SX_subjects, SX_rec_names, SX_unique_rec_names, SX_unique_ant_names] = importSpaceX()
 
+
+
+
     rec_ind = np.zeros((SX_unique_rec_names.size, int(SX_rec_names.size / SX_unique_rec_names.size))).astype(int)
 
     for xx in range(SX_unique_rec_names.size):
@@ -50,6 +54,8 @@ def cubeSpaceX():
     for subject_ind in range(np.size(SX_cube, 0)):
         for receptor_ind in range(np.size(SX_cube, 1)):
             SX_cube[subject_ind, receptor_ind, :] = SX_data[subject_ind, rec_ind[receptor_ind, :]]
+    
+
 
     # Check that there are no slices with completely missing data
     assert ~np.any(np.all(np.isnan(SX_cube), axis=(0, 1)))
@@ -170,3 +176,5 @@ def flattenMGH():
     assert(MGH_flatCube[4, 5202] == MGH_cube[578, 4, 0])
 
     return MGH_flatCube, MGH_subxant_names, MGH_unique_rec_names
+
+# %%

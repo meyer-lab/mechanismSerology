@@ -56,6 +56,7 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
 
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
     model_loss = np.nansum((Lbound - cube)**2)
+    print(np.isnan(cube.any()))
     
     pickle.dump(model_loss, open('SpaceX_modelloss.p', 'wb'))
     all_modelloss = []
@@ -153,7 +154,7 @@ from data.kaplonek import cubeSpaceX, importSpaceX
 cube = cubeSpaceX()
 _,_,_,rec_names,ant_names = importSpaceX()
 
-cube = cube[:10,:,:]
+
 RKa_opt = optimize_lossfunc(cube, n_ab=1, maxiter=100)
 
 with open("SpaceX_optparams.pkl", "wb") as output_file:
@@ -176,3 +177,5 @@ print(optparams)
 
 coeff = compare(optparams,cube, rec_names, ant_names)
 
+
+# %%
