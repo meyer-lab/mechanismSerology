@@ -3,11 +3,9 @@
 from os.path import join, dirname
 import numpy as np
 import pandas as pd
-from scipy.sparse.linalg import LinearOperator
-from jax import vjp, jit
 from jax.config import config
 import jax.numpy as jnp
-from scipy.optimize import least_squares
+from jaxopt import ScipyRootFinding
 
 
 path_here = dirname(dirname(__file__))
@@ -38,28 +36,22 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     bnd = (0.0, Rtot.flatten())
 
     # Run least squares to get Req
-    def bal(x):
+    def bal(x, *args):
         xR = jnp.reshape(x, Rtot.shape)
-        return Req_func(xR, Rtot, L0fA, AKxStar).flatten()
-
-    # Define a Jacobian linear operator so we don't have to enumerate it
-    def jaccFunc(x):
-        _, f_vjp = vjp(bal, x)
-        f_vjp = jit(f_vjp)
-        funcc = lambda x: f_vjp(np.squeeze(x))
-        return LinearOperator((x0.size, x0.size), rmatvec=funcc, matvec=funcc)
+        return Req_func(xR, *args).flatten()
     
-    x0 = x0 / (1.0 + 2.0 * L0 * np.amax(Kav)) # Monovalent guess using highest affinity
-    lsq = least_squares(bal, x0, jac=jaccFunc, bounds=bnd, xtol=1e-9, tr_solver="lsmr")
-    assert lsq.success, "Failure in rootfinding. " + str(lsq)
+    x0 = x0 / (1.0 + 2.0 * L0 * jnp.amax(Kav)) # Monovalent guess using highest affinity
 
-    Req = np.reshape(lsq.x, Rtot.shape)
+    lsq = ScipyRootFinding(method="lm", optimality_fun=bal, tol=1e-10)
+    lsq = lsq.run(x0, Rtot, L0fA, AKxStar)
+    assert lsq.state.success, "Failure in rootfinding. " + str(lsq)
+    Req = jnp.reshape(lsq.params, Rtot.shape)
 
     AKxStar = Kav * KxStar
-    Phisum = np.dot(AKxStar, Req.T)
+    Phisum = jnp.dot(AKxStar, Req.T)
 
     Lbound = L0 / KxStar * ((1 + Phisum) ** 2 - 1)
-    return np.squeeze(Lbound).T
+    return jnp.squeeze(Lbound).T
 
 
 def human_affinity():

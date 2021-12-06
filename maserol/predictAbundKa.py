@@ -5,8 +5,10 @@ Polyfc output is compared to SpaceX data and cost function is minimzied through 
 Total fitting parameters = 147
 """
 import numpy as np
-from scipy.optimize import minimize
+import jax.numpy as jnp
+from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
+from jax import jacrev
 from .model import lBnd
 
 
@@ -26,13 +28,13 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     pass the matrices generated above into polyfc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten
     """
-    Lbound_cube = np.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
+    Lbound_cube = jnp.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
     # Lbound_guess = 6x1638
-    Ka = np.exp(Ka[:, np.newaxis])
-    RR = np.einsum("ij,kj->ijk", R_subj, R_Ag)
+    Ka = jnp.exp(Ka[:, np.newaxis])
+    RR = jnp.einsum("ij,kj->ijk", R_subj, R_Ag)
 
     for jj in range(Lbound_cube.shape[1]):
-        Lbound_cube[:, jj, :] = lBnd(L0, KxStar, RR, Ka[jj, :])
+        Lbound_cube = Lbound_cube.at[:, jj, :].set(lBnd(L0, KxStar, RR, Ka[jj, :]))
 
     return Lbound_cube
 
@@ -50,9 +52,7 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
     Ka = x[(n_subj + n_Ag) * n_ab:(n_subj + n_Ag + n_rec) * n_ab].reshape(n_rec, n_ab)
 
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
-    model_loss = np.nansum((Lbound - cube)**2)
-    print("Model loss: ", model_loss)
-    return model_loss
+    return (Lbound - cube).flatten()
 
 
 def optimize_lossfunc(cube, n_ab=1, maxiter=100):
@@ -61,9 +61,8 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     """
     R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, n_ab=n_ab)
     x0 = np.concatenate((R_subj_guess.flatten(), R_Ag_guess.flatten(), Ka_guess.flatten()))
-    bnds = ((0, np.inf), ) * len(x0)
 
-    opt = minimize(model_lossfunc, x0, args=(cube, 1e-9, 1e-12), bounds=bnds, options={"maxiter": maxiter})
+    opt = least_squares(model_lossfunc, x0, args=(cube, 1e-9, 1e-12), jac=jacrev(model_lossfunc), bounds=(0, np.inf), verbose=2, max_nfev=maxiter)
 
     RKa_opt = opt.x[:, np.newaxis]
     return RKa_opt
