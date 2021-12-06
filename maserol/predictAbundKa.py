@@ -62,6 +62,7 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, n_ab=n_ab)
     x0 = np.concatenate((R_subj_guess.flatten(), R_Ag_guess.flatten(), Ka_guess.flatten()))
 
+    print("")
     opt = least_squares(model_lossfunc, x0, args=(cube, 1e-9, 1e-12), jac=jacrev(model_lossfunc), bounds=(0, np.inf), verbose=2, max_nfev=maxiter)
 
     RKa_opt = opt.x[:, np.newaxis]

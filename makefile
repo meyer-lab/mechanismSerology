@@ -17,6 +17,9 @@ output/figure%.svg: venv genFigure.py maserol/figures/figure%.py
 test: venv
 	. venv/bin/activate && pytest -s -v -x
 
+testprofile: venv
+	. venv/bin/activate && python3 -m cProfile -o profile -m pytest -s -v -x
+
 output/manuscript.md: venv manuscript/*.md
 	. venv/bin/activate && manubot process --content-directory=manuscript --output-directory=output --cache-directory=cache --skip-citations --log-level=INFO
 	git remote rm rootstock

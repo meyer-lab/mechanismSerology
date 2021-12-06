@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from jax.config import config
 import jax.numpy as jnp
-from jaxopt import ScipyRootFinding
+from jaxopt import ScipyLeastSquares
 
 
 path_here = dirname(dirname(__file__))
@@ -33,7 +33,6 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     AKxStar = Kav * KxStar
 
     x0 = Rtot.flatten()
-    bnd = (0.0, Rtot.flatten())
 
     # Run least squares to get Req
     def bal(x, *args):
@@ -42,9 +41,10 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     
     x0 = x0 / (1.0 + 2.0 * L0 * jnp.amax(Kav)) # Monovalent guess using highest affinity
 
-    lsq = ScipyRootFinding(method="lm", optimality_fun=bal, tol=1e-10)
+    lsq = ScipyLeastSquares('trf', fun=bal, options={"xtol": 1e-9})
     lsq = lsq.run(x0, Rtot, L0fA, AKxStar)
     assert lsq.state.success, "Failure in rootfinding. " + str(lsq)
+    assert lsq.state.cost_val < 1.0e-9
     Req = jnp.reshape(lsq.params, Rtot.shape)
 
     AKxStar = Kav * KxStar
