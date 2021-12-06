@@ -1,5 +1,5 @@
 
-flist = 0
+flist = 0 2
 
 all: $(patsubst %, output/figure%.svg, $(flist))
 

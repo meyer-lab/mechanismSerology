@@ -8,8 +8,7 @@ Total fitting parameters = 147
 import numpy as np
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-from model import lBnd
-import pickle
+from .model import lBnd
 from scipy.stats import pearsonr
 
 # %%
@@ -85,97 +84,42 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     RKa_opt = opt.x[:, np.newaxis]
     return RKa_opt
 
-# %%
-def compare(RKa_opt, cube, rec_names, ant_names):
-    """
-    Uses optimal parameters from optimize_lossfunc to run the model
-    Generates prelim figures to compare experimental and model results
-    R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar
-    """
 
+def opt_to_matrices(cube, RKa_opt):
     n_subj, n_rec, n_Ag = cube.shape
     n_ab = int(len(RKa_opt) / np.sum(cube.shape))
 
     R_subj = RKa_opt[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
     R_Ag = RKa_opt[(n_subj * n_ab):((n_subj + n_Ag) * n_ab)].reshape(n_Ag, n_ab)
     Ka = RKa_opt[(n_subj + n_Ag) * n_ab:(n_subj + n_Ag + n_rec) * n_ab].reshape(n_rec, n_ab)
+    return R_subj, R_Ag, Ka
+
+
+def plot_correlation_heatmap(ax, RKa_opt, cube, rec_names, ant_names):
+    """
+    Uses optimal parameters from optimize_lossfunc to run the model
+    Generates prelim figures to compare experimental and model results
+    R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar
+    """
+
+    R_subj, R_Ag, Ka = opt_to_matrices(cube, RKa_opt)
     Lbound_model = infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12)
 
-    #cube = cube.reshape((n_subj*n_Ag), n_rec)
-    #Lbound_model = Lbound_model.reshape((n_subj*n_Ag), n_rec)
-    
-    coeff = np.zeros([n_rec,n_Ag])
+    coeff = np.zeros([cube.shape[1], cube.shape[2]])
     for ii in range(cube.shape[1]):
         for jj in range(cube.shape[2]):
-            #ax, fig = plt.subplots()
-            #plt.scatter(cube[:,ii,0], Lbound_model[:,ii,0])
-        
-            coeff[ii,jj], _ = pearsonr(cube[:,ii,jj],Lbound_model[:,ii,jj])
-    
-            #plt.legend(coeff[ii,:])
-    
-            #plt.xlabel('Actual')
-            #plt.ylabel('Predicted')
-            #plt.title(['SpaceX data:', ant_names[0],'and',rec_names[ii]])
-            #plt.show()
-    print(coeff)  
+            coeff[ii, jj], _ = pearsonr(cube[:, ii, jj], Lbound_model[:, ii, jj])
 
-    fig, ax = plt.subplots()
-    fig = ax.imshow(coeff)  
+    print(coeff)
+    ax.imshow(coeff)
 
     # Show all ticks and label them with the respective list entries
-
-
-    plt.xticks(np.arange(len(ant_names)),ant_names)
-    plt.yticks(np.arange(len(rec_names)),rec_names)
-
-    # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-         rotation_mode="anchor")
+    ax.set_xticks(np.arange(len(ant_names)))
+    ax.set_xticklabels(ant_names, rotation=45)
+    ax.set_yticks(np.arange(len(rec_names)))
+    ax.set_yticklabels(rec_names)
 
     # Loop over data dimensions and create text annotations.
     for i in range(len(ant_names)):
         for j in range(len(rec_names)):
-            text = ax.text(i, j, round(coeff[j, i],2),
-                ha="center", va="center", color="w")
-               
-
-
-
-
-    plt.show() 
-    return coeff       
-    
-
-# run below to obtain optimal parameters
-#%%
-from data.kaplonek import cubeSpaceX, importSpaceX
-#from data.atyeo import createCube
-cube = cubeSpaceX()
-_,_,_,rec_names,ant_names = importSpaceX()
-
-
-RKa_opt = optimize_lossfunc(cube, n_ab=1, maxiter=100)
-
-with open("SpaceX_optparams.pkl", "wb") as output_file:
-    pickle.dump(RKa_opt, output_file)
-
-
-# run below to generate figures
-# %%
-from data.kaplonek import cubeSpaceX, importSpaceX
-#from data.atyeo import createCube
-cube = cubeSpaceX()
-cube = cube[:10,:,:]
-_,_,_,rec_names,ant_names = importSpaceX()
-
-with open("SpaceX_optparams.pkl", "rb") as open_file:
-    optparams = pickle.load(open_file)
-
-optparams = (np.asarray(optparams)).flatten()
-print(optparams)
-
-coeff = compare(optparams,cube, rec_names, ant_names)
-
-
-# %%
+            text = ax.text(i, j, round(coeff[j, i], 2), ha="center", va="center", color="w")
