@@ -41,15 +41,13 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     
     x0 = x0 / (1.0 + 2.0 * L0 * jnp.amax(Kav)) # Monovalent guess using highest affinity
 
-    lsq = ScipyLeastSquares('trf', fun=bal, options={"xtol": 1e-9})
+    lsq = ScipyLeastSquares('trf', fun=bal, options={"xtol": 1e-9, "gtol": 1e-12})
     lsq = lsq.run(x0, Rtot, L0fA, AKxStar)
     assert lsq.state.success, "Failure in rootfinding. " + str(lsq)
     assert lsq.state.cost_val < 1.0e-9
     Req = jnp.reshape(lsq.params, Rtot.shape)
 
-    AKxStar = Kav * KxStar
     Phisum = jnp.dot(AKxStar, Req.T)
-
     Lbound = L0 / KxStar * ((1 + Phisum) ** 2 - 1)
     return jnp.squeeze(Lbound).T
 
