@@ -38,8 +38,8 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     def bal(x, *args):
         xR = jnp.reshape(x, Rtot.shape)
         return Req_func(xR, *args).flatten()
-    
-    x0 = x0 / (1.0 + L0fA) # Monovalent guess
+
+    x0 = x0 / (1.0 + jnp.amax(L0fA, axis=1)) # Monovalent guess
 
     lsq = ScipyLeastSquares('trf', fun=bal, options={"xtol": 1e-9, "gtol": 1e-12})
     lsq = lsq.run(x0, Rtot, L0fA, AKxStar)
