@@ -15,9 +15,11 @@ config.update("jax_enable_x64", True)
 
 
 def phi(Phisum, Rtot, L0, KxStar, Kav):
+    Phisum = Phisum.reshape((Rtot.shape[0], 1, Rtot.shape[2]))
     Req = Rtot / (1.0 + 2.0 * L0 * Kav * (1.0 + Phisum))
-    Phisum = jnp.dot(Kav * KxStar, Req.T)
-    return Phisum
+    assert Req.shape == Rtot.shape
+    Phisum = jnp.einsum("ij,kil->kl", Kav * KxStar, Req)
+    return Phisum.flatten()
 
 
 def lBnd(L0: float, KxStar, Rtot, Kav):
@@ -28,11 +30,11 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     Rtot: numbers of each receptor appearing on the cell.
     Kav: a matrix of Ka values. row = ligands, col = receptors
     """
+    x0 = jnp.zeros(Rtot.shape[0] * Rtot.shape[2])
     fpi = FixedPointIteration(fixed_point_fun=phi, tol=1e-12, implicit_diff=True)
-    fpout = fpi.run(0.0, Rtot, L0, KxStar, Kav)
-    Phisum = np.squeeze(fpout.params)
+    fpout = fpi.run(x0, Rtot, L0, KxStar, Kav)
+    Phisum = fpout.params.reshape((Rtot.shape[0], Rtot.shape[2]))
     Lbound = L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
-    assert False
     return Lbound
 
 
