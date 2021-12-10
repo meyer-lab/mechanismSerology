@@ -51,7 +51,7 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
     Ka = x[(n_subj + n_Ag) * n_ab:(n_subj + n_Ag + n_rec) * n_ab].reshape(n_rec, n_ab)
 
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
-    return jnp.linalg.norm(Lbound - cube)
+    return jnp.linalg.norm(jnp.nan_to_num(Lbound - cube))
 
 
 def optimize_lossfunc(cube, n_ab=1, maxiter=100):

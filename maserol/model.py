@@ -1,11 +1,10 @@
 """ Import binding affinities. """
 
 from os.path import join, dirname
-import numpy as np
 import pandas as pd
 from jax.config import config
 import jax.numpy as jnp
-from jaxopt import ScipyLeastSquares, FixedPointIteration
+from jaxopt import FixedPointIteration
 
 
 path_here = dirname(dirname(__file__))
@@ -31,8 +30,9 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     Kav: a matrix of Ka values. row = ligands, col = receptors
     """
     x0 = jnp.zeros(Rtot.shape[0] * Rtot.shape[2])
-    fpi = FixedPointIteration(fixed_point_fun=phi, tol=1e-12, implicit_diff=True)
+    fpi = FixedPointIteration(fixed_point_fun=phi, tol=1e-16, implicit_diff=True)
     fpout = fpi.run(x0, Rtot, L0, KxStar, Kav)
+    assert fpout.state.error < 1e-16
     Phisum = fpout.params.reshape((Rtot.shape[0], Rtot.shape[2]))
     Lbound = L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
     return Lbound
