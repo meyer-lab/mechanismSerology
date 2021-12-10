@@ -32,8 +32,11 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     # Lbound_guess = 6x1638
     RR = jnp.einsum("ij,kj->ijk", R_subj, R_Ag)
 
-    for jj in range(Lbound_cube.shape[1]):
-        Lbound_cube = Lbound_cube.at[:, jj, :].set(lBnd(L0, KxStar, RR, Ka[jj, np.newaxis, :]))
+    for ii in range(Lbound_cube.shape[0]):
+        print(ii)
+        for jj in range(Lbound_cube.shape[1]):
+            for kk in range(Lbound_cube.shape[2]):
+                Lbound_cube = Lbound_cube.at[ii, jj, kk].set(lBnd(L0, KxStar, RR[ii, :, kk], Ka[jj, np.newaxis, :]))
 
     return Lbound_cube
 
