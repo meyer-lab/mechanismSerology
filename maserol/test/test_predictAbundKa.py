@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from ..predictAbundKa import initial_AbundKa, model_lossfunc
+from ..predictAbundKa import initial_AbundKa, model_lossfunc, optimize_lossfunc
 from ..data.kaplonek import cubeSpaceX
 
 
@@ -11,3 +11,6 @@ def test_SpaceX(n_ab):
     x0 = np.concatenate((R_subj_guess.flatten(), R_Ag_guess.flatten(), Ka_guess.flatten()))
     RKa_opt = model_lossfunc(x0, cube, 1e-9, 1e-12)
     assert RKa_opt > 0.0
+    assert np.isfinite(RKa_opt)
+
+    optimize_lossfunc(cube, n_ab=n_ab, maxiter=2)
