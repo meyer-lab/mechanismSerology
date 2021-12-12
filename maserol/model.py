@@ -1,13 +1,10 @@
 """ Import binding affinities. """
 
 from os.path import join, dirname
-import numpy as np
 import pandas as pd
-from scipy.sparse.linalg import LinearOperator
-from jax import vjp, jit
 from jax.config import config
 import jax.numpy as jnp
-from scipy.optimize import least_squares
+from jaxopt import FixedPointIteration
 
 
 path_here = dirname(dirname(__file__))
@@ -16,11 +13,12 @@ path_here = dirname(dirname(__file__))
 config.update("jax_enable_x64", True)
 
 
-def Req_func(Req: np.ndarray, Rtot: np.ndarray, L0fA: np.ndarray, AKxStar: np.ndarray):
-    """ Mass balance. """
-    Phisum = jnp.dot(AKxStar, Req.T)
-    term = jnp.einsum("ij,kil,ilk->kil", L0fA, Req, 1 + Phisum)
-    return Req + term - Rtot
+def phi(Phisum, Rtot, L0, KxStar, Kav):
+    Phisum = Phisum.reshape((Rtot.shape[0], 1, Rtot.shape[2]))
+    Req = Rtot / (1.0 + 2.0 * L0 * Kav * (1.0 + Phisum))
+    assert Req.shape == Rtot.shape
+    Phisum = jnp.einsum("ij,kil->kl", Kav * KxStar, Req)
+    return Phisum.flatten()
 
 
 def lBnd(L0: float, KxStar, Rtot, Kav):
@@ -31,36 +29,13 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     Rtot: numbers of each receptor appearing on the cell.
     Kav: a matrix of Ka values. row = ligands, col = receptors
     """
-    L0fA = L0 * 2 * Kav
-    AKxStar = Kav * KxStar
-
-    x0 = Rtot.flatten()
-    #bnd = (0.0, Rtot.flatten())
-    bnd = (0.0, np.inf)
-
-    # Run least squares to get Req
-    def bal(x):
-        xR = jnp.reshape(x, Rtot.shape)
-        return Req_func(xR, Rtot, L0fA, AKxStar).flatten()
-
-    # Define a Jacobian linear operator so we don't have to enumerate it
-    def jaccFunc(x):
-        _, f_vjp = vjp(bal, x)
-        f_vjp = jit(f_vjp)
-        funcc = lambda x: f_vjp(np.squeeze(x))
-        return LinearOperator((x0.size, x0.size), rmatvec=funcc, matvec=funcc)
-    
-    x0 = x0 / (1.0 + 2.0 * L0 * np.amax(Kav)) # Monovalent guess using highest affinity
-    lsq = least_squares(bal, x0, jac=jaccFunc, bounds=bnd, xtol=1e-9, tr_solver="lsmr")
-    assert lsq.success, "Failure in rootfinding. " + str(lsq)
-
-    Req = np.reshape(lsq.x, Rtot.shape)
-
-    AKxStar = Kav * KxStar
-    Phisum = np.dot(AKxStar, Req.T)
-
-    Lbound = L0 / KxStar * ((1 + Phisum) ** 2 - 1)
-    return np.squeeze(Lbound).T
+    x0 = jnp.zeros(Rtot.shape[0] * Rtot.shape[2])
+    fpi = FixedPointIteration(fixed_point_fun=phi, tol=1e-16, implicit_diff=True)
+    fpout = fpi.run(x0, Rtot, L0, KxStar, Kav)
+    assert fpout.state.error < 1e-16
+    Phisum = fpout.params.reshape((Rtot.shape[0], Rtot.shape[2]))
+    Lbound = L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
+    return Lbound
 
 
 def human_affinity():

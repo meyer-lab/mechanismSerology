@@ -6,8 +6,10 @@ Total fitting parameters = 147
 """
 # %%
 import numpy as np
+import jax.numpy as jnp
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
+from jax import value_and_grad
 from .model import lBnd
 from scipy.stats import pearsonr
 
@@ -20,9 +22,8 @@ def initial_AbundKa(cube, n_ab=1):
     
     R_subj_guess = np.random.lognormal(size=(cube.shape[0], n_ab))
     R_Ag_guess = np.random.lognormal(size=(cube.shape[2], n_ab))
-    Ka_guess = np.random.lognormal(11, size=(cube.shape[1], n_ab))
-    print(Ka_guess)
-    return R_subj_guess, R_Ag_guess, np.log(Ka_guess)
+    Ka_guess = np.random.lognormal(6, size=(cube.shape[1], n_ab))
+    return R_subj_guess, R_Ag_guess, Ka_guess
 
 
 def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
@@ -30,13 +31,12 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     pass the matrices generated above into polyfc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten
     """
-    Lbound_cube = np.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
+    Lbound_cube = jnp.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
     # Lbound_guess = 6x1638
-    Ka = np.exp(Ka[:, np.newaxis])
-    RR = np.einsum("ij,kj->ijk", R_subj, R_Ag)
+    RR = jnp.einsum("ij,kj->ijk", R_subj, R_Ag)
 
     for jj in range(Lbound_cube.shape[1]):
-        Lbound_cube[:, jj, :] = lBnd(L0, KxStar, RR, Ka[jj, :])
+        Lbound_cube = Lbound_cube.at[:, jj, :].set(lBnd(L0, KxStar, RR, Ka[jj, :, np.newaxis]))
 
     return Lbound_cube
 
@@ -54,21 +54,7 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
     Ka = x[(n_subj + n_Ag) * n_ab:(n_subj + n_Ag + n_rec) * n_ab].reshape(n_rec, n_ab)
 
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
-    model_loss = np.nansum((Lbound - cube)**2)
-    print(np.isnan(cube.any()))
-    
-    pickle.dump(model_loss, open('SpaceX_modelloss.p', 'wb'))
-    all_modelloss = []
-    with (open("SpaceX_modelloss.p", "rb")) as openfile:
-        while True:
-            try:
-
-                all_modelloss.append(pickle.load(openfile))
-            except EOFError:
-                break
-
-    print("Model loss: ", model_loss)
-    return model_loss
+    return jnp.linalg.norm(jnp.nan_to_num(Lbound - cube))
 
 
 def optimize_lossfunc(cube, n_ab=1, maxiter=100):
@@ -77,12 +63,19 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     """
     R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, n_ab=n_ab)
     x0 = np.concatenate((R_subj_guess.flatten(), R_Ag_guess.flatten(), Ka_guess.flatten()))
-    bnds = ((0, np.inf), ) * len(x0)
 
-    opt = minimize(model_lossfunc, x0, args=(cube, 1e-9, 1e-12), bounds=bnds, options={"maxiter": maxiter})
+    func = value_and_grad(model_lossfunc)
+    opts = {"disp": 1, 'ftol': 0, 'gtol': 1e-7, 'maxiter': maxiter}
+    bnd = [(1e-9, np.inf)] * x0.size
 
-    RKa_opt = opt.x[:, np.newaxis]
-    return RKa_opt
+    def funcc(*args):
+        a, b = func(*args)
+        return a, np.array(b)
+
+    print("")
+    opt = minimize(funcc, x0, args=(cube, 1e-9, 1e-12), jac=True, bounds=bnd, options=opts)
+
+    return opt.x[:, np.newaxis]
 
 
 def opt_to_matrices(cube, RKa_opt):
