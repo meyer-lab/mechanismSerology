@@ -7,11 +7,12 @@ Total fitting parameters = 147
 import numpy as np
 import jax.numpy as jnp
 from scipy.optimize import minimize
-import matplotlib.pyplot as plt
-from jax import value_and_grad
+from jax import value_and_grad, jvp, jit
+from jax.config import config
 from .model import lBnd
 from scipy.stats import pearsonr
 
+config.update('jax_log_compiles', True)
 
 def initial_AbundKa(cube, n_ab=1):
     """
@@ -20,7 +21,7 @@ def initial_AbundKa(cube, n_ab=1):
     """
     R_subj_guess = np.random.lognormal(size=(cube.shape[0], n_ab))
     R_Ag_guess = np.random.lognormal(size=(cube.shape[2], n_ab))
-    Ka_guess = np.random.lognormal(6, size=(cube.shape[1], n_ab))
+    Ka_guess = np.random.lognormal(12.0, size=(cube.shape[1], n_ab))
     return R_subj_guess, R_Ag_guess, Ka_guess
 
 
@@ -62,16 +63,20 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, n_ab=n_ab)
     x0 = np.concatenate((R_subj_guess.flatten(), R_Ag_guess.flatten(), Ka_guess.flatten()))
 
-    func = value_and_grad(model_lossfunc)
-    opts = {"disp": 1, 'ftol': 0, 'gtol': 1e-7, 'maxiter': maxiter}
+    func = jit(value_and_grad(model_lossfunc))
+    opts = {"verbose": 1, 'maxiter': maxiter}
     bnd = [(1e-9, np.inf)] * x0.size
+
+    def hvp(x, p, *args):
+        return jvp(lambda xx: func(xx, *args)[1], (x,), (p,))[1]
 
     def funcc(*args):
         a, b = func(*args)
         return a, np.array(b)
 
     print("")
-    opt = minimize(funcc, x0, args=(cube, 1e-9, 1e-12), jac=True, bounds=bnd, options=opts)
+    opt = minimize(funcc, x0, method="trust-constr", args=(cube, 1e-9, 1e-12), hessp=hvp, jac=True, bounds=bnd, options=opts)
+    print(opt.fun)
 
     return opt.x[:, np.newaxis]
 

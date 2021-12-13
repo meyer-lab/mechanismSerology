@@ -4,7 +4,6 @@ from os.path import join, dirname
 import pandas as pd
 from jax.config import config
 import jax.numpy as jnp
-from jaxopt import FixedPointIteration
 
 
 path_here = dirname(dirname(__file__))
@@ -14,11 +13,11 @@ config.update("jax_enable_x64", True)
 
 
 def phi(Phisum, Rtot, L0, KxStar, Kav):
-    Phisum = Phisum.reshape((Rtot.shape[0], 1, Rtot.shape[2]))
+    Phisum = jnp.expand_dims(Phisum, 1)
     Req = Rtot / (1.0 + 2.0 * L0 * Kav * (1.0 + Phisum))
     assert Req.shape == Rtot.shape
     Phisum = jnp.einsum("ij,kil->kl", Kav * KxStar, Req)
-    return Phisum.flatten()
+    return Phisum
 
 
 def lBnd(L0: float, KxStar, Rtot, Kav):
@@ -29,13 +28,13 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
     Rtot: numbers of each receptor appearing on the cell.
     Kav: a matrix of Ka values. row = ligands, col = receptors
     """
-    x0 = jnp.zeros(Rtot.shape[0] * Rtot.shape[2])
-    fpi = FixedPointIteration(fixed_point_fun=phi, tol=1e-16, implicit_diff=True)
-    fpout = fpi.run(x0, Rtot, L0, KxStar, Kav)
-    assert fpout.state.error < 1e-16
-    Phisum = fpout.params.reshape((Rtot.shape[0], Rtot.shape[2]))
-    Lbound = L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
-    return Lbound
+    Phisum = jnp.zeros((Rtot.shape[0], Rtot.shape[2]))
+
+    for ii in range(5):
+        Phisum_n = phi(Phisum, Rtot, L0, KxStar, Kav)
+        Phisum = Phisum_n
+
+    return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
 
 def human_affinity():
