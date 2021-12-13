@@ -20,7 +20,7 @@ def phi(Phisum, Rtot, L0, KxStar, Kav):
     return Phisum
 
 
-def lBnd(L0: float, KxStar, Rtot, Kav):
+def phi_solve(L0: float, KxStar, Rtot, Kav):
     """
     The main function. Generate all info for heterogenenous binding case
     L0: concentration of ligand complexes.
@@ -34,7 +34,7 @@ def lBnd(L0: float, KxStar, Rtot, Kav):
         Phisum_n = phi(Phisum, Rtot, L0, KxStar, Kav)
         Phisum = Phisum_n
 
-    return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
+    return Phisum
 
 
 def human_affinity():

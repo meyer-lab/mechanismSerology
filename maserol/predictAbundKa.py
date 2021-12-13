@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from scipy.optimize import minimize
 from jax import value_and_grad, jvp, jit
 from jax.config import config
-from .model import lBnd
+from .model import phi_solve
 from scipy.stats import pearsonr
 
 config.update('jax_log_compiles', True)
@@ -30,14 +30,14 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     pass the matrices generated above into polyfc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten
     """
-    Lbound_cube = jnp.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
+    Phisum = jnp.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
     # Lbound_guess = 6x1638
     RR = jnp.einsum("ij,kj->ijk", R_subj, R_Ag)
 
-    for jj in range(Lbound_cube.shape[1]):
-        Lbound_cube = Lbound_cube.at[:, jj, :].set(lBnd(L0, KxStar, RR, Ka[jj, :, np.newaxis]))
+    for jj in range(Phisum.shape[1]):
+        Phisum = Phisum.at[:, jj, :].set(phi_solve(L0, KxStar, RR, Ka[jj, :, np.newaxis]))
 
-    return Lbound_cube
+    return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
 
 def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
