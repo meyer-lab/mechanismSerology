@@ -7,21 +7,31 @@ Total fitting parameters = 147
 import numpy as np
 import jax.numpy as jnp
 from scipy.optimize import minimize
-import matplotlib.pyplot as plt
-from jax import value_and_grad
-from .model import lBnd
+from jax import value_and_grad, jvp, jit
+from jax.config import config
 from scipy.stats import pearsonr
+from tensorly.decomposition import non_negative_parafac
+
+
+config.update("jax_enable_x64", True)
 
 
 def initial_AbundKa(cube, n_ab=1):
     """
-    generate abundance and Ka matrices from random values
+    generate abundance and Ka matrices from linear analysis
     cube.shape == n_subj * n_rec * n_Ag
     """
-    R_subj_guess = np.random.lognormal(size=(cube.shape[0], n_ab))
-    R_Ag_guess = np.random.lognormal(size=(cube.shape[2], n_ab))
-    Ka_guess = np.random.lognormal(6, size=(cube.shape[1], n_ab))
-    return R_subj_guess, R_Ag_guess, Ka_guess
+    # TODO: Add masking
+    outt = non_negative_parafac(np.nan_to_num(cube), rank=n_ab)
+    return outt.factors
+
+
+def phi(Phisum, Rtot, L0, KxStar, Kav):
+    temp = jnp.einsum("jl,ijk->ilkj", Kav, 1.0 + Phisum)
+    Req = Rtot[:, :, :, np.newaxis] / (1.0 + 2.0 * L0 * temp)
+    Phisum_n = jnp.einsum("jl,ilkj->ijk", Kav * KxStar, Req)
+    assert Phisum_n.shape == Phisum.shape
+    return Phisum_n
 
 
 def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
@@ -29,20 +39,17 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     pass the matrices generated above into polyfc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten
     """
-    Lbound_cube = jnp.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
-    # Lbound_guess = 6x1638
-    RR = jnp.einsum("ij,kj->ijk", R_subj, R_Ag)
+    Phisum = jnp.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
+    Rtot = jnp.einsum("ij,kj->ijk", R_subj, R_Ag)
 
-    for jj in range(Lbound_cube.shape[1]):
-        Lbound_cube = Lbound_cube.at[:, jj, :].set(lBnd(L0, KxStar, RR, Ka[jj, :, np.newaxis]))
+    for ii in range(5):
+        Phisum_n = phi(Phisum, Rtot, L0, KxStar, Ka)
+        Phisum = Phisum_n
 
-    return Lbound_cube
+    return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
 
-def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
-    """
-        Loss function, comparing model output and flattened tensor
-    """
+def reshapeParams(x, cube):
     # unflatten to three matrices
     n_subj, n_rec, n_Ag = cube.shape
     n_ab = int(len(x) / np.sum(cube.shape))
@@ -50,7 +57,19 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
     R_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
     R_Ag = x[(n_subj * n_ab):((n_subj + n_Ag) * n_ab)].reshape(n_Ag, n_ab)
     Ka = x[(n_subj + n_Ag) * n_ab:(n_subj + n_Ag + n_rec) * n_ab].reshape(n_rec, n_ab)
+    return R_subj, R_Ag, Ka
 
+
+def flattenParams(R_subj, R_Ag, Ka):
+    """ Flatten into a parameter vector. """
+    return np.concatenate((R_subj.flatten(), R_Ag.flatten(), Ka.flatten()))
+
+
+def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
+    """
+        Loss function, comparing model output and flattened tensor
+    """
+    R_subj, R_Ag, Ka = reshapeParams(x, cube)
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
     return jnp.linalg.norm(jnp.nan_to_num(Lbound - cube))
 
@@ -60,30 +79,22 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
         Optimization method to minimize model_lossfunc output
     """
     R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, n_ab=n_ab)
-    x0 = np.concatenate((R_subj_guess.flatten(), R_Ag_guess.flatten(), Ka_guess.flatten()))
+    x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka_guess)
 
-    func = value_and_grad(model_lossfunc)
-    opts = {"disp": 1, 'ftol': 0, 'gtol': 1e-7, 'maxiter': maxiter}
-    bnd = [(1e-9, np.inf)] * x0.size
+    func = jit(value_and_grad(model_lossfunc))
+    opts = {"verbose": 1, 'maxiter': maxiter}
+    bnd = [(0.0, np.inf)] * x0.size
 
-    def funcc(*args):
-        a, b = func(*args)
-        return a, np.array(b)
+    def hvp(x, p, *args):
+        return jvp(lambda xx: func(xx, *args)[1], (x,), (p,))[1]
 
     print("")
-    opt = minimize(funcc, x0, args=(cube, 1e-9, 1e-12), jac=True, bounds=bnd, options=opts)
+    opt = minimize(func, x0, method="trust-constr", args=(cube, 1e-9, 1e-12), hessp=hvp, jac=True, bounds=bnd, options=opts)
+    print(opt.fun)
+
+    R_subj, R_Ag, Ka = reshapeParams(opt.x, cube)
 
     return opt.x[:, np.newaxis]
-
-
-def opt_to_matrices(cube, RKa_opt):
-    n_subj, n_rec, n_Ag = cube.shape
-    n_ab = int(len(RKa_opt) / np.sum(cube.shape))
-
-    R_subj = RKa_opt[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
-    R_Ag = RKa_opt[(n_subj * n_ab):((n_subj + n_Ag) * n_ab)].reshape(n_Ag, n_ab)
-    Ka = RKa_opt[(n_subj + n_Ag) * n_ab:(n_subj + n_Ag + n_rec) * n_ab].reshape(n_rec, n_ab)
-    return R_subj, R_Ag, Ka
 
 
 def plot_correlation_heatmap(ax, RKa_opt, cube, rec_names, ant_names):
@@ -93,7 +104,7 @@ def plot_correlation_heatmap(ax, RKa_opt, cube, rec_names, ant_names):
     R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar
     """
 
-    R_subj, R_Ag, Ka = opt_to_matrices(cube, RKa_opt)
+    R_subj, R_Ag, Ka = reshapeParams(RKa_opt, cube)
     Lbound_model = infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12)
 
     coeff = np.zeros([cube.shape[1], cube.shape[2]])

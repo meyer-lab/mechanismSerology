@@ -13,4 +13,4 @@ def test_SpaceX(n_ab):
     assert RKa_opt > 0.0
     assert np.isfinite(RKa_opt)
 
-    optimize_lossfunc(cube, n_ab=n_ab, maxiter=2)
+    optimize_lossfunc(cube, n_ab=n_ab, maxiter=200)
