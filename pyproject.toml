@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "maserol"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.11"
+pandas = "^1.4"
+jax = "^0.2.27"
+scipy = "^1.7"
+numpy = "^1.22"
+jaxlib = "^0.1.76"
+tensorly = "^0.7"
+matplotlib = "^3.5"
+seaborn = "^0.11"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+pytest-cov = "^3.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]                                                           
+fbuild = "maserol.figures.common:genFigure"
