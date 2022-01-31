@@ -1,6 +1,5 @@
 from .common import getSetup, subplotLabel
 from ..predictAbundKa import optimize_lossfunc, plot_correlation_heatmap
-import pickle
 from ..data.atyeo import createCube, getAxes
 
 def makeFigure():
