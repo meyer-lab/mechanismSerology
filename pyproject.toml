@@ -15,6 +15,7 @@ jaxlib = "^0.1.76"
 tensorly = "^0.7"
 matplotlib = "^3.5"
 seaborn = "^0.11"
+tensorpack = { git = "https://github.com/meyer-lab/tensorpack.git", branch = "main" }
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
