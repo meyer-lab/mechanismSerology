@@ -35,7 +35,7 @@ tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>
 name = "colorama"
 version = "0.4.4"
 description = "Cross-platform colored terminal text."
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
@@ -401,6 +401,27 @@ numpy = "*"
 scipy = "*"
 
 [[package]]
+name = "tensorpack"
+version = "0.0.9"
+description = "A collection of tensor methods from the Meyer lab."
+category = "main"
+optional = false
+python-versions = ">=3.9,<3.11"
+develop = false
+
+[package.dependencies]
+matplotlib = "^3.5.0"
+numpy = "^1.21"
+tensorly = "^0.7"
+tqdm = "^4.62.3"
+
+[package.source]
+type = "git"
+url = "https://github.com/meyer-lab/tensorpack.git"
+reference = "main"
+resolved_reference = "101834d02218e4e9641f70aa437ebd0585543ef9"
+
+[[package]]
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
@@ -417,6 +438,22 @@ optional = false
 python-versions = ">=3.7"
 
 [[package]]
+name = "tqdm"
+version = "4.62.3"
+description = "Fast, Extensible Progress Meter"
+category = "main"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,>=2.7"
+
+[package.dependencies]
+colorama = {version = "*", markers = "platform_system == \"Windows\""}
+
+[package.extras]
+dev = ["py-make (>=0.1.0)", "twine", "wheel"]
+notebook = ["ipywidgets (>=6)"]
+telegram = ["requests"]
+
+[[package]]
 name = "typing-extensions"
 version = "4.0.1"
 description = "Backported and Experimental Type Hints for Python 3.6+"
@@ -427,7 +464,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.9,<3.11"
-content-hash = "c51d2d4f81351ede56936cd2a018aa7a44158adbd242b0317ee83118043677ea"
+content-hash = "a3dbaffd32dc2a8b8772b9210564ce20f599ac691d89c2ac09999d7f74e4e0ff"
 
 [metadata.files]
 absl-py = [
@@ -767,6 +804,7 @@ tensorly = [
     {file = "tensorly-0.7.0-py3-none-any.whl", hash = "sha256:484c6da50c34f23b3428d0d59b9dcbe5ff904d52f644ab4d62425f4fea3fa670"},
     {file = "tensorly-0.7.0.tar.gz", hash = "sha256:fbfca8d0499f1b07530f5a2566a9a9f61ca3a31cfdec9f05155ad3f08332b3cc"},
 ]
+tensorpack = []
 toml = [
     {file = "toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},
     {file = "toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"},
@@ -774,6 +812,10 @@ toml = [
 tomli = [
     {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
     {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
+]
+tqdm = [
+    {file = "tqdm-4.62.3-py2.py3-none-any.whl", hash = "sha256:8dd278a422499cd6b727e6ae4061c40b48fce8b76d1ccbf5d34fca9b7f925b0c"},
+    {file = "tqdm-4.62.3.tar.gz", hash = "sha256:d359de7217506c9851b7869f3708d8ee53ed70a1b8edbba4dbcb47442592920d"},
 ]
 typing-extensions = [
     {file = "typing_extensions-4.0.1-py3-none-any.whl", hash = "sha256:7f001e5ac290a0c0401508864c7ec868be4e701886d5b573a9528ed3973d9d3b"},
