@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from ..predictAbundKa import initial_AbundKa, model_lossfunc, optimize_lossfunc
-from ..data.atyeo import createCube
+from tensordata.atyeo import createCube
 
 
 @pytest.mark.parametrize("n_ab", [1, 2, 3])
