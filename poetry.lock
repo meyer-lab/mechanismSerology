@@ -369,6 +369,25 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
+name = "tensordata"
+version = "0.0.1"
+description = "A common repository for tensor structured datasets."
+category = "main"
+optional = false
+python-versions = "^3.8"
+develop = false
+
+[package.dependencies]
+numpy = "^1.22.1"
+pandas = "^1.4.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/meyer-lab/tensordata.git"
+reference = "main"
+resolved_reference = "61f6abec559614026bd713b33843a22ed6918aaf"
+
+[[package]]
 name = "tensorly"
 version = "0.7.0"
 description = "Tensor learning in Python."
@@ -780,6 +799,7 @@ six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
     {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
 ]
+tensordata = []
 tensorly = [
     {file = "tensorly-0.7.0-py3-none-any.whl", hash = "sha256:484c6da50c34f23b3428d0d59b9dcbe5ff904d52f644ab4d62425f4fea3fa670"},
     {file = "tensorly-0.7.0.tar.gz", hash = "sha256:fbfca8d0499f1b07530f5a2566a9a9f61ca3a31cfdec9f05155ad3f08332b3cc"},
