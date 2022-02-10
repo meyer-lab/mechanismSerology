@@ -1,12 +1,13 @@
 from .common import getSetup, subplotLabel
 from ..predictAbundKa import optimize_lossfunc, plot_correlation_heatmap
-from ..data.atyeo import createCube, getAxes
+from tensordata.atyeo import data as atyeo
 
 def makeFigure():
     axs, f = getSetup((8, 4), (1, 2))
 
-    cube = createCube()
-    _, rec_names, ant_names = getAxes()
+    d = atyeo()
+    cube = d.tensor
+    _, rec_names, ant_names = d.axes
     RKa_opt = optimize_lossfunc(cube, n_ab=1, maxiter=100)
 
     # heatmap for correlation

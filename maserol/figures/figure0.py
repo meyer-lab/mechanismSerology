@@ -5,13 +5,14 @@ import numpy as np
 import tensorly as tl
 from scipy.optimize import least_squares
 from .common import subplotLabel, getSetup
-from ..data.alter import createCube, getAxes
+from tensordata.alter import data as alter
 
 
 def makeFigure():
     """ Compare genotype vs non-genotype specific readings. """
-    cube, _ = createCube()
-    _, detections, _ = getAxes()
+    data = alter()
+    cube = data.tensor
+    _, detections, _, _ = data.axes
 
     cube = tl.unfold(cube[:, 1:11, :], 1)
     cube = np.delete(cube, 3, axis=1)
