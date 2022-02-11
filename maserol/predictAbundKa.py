@@ -5,6 +5,7 @@ Polyfc output is compared to SpaceX data and cost function is minimzied through 
 Total fitting parameters = 147
 """
 import numpy as np
+from tqdm import tqdm
 import jax.numpy as jnp
 from scipy.optimize import minimize
 from jax import value_and_grad, jvp, jit
@@ -21,7 +22,6 @@ def initial_AbundKa(cube, n_ab=1):
     generate abundance and Ka matrices from linear analysis
     cube.shape == n_subj * n_rec * n_Ag
     """
-    # TODO: Add masking
     outt = non_negative_parafac(np.nan_to_num(cube), rank=n_ab)
     return outt.factors
 
@@ -82,15 +82,18 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka_guess)
 
     func = jit(value_and_grad(model_lossfunc))
-    opts = {"verbose": 1, 'maxiter': maxiter}
+    opts = {'maxiter': maxiter}
     bnd = [(0.0, np.inf)] * x0.size
 
     def hvp(x, p, *args):
         return jvp(lambda xx: func(xx, *args)[1], (x,), (p,))[1]
 
-    print("")
-    opt = minimize(func, x0, method="trust-constr", args=(cube, 1e-9, 1e-12), hessp=hvp, jac=True, bounds=bnd, options=opts)
-    print(opt.fun)
+    with tqdm(total=maxiter) as pbar:
+        def callback(x, XX):
+            pbar.update(1)
+            pbar.set_postfix(cost=XX.fun, Δ=np.linalg.norm(XX.grad), refresh=False)
+
+        opt = minimize(func, x0, method="trust-constr", args=(cube, 1e-9, 1e-12), hessp=hvp, jac=True, bounds=bnd, options=opts, callback=callback)
 
     R_subj, R_Ag, Ka = reshapeParams(opt.x, cube)
 
