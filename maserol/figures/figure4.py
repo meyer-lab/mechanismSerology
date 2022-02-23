@@ -2,6 +2,7 @@ from tensordata.atyeo import data as atyeo
 from ..predictAbundKa import *
 from ..plots import makeComponentPlot
 
+
 def makeFigure():
     """ """
     data = atyeo()

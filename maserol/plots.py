@@ -2,6 +2,7 @@ from matplotlib import gridspec, pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+
 def makeComponentPlot(comps, axes):
     rank = comps[0].shape[1]
     components = [str(ii + 1) for ii in range(rank)]
@@ -16,12 +17,9 @@ def makeComponentPlot(comps, axes):
     ax2 = plt.subplot(gs[1])
     ax3 = plt.subplot(gs[2])
 
-    sns.heatmap(subs, cmap="PiYG", center=0, xticklabels=components, yticklabels=axes[0], cbar=True, vmin=-1.0,
-                vmax=1.0, ax=ax1)
-    sns.heatmap(rec, cmap="PiYG", center=0, xticklabels=components, yticklabels=axes[1], cbar=False, vmin=-1.0,
-                vmax=1.0, ax=ax2)
-    sns.heatmap(ant, cmap="PiYG", center=0, xticklabels=components, yticklabels=axes[2], cbar=False, vmin=-1.0,
-                vmax=1.0, ax=ax3)
+    sns.heatmap(subs, cmap="PiYG", center=0, xticklabels=components, yticklabels=axes[0], cbar=True, vmin=-1.0, vmax=1.0, ax=ax1)
+    sns.heatmap(rec, cmap="PiYG", center=0, xticklabels=components, yticklabels=axes[1], cbar=False, vmin=-1.0, vmax=1.0, ax=ax2)
+    sns.heatmap(ant, cmap="PiYG", center=0, xticklabels=components, yticklabels=axes[2], cbar=False, vmin=-1.0, vmax=1.0, ax=ax3)
 
     ax1.set_xlabel("Components")
     ax1.set_title("Subjects")
