@@ -1,16 +1,14 @@
 import numpy as np
 from matplotlib import gridspec, pyplot as plt
 import pandas as pd
-from ..data.atyeo import createCube, getAxes, load_file
+from tensordata.atyeo import createCube, getAxes
 import seaborn as sns
-from string import ascii_lowercase
 from tensorpack import perform_CP
 
 def makeFigure():
     """ Generate heatmap plots for each input dimension by component"""
     cube = createCube()
     subjects, receptors, antigens = getAxes()
-    subjects = subjects.values.tolist()
     tfac = perform_CP(tOrig=cube)
 
     components =  [str(ii + 1) for ii in range(tfac.rank)]
