@@ -20,7 +20,6 @@ def makeAffinities(receptors):
                             delimiter=",", comment="#", index_col=0)
 
     #Filter for only IgG1-2 and FcRg2-3, based on naming scheme of dataset
-    
     if any('FcRg' in x for x in receptors):
         rows = ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcRg2A', 'FcRg2b', 'FcRg3A']
     elif any('FcgR' in x for x in receptors):
@@ -31,7 +30,6 @@ def makeAffinities(receptors):
         raise Exception("Receptor naming scheme does not match")
 
     columns = rows[0:4]
-    rec = [i for i in rows if any(i in j for j in receptors)]
 
     affinities = np.zeros((len(rows), 4))
     affinities[0:4] = np.identity(4) * 10**9
