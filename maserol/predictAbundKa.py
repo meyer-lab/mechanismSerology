@@ -6,6 +6,7 @@ Total fitting parameters = 147
 """
 import numpy as np
 import jax.numpy as jnp
+from tqdm import tqdm
 from scipy.optimize import minimize
 from jax import value_and_grad, jvp, jit
 from jax.config import config
@@ -51,6 +52,7 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
 
 def reshapeParams(x, cube):
     # unflatten to three matrices
+    x = jnp.exp(x)
     n_subj, n_rec, n_Ag = cube.shape
     n_ab = int(len(x) / np.sum(cube.shape))
 
@@ -62,7 +64,7 @@ def reshapeParams(x, cube):
 
 def flattenParams(R_subj, R_Ag, Ka):
     """ Flatten into a parameter vector. """
-    return np.concatenate((R_subj.flatten(), R_Ag.flatten(), Ka.flatten()))
+    return np.log(np.concatenate((R_subj.flatten(), R_Ag.flatten(), Ka.flatten())))
 
 
 def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
@@ -71,7 +73,11 @@ def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):
     """
     R_subj, R_Ag, Ka = reshapeParams(x, cube)
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
-    return jnp.linalg.norm(jnp.nan_to_num(Lbound - cube))
+
+    # Scaling factor
+    diff = jnp.log(cube) - jnp.log(Lbound)
+    diff -= jnp.nanmean(diff)
+    return jnp.linalg.norm(jnp.nan_to_num(diff))
 
 
 def optimize_lossfunc(cube, n_ab=1, maxiter=100):
@@ -82,17 +88,21 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka_guess)
 
     func = jit(value_and_grad(model_lossfunc))
-    opts = {"verbose": 1, 'maxiter': maxiter}
-    bnd = [(0.0, np.inf)] * x0.size
+    opts = {'maxiter': maxiter}
+    arrgs = (cube, 1e-9, 1e-12)
 
     def hvp(x, p, *args):
         return jvp(lambda xx: func(xx, *args)[1], (x,), (p,))[1]
 
-    print("")
-    opt = minimize(func, x0, method="trust-constr", args=(cube, 1e-9, 1e-12), hessp=hvp, jac=True, bounds=bnd, options=opts)
-    print(opt.fun)
+    with tqdm(total=maxiter, delay=0.1) as tq:
+        def callback(xk):
+            a, b = func(xk, *arrgs)
+            gNorm = np.linalg.norm(b)
+            tq.set_postfix(val='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
+            tq.update(1)
 
-    R_subj, R_Ag, Ka = reshapeParams(opt.x, cube)
+        print("")
+        opt = minimize(func, x0, method="trust-ncg", args=arrgs, hessp=hvp, callback=callback, jac=True, options=opts)
 
     return opt.x[:, np.newaxis]
 
