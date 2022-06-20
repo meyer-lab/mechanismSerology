@@ -4,7 +4,7 @@ from ..predictAbundKa import initial_AbundKa, model_lossfunc, optimize_lossfunc
 from tensordata.atyeo import createCube
 
 
-@pytest.mark.parametrize("n_ab", [1, 2])
+@pytest.mark.parametrize("n_ab", [1, 2, 3])
 def test_fit(n_ab):
     cube = createCube()
     R_subj_guess, R_Ag_guess, Ka_guess = initial_AbundKa(cube, n_ab)
