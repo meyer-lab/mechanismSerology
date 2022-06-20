@@ -8,12 +8,12 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.9,<3.11"
 pandas = "^1.4"
-jax = "^0.2.27"
+jaxlib = {url = "https://storage.googleapis.com/jax-releases/cuda11/jaxlib-0.3.10+cuda11.cudnn82-cp310-none-manylinux2014_x86_64.whl"}
 scipy = "^1.7"
 numpy = "^1.22"
-jaxlib = "^0.1.76"
+jax = "0.3.10"
 tensorly = "^0.7"
-matplotlib = "^3.5"
+matplotlib = "3.5.2"
 seaborn = "^0.11"
 tensorpack = { git = "https://github.com/meyer-lab/tensorpack.git", branch = "main" }
 tensordata = {git = "https://github.com/meyer-lab/tensordata.git", branch = "main"}
