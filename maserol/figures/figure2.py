@@ -8,7 +8,7 @@ def makeFigure():
     d = atyeo()
     cube = d.tensor
     _, rec_names, ant_names = d.axes
-    RKa_opt = optimize_lossfunc(cube, n_ab=1, maxiter=100)
+    RKa_opt = optimize_lossfunc(cube, n_ab=1, maxiter=1000)
 
     # heatmap for correlation
     plot_correlation_heatmap(axs[0], RKa_opt, cube, rec_names, ant_names)
