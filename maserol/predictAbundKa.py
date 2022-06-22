@@ -8,7 +8,7 @@ import numpy as np
 import jax.numpy as jnp
 from tqdm import tqdm
 from scipy.optimize import minimize
-from jax import value_and_grad, jvp, jit
+from jax import value_and_grad, jit, jacfwd, jacrev
 from jax.config import config
 from scipy.stats import pearsonr
 from tensorly.decomposition import non_negative_parafac
@@ -88,11 +88,9 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
     x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka_guess)
 
     func = jit(value_and_grad(model_lossfunc))
+    hess = jit(jacfwd(jacrev(model_lossfunc)))
     opts = {'maxiter': maxiter}
     arrgs = (cube, 1e-9, 1e-12)
-
-    def hvp(x, p, *args):
-        return jvp(lambda xx: func(xx, *args)[1], (x,), (p,))[1]
 
     with tqdm(total=maxiter, delay=0.1) as tq:
         def callback(xk):
@@ -102,7 +100,7 @@ def optimize_lossfunc(cube, n_ab=1, maxiter=100):
             tq.update(1)
 
         print("")
-        opt = minimize(func, x0, method="trust-ncg", args=arrgs, hessp=hvp, callback=callback, jac=True, options=opts)
+        opt = minimize(func, x0, method="trust-ncg", args=arrgs, hess=hess, callback=callback, jac=True, options=opts)
 
     return opt.x[:, np.newaxis]
 
