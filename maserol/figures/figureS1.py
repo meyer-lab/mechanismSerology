@@ -5,7 +5,7 @@ from ..linear import importConcat
 
 def makeFigure():
     axs, f = getSetup((8, 3), (1, 3))
-    combined = importConcat()
+    combined, M, S, _ = importConcat()
 
     tensor = combined.values
     tfac = perform_CP(tOrig=tensor, r=6)
@@ -16,7 +16,7 @@ def makeFigure():
             label = False
         plot_weight_mode(ax, tfac.factors[ii], labels=label, title=combined.dims[ii])
 
-    axs[0].set_yticks([0, 117, 117 + 579])
+    axs[0].set_yticks([0, S['Sample'].size, S['Sample'].size + M['Sample'].size])
     axs[0].set_yticklabels(["SpaceX", "MGH", "Zohar"])
 
     return f
