@@ -2,7 +2,6 @@ from tensordata.kaplonek import MGH, MGH4D
 from tensorpack.decomposition import Decomposition
 from .common import getSetup
 import numpy as np
-import tensorflow as tf
 from ..linear import compareR2X
 
 
