@@ -13,7 +13,7 @@ def makeFigure():
     decomp3D = Decomposition(data=MGH().tensor, max_rr=10)
     decomp3D.perform_tfac()
 
-    tensor4D = tf.convert_to_tensor(np.asarray(MGH4D().values).astype('float64'))
+    tensor4D = np.asarray(MGH4D().values).astype('float64')
     decomp4D = Decomposition(data=tensor4D, max_rr=10)
     decomp4D.perform_tfac()
 
