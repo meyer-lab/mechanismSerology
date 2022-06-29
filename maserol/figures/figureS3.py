@@ -2,7 +2,7 @@ from tensordata.kaplonek import MGH, MGH4D
 from tensorpack.decomposition import Decomposition
 from .common import getSetup
 import numpy as np
-from ..linear import compareReduction
+from ..plots import compareReduction
 
 
 def makeFigure():
