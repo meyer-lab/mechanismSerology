@@ -55,7 +55,7 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
 def reshapeParams(x, cube):
     # unflatten to three matrices
     x = jnp.exp(x)
-    n_subj, n_rec, n_Ag = cube.shape
+    n_subj, n_Ag, n_rec, = cube.shape
     n_ab = int(len(x) / np.sum(cube.shape))
 
     R_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
