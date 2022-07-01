@@ -1,6 +1,7 @@
 """ Import binding affinities. """
 
 from os.path import join, dirname
+import numpy as np
 import pandas as pd
 import xarray as xr
 import re
@@ -32,7 +33,7 @@ def omit_unnecessary_receptors(data, abs="IgG"):
 
     return data.sel(Receptor=wanted_receptors), wanted_receptors
 
-def get_affinity(affinities_df, affinities_ar, receptor, abs):
+def get_affinity(affinities_df, receptor, abs):
     ''' Given a receptor and antibody pair and dataFrame of known affinity values,
         returns the associatied human affinity value'''
     # figure out of receptor uses iii or 1,2,3 system
@@ -75,7 +76,8 @@ def assemble_Kav(data: xr.DataArray):
     # fill in all IgG - IgG pair affinity values
     for ab in abs:
         for ig in igg:
-            Kav.loc[dict(Receptor=ig, Abs=ab)] = initial_affinity
+            if (ab == ig):
+                Kav.loc[dict(Receptor=ig, Abs=ab)] = initial_affinity
 
     # fill in remaining affinity values
     for ab in abs:
