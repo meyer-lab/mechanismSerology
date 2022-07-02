@@ -24,13 +24,13 @@ def standardize_dim_order(data, order_list):
 
 def omit_unnecessary_receptors(data, abs="IgG"):
     ''' Omits all receptor data from the initial data that does not pertain to the specified antibody'''
-    data_receptors = data.Receptor.values
+    data_receptors = data.Receptor
 
     # edit to account for receptors other than IgG
-    wanted_receptors = [x for x in data_receptors if x.startswith(abs)] + \
-                       [x for x in data_receptors if (x.startswith("FcR") and x != "FcRalpha")]
+    wanted_receptors = [x for x in data_receptors.values if x.startswith(abs)] + \
+                       [x for x in data_receptors.values if (x.startswith("FcR") and x != "FcRalpha")]
 
-    return data.sel(Receptor=wanted_receptors), wanted_receptors
+    return data.sel(Receptor=wanted_receptors)
 
 def get_affinity(affinities_df, receptor, abs):
     ''' Given a receptor and antibody pair and dataFrame of known affinity values,
@@ -54,8 +54,9 @@ def get_affinity(affinities_df, receptor, abs):
     return 0
 
 def prepare_data(data: xr.DataArray):
-    data = omit_unnecessary_receptors(data)
     data = standardize_dim_order(data, mode_order)
+    data = omit_unnecessary_receptors(data)
+    return data
 
 def assemble_Kav(data: xr.DataArray):
     abs = ["IgG1", "IgG2", "IgG3", "IgG4"]
