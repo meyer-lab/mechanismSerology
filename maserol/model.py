@@ -1,5 +1,6 @@
 """ Import binding affinities. """
 
+from ast import Pass
 from os.path import join, dirname
 import numpy as np
 import pandas as pd
@@ -8,6 +9,7 @@ import re
 
 path_here = dirname(dirname(__file__))
 initial_affinity = 10**8
+mode_order = ["Sample", "Receptor", "Antigen"]
 
 def human_affinity():
     # read in as a DataFrame
@@ -15,9 +17,6 @@ def human_affinity():
                        delimiter=",", comment="#", index_col=0)
     df.drop(["FcgRIIA-131R", "FcgRIIB-232T", "FcgRIIIA-158F"], inplace=True)
     return df
-
-def get_affinity(affinities, receptor, antigen):
-    return int(affinities.sel(FcgR=slice(receptor)).data_vars[antigen])
 
 def standardize_dim_order(data, order_list):
     ' '' Transposes data to be in ("Sample", "Antigen", "Receptor") order '''
@@ -28,7 +27,7 @@ def omit_unnecessary_receptors(data, abs="IgG"):
     data_receptors = data.Receptor.values
 
     # edit to account for receptors other than IgG
-    wanted_receptors = [x for x in data_receptors if x.startswith("IgG")] + \
+    wanted_receptors = [x for x in data_receptors if x.startswith(abs)] + \
                        [x for x in data_receptors if (x.startswith("FcR") and x != "FcRalpha")]
 
     return data.sel(Receptor=wanted_receptors), wanted_receptors
@@ -54,13 +53,16 @@ def get_affinity(affinities_df, receptor, abs):
             return affinities_df.at[r,abs]
     return 0
 
+def prepare_data(data: xr.DataArray):
+    data = omit_unnecessary_receptors(data)
+    data = standardize_dim_order(data, mode_order)
+
 def assemble_Kav(data: xr.DataArray):
     abs = ["IgG1", "IgG2", "IgG3", "IgG4"]
-    order_list = ["Sample", "Antigen", "Receptor"]
     
     # omit entries irrelevant to IgG and FcRg
-    data = standardize_dim_order(data, order_list)
-    data, receptors = omit_unnecessary_receptors(data)
+    data = prepare_data(data)
+    receptors = data.Receptor.values
 
     # get known affinities
     affinities = human_affinity()
