@@ -10,14 +10,14 @@ from jax.config import config
 from tensorly.decomposition import non_negative_parafac
 from tensordata.atyeo import data
 
-def initial_subj_abund(cube, n_ab=1):
+def initial_subj_abund(cube : xr.DataArray, n_ab=1):
     """
     Generate subjects and Ka matrices by initializing all values to 10**6
     cube.shape == n_subj * n_rec * antigen
     """
     # TODO: Add masking
-    subj_matrix = np.full((cube.shape[0], n_ab), 10**6)
-    ag_matrix = np.full((cube.shape[2], n_ab), 10**6)
+    subj_matrix = np.full((cube.values.shape[0], n_ab), 10**8)
+    ag_matrix = np.full((cube.values.shape[2], n_ab), 10**8)
     return subj_matrix, ag_matrix
 
 def phi(Phisum, Rtot, L0, KxStar, Kav):
@@ -45,26 +45,26 @@ def flatten_params(r_subj, r_ag):
     """ Flatten into a parameter vector"""
     return np.log(np.concatenate((r_subj.flatten(), r_ag.flatten())))
 
-def reshapeParams(x, cube):
+def reshapeParams(x, cube : xr.DataArray):
     """ Unflatten parameter vector back into subject and antigen matrices """
     x = jnp.exp(x)
-    n_subj, n_rec,  n_Ag = cube.shape
+    n_subj, n_rec,  n_Ag = cube.values.shape
     n_ab = int(len(x) / (n_subj + n_Ag))
     R_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
     R_Ag = x[(n_subj * n_ab):((n_subj + n_Ag) * n_ab)].reshape(n_Ag, n_ab)
     return R_subj, R_Ag
 
-def model_lossfunc(x, cube, Ka, L0=1e-9, KxStar=1e-12):
+def model_lossfunc(x, cube : xr.DataArray, Ka, L0=1e-9, KxStar=1e-12):
     """
     Loss function, comparing model output and flattened tensor
     """
     R_subj, R_Ag = reshapeParams(x, cube)
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
-    diff = jnp.log(cube) - jnp.log(Lbound)
+    diff = jnp.log(cube.values) - jnp.log(Lbound)
     diff -= jnp.nanmean(diff)
     return jnp.linalg.norm(jnp.nan_to_num(diff))
 
-def optimize_lossfunc(cube, Kav, n_ab=1, maxiter=100):
+def optimize_lossfunc(cube : xr.DataArray, Kav, n_ab=1, maxiter=100):
     """
     Optimization method to minimize model_lossfunc output
     """
@@ -76,7 +76,7 @@ def optimize_lossfunc(cube, Kav, n_ab=1, maxiter=100):
     func = jit(value_and_grad(model_lossfunc))
     hess = jit(jacfwd(jacrev(model_lossfunc)))
     opts = {'maxiter': maxiter}
-    arrgs = (cube, Kav_log, 1e-9, 1e-12)
+    arrgs = (cube.values, Kav_log, 1e-9, 1e-12)
 
     with tqdm(total=maxiter, delay=0.1) as tq:
         def callback(xk):
