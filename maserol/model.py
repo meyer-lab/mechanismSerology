@@ -43,12 +43,12 @@ def get_affinity(affinities_df, receptor, abs):
             return affinities_df.at[r,abs]
     return 0
 
-def prepare_data(data: xr.DataArray, order_list, abs="IgG"):
+def prepare_data(data: xr.DataArray, abs="IgG"):
     """
     Transposes data to be in ("Sample", "Antigen", "Receptor") order 
     and omits all receptor data that does not pertain to the specified antibody
     """
-    data = data.transpose(order_list[0], order_list[1], order_list[2])
+    data = data.transpose(mode_order[0], mode_order[1], mode_order[2])
 
     data_receptors = data.Receptor.values
 
@@ -62,9 +62,6 @@ def assemble_Kav(data: xr.DataArray):
     Assemblies fixed affinities matrix for a given dataset
     """
     abs = ["IgG1", "IgG2", "IgG3", "IgG4"]
-    
-    # omit entries irrelevant to IgG and FcRg
-    data = prepare_data(data)
     receptors = data.Receptor.values
 
     # get known affinities

@@ -1,10 +1,22 @@
 """
 Test any functionality that is related to the binding model
 """
-from ..model import human_affinity, assemble_Kav
-from .. fixKav_optimization import optimize_lossfunc
+from ..model import human_affinity, assemble_Kav, prepare_data
+from .. fixKav_optimization import optimize_lossfunc, initial_subj_abund, flatten_params, model_lossfunc
 from tensordata.atyeo import data as atyeo
 
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+import jax.numpy as jnp
+from tqdm import tqdm
+from scipy import linalg
+from scipy.optimize import minimize
+from jax import value_and_grad, jit, jacfwd, jacrev
+from jax.config import config
+from tensorly.decomposition import non_negative_parafac
+from tensordata.atyeo import data
 
 def test_import_affinity():
     """ Test that affinity file is loaded correctly. """
@@ -24,6 +36,7 @@ def test_assemble_Kav():
     for item in not_included:
         assert item.lower() not in list(included)
     
+
     # IgG - IgG portion
     for ab1 in abs:
         for ab2 in abs:
@@ -33,15 +46,17 @@ def test_assemble_Kav():
                 assert Kav.sel(Receptor=ab1, Abs=ab2) == 10 # test off diagonal
 
     # Various values in other portion 
-    assert Kav.sel(Receptor="FcRg2A", Abs="IgG3") == 900000.0
+    assert Kav.sel(Receptor="FcRg2A", Abs="IgG3").values == 900000
     assert Kav.sel(Receptor="FcRg2b", Abs="IgG2") == 20000.0
     assert Kav.sel(Receptor="FcRg3A", Abs="IgG4") == 200000.0
+
 
 def test_optimize_loss_func():
     cube = atyeo()
     xarray = atyeo(xarray=True)
+    xarray = prepare_data(xarray)
     Kav = assemble_Kav(xarray)
-    #matrix = optimize_lossfunc(cube, Kav, 4)
+    matrix = optimize_lossfunc(xarray.values, Kav.values, 4)
     pass
 
 if __name__ == "__main__":

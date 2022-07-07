@@ -1,44 +1,18 @@
 import numpy as np
-import pandas as pd
-import xarray as xr
 import jax.numpy as jnp
 from tqdm import tqdm
-from scipy import linalg
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, jacfwd, jacrev
-from jax.config import config
-from tensorly.decomposition import non_negative_parafac
-from tensordata.atyeo import data
+from .predictAbundKa import infer_Lbound
 
 def initial_subj_abund(cube, n_ab=1):
     """
     Generate subjects and Ka matrices by initializing all values to 10**6
     cube.shape == n_subj * n_rec * antigen
     """
-    # TODO: Add masking
     subj_matrix = np.full((cube.shape[0], n_ab), 10**8)
     ag_matrix = np.full((cube.shape[2], n_ab), 10**8)
     return subj_matrix, ag_matrix
-
-def phi(Phisum, Rtot, L0, KxStar, Kav):
-    temp = jnp.einsum("jl,ijk->ilkj", Kav, 1.0 + Phisum)
-    Req = Rtot[:, :, :, np.newaxis] / (1.0 + 2.0 * L0 * temp)
-    Phisum_n = jnp.einsum("jl,ilkj->ijk", Kav * KxStar, Req)
-    assert Phisum_n.shape == Phisum.shape
-    return Phisum_n
-
-def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
-    """
-    Pass the matrices generated above into polyfc, run through each receptor
-    and ant x sub pair and store in matrix same size as flatten
-    """
-    Phisum = jnp.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
-    Rtot = jnp.einsum("ij,kj->ijk", R_subj, R_Ag)
-
-    for ii in range(5):
-        Phisum_n = phi(Phisum, Rtot, L0, KxStar, Ka)
-        Phisum = Phisum_n
-    return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
 def flatten_params(r_subj, r_ag):
     """ Flatten into a parameter vector"""
