@@ -2,6 +2,7 @@
 Test any functionality that is related to the binding model
 """
 from ..model import human_affinity, assemble_Kav
+from .. fixKav_optimization import optimize_lossfunc
 from tensordata.atyeo import data as atyeo
 
 
@@ -29,13 +30,21 @@ def test_assemble_Kav():
             if (ab1 == ab2):
                 assert Kav.sel(Receptor=ab1, Abs=ab2) == 10**8 # test diagional
             else:
-                assert Kav.sel(Receptor=ab1, Abs=ab2) == 0 # test off diagonal
-    
+                assert Kav.sel(Receptor=ab1, Abs=ab2) == 10 # test off diagonal
+
     # Various values in other portion 
     assert Kav.sel(Receptor="FcRg2A", Abs="IgG3") == 900000.0
     assert Kav.sel(Receptor="FcRg2b", Abs="IgG2") == 20000.0
     assert Kav.sel(Receptor="FcRg3A", Abs="IgG4") == 200000.0
 
+def test_optimize_loss_func():
+    cube = atyeo()
+    xarray = atyeo(xarray=True)
+    Kav = assemble_Kav(xarray)
+    #matrix = optimize_lossfunc(cube, Kav, 4)
+    pass
+
 if __name__ == "__main__":
     test_import_affinity()
     test_assemble_Kav()
+    test_optimize_loss_func()
