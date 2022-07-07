@@ -69,7 +69,7 @@ def assemble_Kav(data: xr.DataArray):
     affinities = human_affinity()
 
     # assemble matrix
-    data_placeholder = np.zeros((len(receptors), len(abs)))
+    data_placeholder = np.full((len(receptors), len(abs)), 10)
     Kav = xr.DataArray(data_placeholder, coords=[receptors, abs], dims=["Receptor", "Abs"])
     
     # separate into list of fc and igg receptors

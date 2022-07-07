@@ -38,7 +38,6 @@ def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
     for ii in range(5):
         Phisum_n = phi(Phisum, Rtot, L0, KxStar, Ka)
         Phisum = Phisum_n
-    test = L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
 def flatten_params(r_subj, r_ag):
@@ -60,9 +59,12 @@ def model_lossfunc(x, cube, Ka, L0=1e-9, KxStar=1e-12):
     """
     R_subj, R_Ag = reshapeParams(x, cube)
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
+    mask = jnp.isfinite(cube)
+    mask = (cube > 0)
     diff = jnp.log(cube) - jnp.log(Lbound)
-    diff -= jnp.nanmean(diff)
-    return jnp.linalg.norm(jnp.nan_to_num(diff))
+    diff *= mask
+    diff -= jnp.mean(diff)
+    return jnp.linalg.norm(diff)
 
 def optimize_lossfunc(cube, Kav, n_ab=1, maxiter=100):
     """
