@@ -3,15 +3,16 @@ import jax.numpy as jnp
 from tqdm import tqdm
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, jacfwd, jacrev
-from .predictAbundKa import infer_Lbound
+from maserol.predictAbundKa import infer_Lbound
+#from maserol.model import prepare_data
 
 def initial_subj_abund(cube, n_ab=1):
     """
     Generate subjects and Ka matrices by initializing all values to 10**6
     cube.shape == n_subj * n_rec * antigen
     """
-    subj_matrix = np.full((cube.shape[0], n_ab), 10**8)
-    ag_matrix = np.full((cube.shape[2], n_ab), 10**8)
+    subj_matrix = np.full((cube.shape[0], n_ab), 1000)
+    ag_matrix = np.full((cube.shape[2], n_ab), 1000)
     return subj_matrix, ag_matrix
 
 def flatten_params(r_subj, r_ag):
@@ -33,12 +34,15 @@ def model_lossfunc(x, cube, Ka, L0=1e-9, KxStar=1e-12):
     """
     R_subj, R_Ag = reshapeParams(x, cube)
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
+    corr_matrix = jnp.corrcoef(jnp.ravel(jnp.log(cube)), jnp.ravel(jnp.log(Lbound)))
+    corr = corr_matrix[0,1]
     mask = jnp.isfinite(cube)
-    mask = (cube > 0)
-    diff = jnp.log(cube) - jnp.log(Lbound)
-    diff *= mask
-    diff -= jnp.mean(diff)
-    return jnp.linalg.norm(diff)
+    #mask = (cube > 0)
+    #diff = jnp.log(cube) - jnp.log(Lbound)
+    cube *= mask
+    #diff -= jnp.mean(diff)
+    #return jnp.linalg.norm(diff)
+    return 0 - corr**2
 
 def optimize_lossfunc(cube, Kav, n_ab=1, maxiter=100):
     """
@@ -65,4 +69,3 @@ def optimize_lossfunc(cube, Kav, n_ab=1, maxiter=100):
 
         opt = minimize(func, x0, method="trust-ncg", args=arrgs, hess=hess, callback=callback, jac=True, options=opts)
     return opt.x[:, np.newaxis]
-
