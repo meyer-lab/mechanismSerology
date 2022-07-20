@@ -8,7 +8,7 @@ import xarray as xr
 import re
 
 path_here = dirname(dirname(__file__))
-initial_affinity = 5*(10**9)
+initial_affinity = 10**8
 mode_order = ["Sample", "Receptor", "Antigen"]
 
 def human_affinity():
@@ -87,4 +87,49 @@ def assemble_Kav(data: xr.DataArray):
             affinity = get_affinity(affinities, r, ab)
             Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
         
+    return Kav
+
+def assemble_Kavf(data: xr.DataArray):
+    """
+    Assemblies fixed affinities matrix for a given dataset
+    """
+    abs = ["IgG1", "IgG2", "IgG3", "IgG4"]
+    f = ["IgG1f", "IgG2f", "IgG3f", "IgG4f"]
+    absf = ["IgG1", "IgG1f", "IgG2",  "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f"]
+    receptors = data.Receptor.values
+
+    # get known affinities
+    affinities = human_affinity()
+
+    # assemble matrix
+    data_placeholder = np.full((len(receptors), len(absf)), 10)
+    Kav = xr.DataArray(data_placeholder, coords=[receptors, absf], dims=["Receptor", "Abs"])
+    
+    # separate into list of fc and igg receptors
+    fc = [x for x in receptors if (re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha")]
+    igg = [x for x in receptors if (re.match("^igg", x, flags=re.IGNORECASE))]
+
+    # fill in all IgG - IgG pair affinity values
+    for ab in absf:
+        for ig in igg:
+            if (ab == ig or ab[:-1] == ig):
+                Kav.loc[dict(Receptor=ig, Abs=ab)] = initial_affinity
+
+    print("c 1")
+    # fill in remaining affinity values
+    for ab in absf:
+        for r in fc:
+            if (ab in f):
+                if (re.match("fc[gr]*3", r, flags=re.IGNORECASE)):
+                    print("MATCH")
+                    print(r)
+                    Kav.loc[dict(Receptor=r, Abs=ab)] = 10
+                else:
+                    affinity = get_affinity(affinities, r, ab[:-1])
+                    Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
+            else:
+                affinity = get_affinity(affinities, r, ab)
+                print("c 2")
+                Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
+                print("c 3")
     return Kav
