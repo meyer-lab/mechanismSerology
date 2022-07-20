@@ -3,7 +3,7 @@ Currently runs polyfc to compare with SpaceX data with 6 receptors, 117 subjects
 Polyfc is ran with initial guesses for abundance (117x1) and (14x1)  and Ka for each receptor (6x1).
 Polyfc output is compared to SpaceX data and cost function is minimzied through scipy.optimize.minimize.
 Total fitting parameters = 147
-"""
+""" 
 import numpy as np
 import jax.numpy as jnp
 from tqdm import tqdm
@@ -28,6 +28,7 @@ def initial_AbundKa(cube, n_ab=1):
 
 def phi(Phisum, Rtot, L0, KxStar, Kav):
     temp = jnp.einsum("jl,ijk->ilkj", Kav, 1.0 + Phisum)
+    print("Temp shape: " + str(temp.shape))
     Req = Rtot[:, :, :, np.newaxis] / (1.0 + 2.0 * L0 * temp)
     Phisum_n = jnp.einsum("jl,ilkj->ijk", Kav * KxStar, Req)
     assert Phisum_n.shape == Phisum.shape

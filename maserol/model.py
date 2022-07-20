@@ -8,7 +8,7 @@ import xarray as xr
 import re
 
 path_here = dirname(dirname(__file__))
-initial_affinity = 10**8
+initial_affinity = 5*(10**9)
 mode_order = ["Sample", "Receptor", "Antigen"]
 
 def human_affinity():
