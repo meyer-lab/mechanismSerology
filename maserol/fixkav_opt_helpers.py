@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 import xarray as xr
 
-abs = ['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4']
+abs = ['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4', 'IgG4f']
 
 affinities_dict = {
     'alter' : ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'IgG'],
@@ -82,5 +82,19 @@ def make_rec_subj_labels(data: xr.DataArray):
         antigen_labels.append(antigen)
 
     return np.array(receptor_labels), np.array(antigen_labels)
+
+def calculate_r_list_from_index(cube_flat, lbound_flat, index_matrix):
+    """
+    Returns a list of r values for every receptor in the cube and lbound at the given path
+    """
+    r_list = []
+
+    for indices in index_matrix:
+            cube_val = cube_flat[indices]
+            lbound_val = lbound_flat[indices]
+            corr_matrix = jnp.corrcoef(jnp.log(cube_val), jnp.log(lbound_val))
+            r = corr_matrix[0,1]
+            r_list.append(r)
+    return r_list
 
 

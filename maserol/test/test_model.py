@@ -1,15 +1,10 @@
 """
 Test any functionality that is related to the binding model
 """
-<<<<<<< HEAD
 from ..model import human_affinity, assemble_Kav, prepare_data
 from ..fixkav_opt import optimize_lossfunc, initial_subj_abund, flatten_params, model_lossfunc
 from tensordata.atyeo import data as atyeo
 
-=======
-from ..model import human_affinity, assemble_Kav
-from tensordata.atyeo import data as atyeo
->>>>>>> master
 
 import numpy as np
 import pandas as pd
@@ -41,17 +36,12 @@ def test_assemble_Kav():
     for item in not_included:
         assert item.lower() not in list(included)
     
-<<<<<<< HEAD
-
-=======
->>>>>>> master
     # IgG - IgG portion
     for ab1 in abs:
         for ab2 in abs:
             if (ab1 == ab2):
                 assert Kav.sel(Receptor=ab1, Abs=ab2) == 10**8 # test diagional
             else:
-<<<<<<< HEAD
                 assert Kav.sel(Receptor=ab1, Abs=ab2) == 10 # test off diagonal
 
     # Various values in other portion 
@@ -72,15 +62,3 @@ if __name__ == "__main__":
     test_import_affinity()
     test_assemble_Kav()
     test_optimize_loss_func()
-=======
-                assert Kav.sel(Receptor=ab1, Abs=ab2) == 0 # test off diagonal
-    
-    # Various values in other portion 
-    assert Kav.sel(Receptor="FcRg2A", Abs="IgG3") == 900000.0
-    assert Kav.sel(Receptor="FcRg2b", Abs="IgG2") == 20000.0
-    assert Kav.sel(Receptor="FcRg3A", Abs="IgG4") == 200000.0
-
-if __name__ == "__main__":
-    test_import_affinity()
-    test_assemble_Kav()
->>>>>>> master

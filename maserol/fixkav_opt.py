@@ -40,11 +40,10 @@ def model_lossfunc(x, cube, kav, cube_nonzero, use_r=False, L0=1e-9, KxStar=1e-1
     """
     r_subj, r_ag = reshape_params(x, cube)
     Lbound = infer_Lbound(r_subj, r_ag, kav, L0=L0, KxStar=KxStar)
-    if (use_r == True):
+    if (use_r):
         # remove values from lbound where the cube has missing data (zeros)
         Lbound_flat = jnp.ravel(Lbound)[cube_nonzero]
         cube_flat = jnp.ravel(cube)[cube_nonzero]
-        
         corr_matrix = jnp.corrcoef(cube_flat, Lbound_flat)
         return -corr_matrix[0,1]
     else:
@@ -75,7 +74,7 @@ def optimize_lossfunc(data: xr.DataArray, kav, use_r=False, n_ab=1, maxiter=500)
             tq.update(1)
             if saved_params["iteration_number"] % 5 == 0:
                 print("{:3} | {}".format(
-                saved_params["iteration_number"], model_lossfunc(xk, data.values, kav, use_r)))
+                saved_params["iteration_number"], model_lossfunc(xk, data.values, kav, nonzero_indices, use_r)))
             saved_params["iteration_number"] += 1
 
         print("")
@@ -86,11 +85,12 @@ def optimize_lossfunc(data: xr.DataArray, kav, use_r=False, n_ab=1, maxiter=500)
 
     return opt.x[:, np.newaxis]
 
-def run_optimization(data: xr.DataArray, use_r=False, abs=1):
+def run_optimization(data: xr.DataArray, use_r=False, n_ab=1):
     data = prepare_data(data)
     kav = assemble_Kavf(data)
+    kav[np.where(kav == 0)] = 10
     kav_log = np.log(kav)
-    final_matrix = optimize_lossfunc(data, kav_log.values, use_r=use_r, n_ab=abs)
+    final_matrix = optimize_lossfunc(data, kav_log.values, use_r=use_r, n_ab=n_ab)
     r_subj_pred, r_ag_pred = reshape_params(final_matrix, data)
     lbound = infer_Lbound(r_subj_pred, r_ag_pred, kav_log.values)
     return r_subj_pred, r_ag_pred, lbound, kav # returns not log version of everything(!)

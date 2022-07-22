@@ -51,8 +51,8 @@ def configure_heatmap(data, title, color, loc):
     """
     Configures settings for and creates heatmap for make_triple_plot.
     """ 
-    f = sns.heatmap(data, cmap=color, ax=loc, linewidths=0.5, linecolor='black')
-    f.set_xticklabels(['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4'], rotation=0)
+    f = sns.heatmap(data, cmap=color, ax=loc)
+    f.set_xticklabels(['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4', 'IgG4f'], rotation=0)
     
     f.set_xlabel("Antibodies", fontsize=11, rotation=0)
     f.set_title(title, fontsize=13)
