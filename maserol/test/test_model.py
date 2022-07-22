@@ -2,7 +2,7 @@
 Test any functionality that is related to the binding model
 """
 from ..model import human_affinity, assemble_Kav, prepare_data
-from .. fixKav_optimization import optimize_lossfunc, initial_subj_abund, flatten_params, model_lossfunc
+from ..fixkav_opt import optimize_lossfunc, initial_subj_abund, flatten_params, model_lossfunc
 from tensordata.atyeo import data as atyeo
 
 

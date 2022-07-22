@@ -1,13 +1,12 @@
-import numpy as np
-import pandas as pd
-import xarray as xr 
-import seaborn as sns
+import mechanismSerology.maserol.fixkav_opt_helpers as helpers
 import matplotlib
 import matplotlib.pyplot as plt
-import fixkav_opt_helpers as helpers
-import model
+from mechanismSerology.maserol.model import prepare_data
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import xarray as xr 
 
-sns.set_style("darkgrid")
 matplotlib.rcParams["legend.labelspacing"] = 0.2
 matplotlib.rcParams["legend.fontsize"] = 8
 matplotlib.rcParams["xtick.major.pad"] = 1.0
@@ -48,8 +47,10 @@ def getKavSetup(figsize, gridd, multz=None, empts=None):
 
     return (ax, f)
 
-def configure_heatmap(data, title, color, loc): #include
-    #kav_labels[kav_labels == 10] = 0
+def configure_heatmap(data, title, color, loc):
+    """
+    Configures settings for and creates heatmap for make_triple_plot.
+    """ 
     f = sns.heatmap(data, cmap=color, ax=loc, linewidths=0.5, linecolor='black')
     f.set_xticklabels(['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4'], rotation=0)
     
@@ -57,14 +58,17 @@ def configure_heatmap(data, title, color, loc): #include
     f.set_title(title, fontsize=13)
     return f
 
-def make_triple_plot(name, subj, ag, kav): #include
-    # load in data
+def make_triple_plot(name, subj, ag, kav):
+    """
+    Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
+    """
+    # prepare data
     kav_log = np.log(kav.to_numpy())
     subj_norm, ag_norm = helpers.normalize_subj_ag_whole(subj, ag)
     axs, f = getKavSetup((16,6),(1,3))
     plt.subplots_adjust(wspace=.4)
 
-    # make plots
+    # plot
     subj_fig = configure_heatmap(subj_norm, "Subjects", "PuBuGn", axs[0])
     ag_fig = configure_heatmap(ag_norm, "Antigens", "PuBuGn", axs[1])
     af_fig = configure_heatmap(kav_log, "Affinities (1/M)", "PuBuGn", axs[2])
@@ -75,6 +79,9 @@ def make_triple_plot(name, subj, ag, kav): #include
     return f
 
 def add_triple_plot_labels(name, subj_fig, ag_fig, subj=None, ag=None):
+    """
+    Add's labels for specific datasets for make_triple_plot figure.
+    """
     if (name == "zohar"):
             outcomes, values = helpers.zohar_patients_labels()
             sum = 0
@@ -97,9 +104,12 @@ def add_triple_plot_labels(name, subj_fig, ag_fig, subj=None, ag=None):
         subj_fig.set_yticks([0,len(subj['Outcomes'][subj["Outcomes"] == 0.0])], ['Deceased', 'Convalescent'], rotation=0, va='center')
 
 
-def configure_scatterplot(data : xr.DataArray, lbound, loc=None): #include
+def configure_scatterplot(data : xr.DataArray, lbound, loc=None): 
+    """
+    Configures settings and creates scatterplot for make_initial_final_lbound_correlation_plot.
+    """
     # prepare data
-    cube_flat = (model.prepare_data(data)).values.flatten()
+    cube_flat = (prepare_data(data)).values.flatten()
     nonzero = np.nonzero(cube_flat)
     receptor_labels, antigen_labels = helpers.make_rec_subj_labels(data)
 
@@ -109,27 +119,30 @@ def configure_scatterplot(data : xr.DataArray, lbound, loc=None): #include
     antigen_labels = antigen_labels[nonzero]
 
     # plot
-    p = sns.scatterplot(x=np.log(lbound_flat), y=np.log(cube_flat), hue=receptor_labels, style=antigen_labels, ax=loc, s=70, alpha=0.5)
-    p.legend(title="Receptor | Antigen", bbox_to_anchor=(1, 1), borderaxespad=0)
-    p.set_xlabel("Predictions", fontsize=12)
-    p.set_ylabel("Actual", fontsize=12)
-    return p
+    f = sns.scatterplot(x=np.log(lbound_flat), y=np.log(cube_flat), hue=receptor_labels, style=antigen_labels, ax=loc, s=70, alpha=0.5)
+    f.legend(title="Receptor | Antigen", bbox_to_anchor=(1, 1), borderaxespad=0)
+    f.set_xlabel("Predictions", fontsize=12)
+    f.set_ylabel("Actual", fontsize=12)
+    return f
 
 def make_initial_final_lbound_correlation_plot(cube, initial_lbound, final_lbound):
-    cube = model.prepare_data(cube)
+    """
+    Creates two scatterplots comparing correlations between the cube and the initial and final lbound predictions.
+    """
+    cube = prepare_data(cube)
     axs, f = getKavSetup((13, 5), (1, 2))
-    a = configure_scatterplot(cube, initial_lbound, axs[0])
-    a.set_title("Initial", fontsize=13)
-    b = configure_scatterplot(cube, final_lbound,axs[1])
-    b.set_title("After Abundance Fit", fontsize=13)
+    initial_f = configure_scatterplot(cube, initial_lbound, axs[0])
+    initial_f.set_title("Initial", fontsize=13)
+    final_f = configure_scatterplot(cube, final_lbound, axs[1])
+    initial_f.set_title("After Abundance Fit", fontsize=13)
     add_r_text(cube, initial_lbound, final_lbound, f)
     return f
 
 def add_r_text(cube, initial_lbound, final_lbound, f):
     """
-    Prints f value of each receptor and the average r value on the plot f
+    Prints r value of each receptor and the average r value on the plot f.
     """
-    cube_flat = (model.prepare_data(cube)).values.flatten()
+    cube_flat = (prepare_data(cube)).values.flatten()
     nonzero = np.nonzero(cube_flat)
     lbound_flat_initial = initial_lbound.flatten()[nonzero]
     lbound_flat_final = final_lbound.flatten()[nonzero]
@@ -141,14 +154,14 @@ def add_r_text(cube, initial_lbound, final_lbound, f):
     final_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list)
     
     # initial
-    start = .80
+    start = 0.80
     for i in range(len(np.unique(receptor_labels[nonzero]))):
         f.text(0.05, start, '$r_{' + np.unique(receptor_labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(initial_r[i]), fontsize=13)
         start -=.03
     f.text(0.05, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(initial_r)/len(initial_r)), fontsize=13)
 
     # final
-    start=0.80
+    start = 0.80
     for i in range(len(np.unique(receptor_labels[nonzero]))):
         f.text(0.55, start, '$r_{' + np.unique(receptor_labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(final_r[i]), fontsize=13)
         start -=.03

@@ -28,7 +28,6 @@ def initial_AbundKa(cube, n_ab=1):
 
 def phi(Phisum, Rtot, L0, KxStar, Kav):
     temp = jnp.einsum("jl,ijk->ilkj", Kav, 1.0 + Phisum)
-    print("Temp shape: " + str(temp.shape))
     Req = Rtot[:, :, :, np.newaxis] / (1.0 + 2.0 * L0 * temp)
     Phisum_n = jnp.einsum("jl,ilkj->ijk", Kav * KxStar, Req)
     assert Phisum_n.shape == Phisum.shape

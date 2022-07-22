@@ -1,6 +1,6 @@
 from jax import value_and_grad, jit, jacfwd, jacrev
-from model import prepare_data, assemble_Kavf
-from predictAbundKa import infer_Lbound
+from mechanismSerology.maserol.model import prepare_data, assemble_Kavf
+from mechanismSerology.maserol.predictAbundKa import infer_Lbound
 from scipy.optimize import minimize
 from tqdm import tqdm
 import jax.numpy as jnp

@@ -67,7 +67,7 @@ def get_receptor_indices(cube : xr.DataArray):
 
 def make_rec_subj_labels(data: xr.DataArray): 
     """
-    Returns a flattened array of receptor and antigen labels for each element of the cube that is given
+    Returns a flattened array of receptor and antigen labels for each element of the cube that is given.
     """
     cube_labels = np.zeros((len(data.Sample.values), len(data.Receptor.values), len(data.Antigen.values)), dtype="O")
     for i in range (len(data.Sample.values)):

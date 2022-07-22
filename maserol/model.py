@@ -93,9 +93,8 @@ def assemble_Kavf(data: xr.DataArray):
     """
     Assemblies fixed affinities matrix for a given dataset
     """
-    abs = ["IgG1", "IgG2", "IgG3", "IgG4"]
     f = ["IgG1f", "IgG2f", "IgG3f", "IgG4f"]
-    absf = ["IgG1", "IgG1f", "IgG2",  "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f"]
+    absf = ["IgG1", "IgG1f", "IgG2",  "IgG2f", "IgG3", "IgG3f", "IgG4"]
     receptors = data.Receptor.values
 
     # get known affinities
@@ -115,21 +114,16 @@ def assemble_Kavf(data: xr.DataArray):
             if (ab == ig or ab[:-1] == ig):
                 Kav.loc[dict(Receptor=ig, Abs=ab)] = initial_affinity
 
-    print("c 1")
     # fill in remaining affinity values
     for ab in absf:
         for r in fc:
             if (ab in f):
                 if (re.match("fc[gr]*3", r, flags=re.IGNORECASE)):
-                    print("MATCH")
-                    print(r)
                     Kav.loc[dict(Receptor=r, Abs=ab)] = 10
                 else:
                     affinity = get_affinity(affinities, r, ab[:-1])
                     Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
             else:
                 affinity = get_affinity(affinities, r, ab)
-                print("c 2")
                 Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
-                print("c 3")
     return Kav

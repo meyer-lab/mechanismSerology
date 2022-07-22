@@ -1,5 +1,5 @@
 from fixkav_opt import run_optimization
-import fixkav_opt_figures as figs
+import mechanismSerology.maserol.fixkav_opt_figures as figs
 import matplotlib.pyplot as plt
 from tensordata.atyeo import data
 import model
