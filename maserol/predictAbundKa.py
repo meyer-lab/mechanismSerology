@@ -25,7 +25,6 @@ def initial_AbundKa(cube, n_ab=1):
     outt = non_negative_parafac(np.nan_to_num(cube), rank=n_ab)
     return outt.factors
 
-
 def phi(Phisum, Rtot, L0, KxStar, Kav):
     temp = jnp.einsum("jl,ijk->ilkj", Kav, 1.0 + Phisum)
     Req = Rtot[:, :, :, np.newaxis] / (1.0 + 2.0 * L0 * temp)
@@ -34,14 +33,18 @@ def phi(Phisum, Rtot, L0, KxStar, Kav):
     return Phisum_n
 
 
-def infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12):
+def infer_Lbound(cube, Ka, lrank, L0=1e-9, KxStar=1e-12, **kwargs):
     """
     pass the matrices generated above into polyfc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten
     """
     # TODO: make this capable of handling missing data
-    Phisum = jnp.zeros((R_subj.shape[0], Ka.shape[0], R_Ag.shape[0]))
-    Rtot = jnp.einsum("ij,kj->ijk", R_subj, R_Ag)
+    Phisum = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
+    Rtot = []
+    if lrank:
+        Rtot = jnp.einsum("ij,kj->ijk", kwargs['r_subj'], kwargs['r_ag'])
+    else:
+        Rtot = kwargs['r_abund'].reshape((cube.shape[0], kwargs['r_abund'].shape[1], cube.shape[2]))
 
     for ii in range(5):
         Phisum_n = phi(Phisum, Rtot, L0, KxStar, Ka)

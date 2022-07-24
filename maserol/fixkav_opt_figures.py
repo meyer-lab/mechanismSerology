@@ -1,7 +1,7 @@
+from mechanismSerology.maserol.model import prepare_data
 import mechanismSerology.maserol.fixkav_opt_helpers as helpers
 import matplotlib
 import matplotlib.pyplot as plt
-from mechanismSerology.maserol.model import prepare_data
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -53,7 +53,6 @@ def configure_heatmap(data, title, color, loc):
     """ 
     f = sns.heatmap(data, cmap=color, ax=loc)
     f.set_xticklabels(['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4', 'IgG4f'], rotation=0)
-    
     f.set_xlabel("Antibodies", fontsize=11, rotation=0)
     f.set_title(title, fontsize=13)
     return f
@@ -63,7 +62,7 @@ def make_triple_plot(name, subj, ag, kav):
     Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
     """
     # prepare data
-    kav_log = np.log(kav.to_numpy())
+    kav_log = np.log(kav)
     subj_norm, ag_norm = helpers.normalize_subj_ag_whole(subj, ag)
     axs, f = getKavSetup((16,6),(1,3))
     plt.subplots_adjust(wspace=.4)
@@ -80,7 +79,7 @@ def make_triple_plot(name, subj, ag, kav):
 
 def add_triple_plot_labels(name, subj_fig, ag_fig, subj=None, ag=None):
     """
-    Add's labels for specific datasets for make_triple_plot figure.
+    Adds labels for specific datasets for make_triple_plot figure.
     """
     if (name == "zohar"):
             outcomes, values = helpers.zohar_patients_labels()
@@ -134,7 +133,7 @@ def make_initial_final_lbound_correlation_plot(cube, initial_lbound, final_lboun
     initial_f = configure_scatterplot(cube, initial_lbound, axs[0])
     initial_f.set_title("Initial", fontsize=13)
     final_f = configure_scatterplot(cube, final_lbound, axs[1])
-    initial_f.set_title("After Abundance Fit", fontsize=13)
+    final_f.set_title("After Abundance Fit", fontsize=13)
     add_r_text(cube, initial_lbound, final_lbound, f)
     return f
 
@@ -150,8 +149,8 @@ def add_r_text(cube, initial_lbound, final_lbound, f):
     receptor_labels, _ = helpers.make_rec_subj_labels(cube)
     r_index_list = helpers.get_receptor_indices(cube)
 
-    initial_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list)
-    final_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list)
+    initial_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list, True)
+    final_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list, True)
     
     # initial
     start = 0.80

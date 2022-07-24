@@ -31,9 +31,8 @@ def normalize_subj_ag_whole(subj, ag):
     """
     Normalizes entire antigen matrix.
     """
-    max = ag.max()
-    ag /= max
-    subj *= max
+    ag /= ag.max()
+    subj *= ag.max()
     return subj, ag
 
 def zohar_patients_labels(): 
@@ -52,12 +51,12 @@ def atyeo_patient_labels():
     df = load_file("atyeo_covid")
     return list(df["Outcome"][0:22])
 
-def get_receptor_indices(cube : xr.DataArray):
+def get_receptor_indices(data : xr.DataArray):
     """
     Returns a matrix of indices where each receptor occurs in a given cube of data.
     """
-    receptor_labels, _ = make_rec_subj_labels(cube)
-    nonzero_indices = np.nonzero(jnp.ravel(cube.values))
+    receptor_labels, _ = make_rec_subj_labels(data)
+    nonzero_indices = np.nonzero(jnp.ravel(data.values))
     receptor_labels = receptor_labels[nonzero_indices]
 
     r_index_matrix = []
@@ -83,18 +82,21 @@ def make_rec_subj_labels(data: xr.DataArray):
 
     return np.array(receptor_labels), np.array(antigen_labels)
 
-def calculate_r_list_from_index(cube_flat, lbound_flat, index_matrix):
+def calculate_r_list_from_index(cube_flat, lbound_flat, index_matrix, label):
     """
     Returns a list of r values for every receptor in the cube and lbound at the given path
     """
     r_list = []
-
+    length = cube_flat.shape[0]
     for indices in index_matrix:
-            cube_val = cube_flat[indices]
-            lbound_val = lbound_flat[indices]
-            corr_matrix = jnp.corrcoef(jnp.log(cube_val), jnp.log(lbound_val))
-            r = corr_matrix[0,1]
-            r_list.append(r)
+        cube_val = cube_flat[indices]
+        lbound_val = lbound_flat[indices]
+        corr_matrix = jnp.corrcoef(jnp.log(cube_val), jnp.log(lbound_val))
+        r = corr_matrix[0,1]
+        if not label:
+            weight = len(lbound_val) / length
+            r *= weight
+        r_list.append(r)
     return r_list
 
 
