@@ -8,7 +8,7 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.9,<3.11"
 pandas = "^1.4"
-jaxlib = "^0.3.10"
+jaxlib = {url = "https://storage.googleapis.com/jax-releases/cuda11/jaxlib-0.3.10+cuda11.cudnn82-cp310-none-manylinux2014_x86_64.whl"}
 scipy = "^1.7"
 numpy = "^1.22"
 jax = "0.3.10"
