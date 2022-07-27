@@ -13,11 +13,16 @@ def normalizeSubj(cube):
 
 
 """ Set consistent naming between the three DataArrays """
-def rename(M, S, Z):
+def serology_rename():
+    M, S, Z = MGH(xarray=True), SpaceX(xarray=True), data3D(xarray=True)
+
+    M = normalizeSubj(M)
+    S = normalizeSubj(S)
+    Z = normalizeSubj(Z)
 
     #Specific to Kaplonek MGH 3D/4D
     if (len(M.dims) == 4):
-        M = M.rename({'Subject': 'Sample','Day': 'Time'})
+        M = M.rename({'Subject': 'Sample', 'Day': 'Time'})
     
     M_dict = {'Antigen': ['SARS.CoV2_N', 'CoV.OC43', 'Flu_HA', 'SARS.CoV2_S1', 'Ebola_gp', 'CMV',
                                         'SARS.CoV2_S', 'SARS.CoV2_S2', 'SARS.CoV2_RBD']}
@@ -38,13 +43,7 @@ def rename(M, S, Z):
 
 """ Assemble the concatenated COVID tensor in 3D """
 def importConcat():
-    M, S, Z = MGH(xarray=True), SpaceX(xarray=True), data3D(xarray=True)
-
-    M = normalizeSubj(M)
-    S = normalizeSubj(S)
-    Z = normalizeSubj(Z)
-
-    M, S, Z = rename(M, S, Z)
+    M, S, Z = serology_rename()
     cube = S.combine_first(M).combine_first(Z)
     cube = normalizeSubj(cube)
 
@@ -52,22 +51,7 @@ def importConcat():
 
 
 def importConcat4D():
-    M, S, Z = MGH4D(xarray=True), SpaceX(xarray=True), data3D(xarray=True)
+    ## TODO: this function was not written correctly!
 
-    M = normalizeSubj(M)
-    S = normalizeSubj(S)
-    Z = normalizeSubj(Z)
-
-    M, S, Z = rename(M, S, Z)
-
-    S_time = np.arange(S['Sample'].size)
-    S = S.expand_dims({'Time': S['Sample'].size}).assign_coords({'Time': S_time})
-
-    Z_time = np.arange((Z['Sample'].size))
-    Z = Z.expand_dims({'Time': Z['Sample'].size}).assign_coords({'Time': Z_time})
-   
-    concat = S.combine_first(M).combine_first(Z)
-    concat = normalizeSubj(concat)
-
-    return concat, M, S, Z
+    pass
 
