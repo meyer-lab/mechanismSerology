@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from tqdm import tqdm
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, jacfwd, jacrev
-from .predictAbundKa import infer_Lbound
+from .predictAbundKa import infer_Lbound, flattenParams, reshapeParams
 
 def initial_subj_abund(cube, n_ab=1):
     """
@@ -14,24 +14,11 @@ def initial_subj_abund(cube, n_ab=1):
     ag_matrix = np.full((cube.shape[2], n_ab), 10**8)
     return subj_matrix, ag_matrix
 
-def flatten_params(r_subj, r_ag):
-    """ Flatten into a parameter vector"""
-    return np.log(np.concatenate((r_subj.flatten(), r_ag.flatten())))
-
-def reshapeParams(x, cube):
-    """ Unflatten parameter vector back into subject and antigen matrices """
-    x = jnp.exp(x)
-    n_subj, n_rec,  n_Ag = cube.shape
-    n_ab = int(len(x) / (n_subj + n_Ag))
-    R_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
-    R_Ag = x[(n_subj * n_ab):((n_subj + n_Ag) * n_ab)].reshape(n_Ag, n_ab)
-    return R_subj, R_Ag
-
 def model_lossfunc(x, cube, Ka, L0=1e-9, KxStar=1e-12):
     """
     Loss function, comparing model output and flattened tensor
     """
-    R_subj, R_Ag = reshapeParams(x, cube)
+    R_subj, R_Ag = reshapeParams(x, cube, retKa=False)
     Lbound = infer_Lbound(R_subj, R_Ag, Ka, L0=L0, KxStar=KxStar)
     mask = jnp.isfinite(cube)
     mask = (cube > 0)
@@ -47,7 +34,7 @@ def optimize_lossfunc(cube, Kav, n_ab=1, maxiter=100):
     R_subj_guess, R_Ag_guess = initial_subj_abund(cube, n_ab=n_ab)
     Kav[np.where(Kav==0.0)] = 10
     Kav_log = np.log(Kav)
-    x0 = flatten_params(R_subj_guess, R_Ag_guess)
+    x0 = flattenParams(R_subj_guess, R_Ag_guess)
 
     func = jit(value_and_grad(model_lossfunc))
     hess = jit(jacfwd(jacrev(model_lossfunc)))
