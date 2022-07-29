@@ -36,6 +36,7 @@ def test_assemble_Kav():
     for item in not_included:
         assert item.lower() not in list(included)
     
+
     # IgG - IgG portion
     for ab1 in abs:
         for ab2 in abs:
