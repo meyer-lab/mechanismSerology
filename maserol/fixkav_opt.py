@@ -1,7 +1,7 @@
 from jax import value_and_grad, jit, jacfwd, jacrev
-from mechanismSerology.maserol.model import prepare_data, assemble_Kavf
-from mechanismSerology.maserol.predictAbundKa import infer_Lbound
-from mechanismSerology.maserol.fixkav_opt_helpers import calculate_r_list_from_index, get_receptor_indices
+from .model import prepare_data, assemble_Kavf
+from .predictAbundKa import infer_Lbound
+from .fixkav_opt_helpers import calculate_r_list_from_index, get_receptor_indices
 from scipy.optimize import minimize
 from tqdm import tqdm
 import jax.numpy as jnp
