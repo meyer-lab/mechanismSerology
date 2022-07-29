@@ -1,6 +1,5 @@
 """ Import binding affinities. """
 
-from ast import Pass
 from os.path import join, dirname
 import numpy as np
 import pandas as pd

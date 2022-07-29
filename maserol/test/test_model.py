@@ -2,21 +2,9 @@
 Test any functionality that is related to the binding model
 """
 from ..model import human_affinity, assemble_Kav, prepare_data
-from .. fixKav_optimization import optimize_lossfunc, initial_subj_abund, flatten_params, model_lossfunc
+from ..fixKav_optimization import optimize_lossfunc
 from tensordata.atyeo import data as atyeo
 
-
-import numpy as np
-import pandas as pd
-import xarray as xr
-import jax.numpy as jnp
-from tqdm import tqdm
-from scipy import linalg
-from scipy.optimize import minimize
-from jax import value_and_grad, jit, jacfwd, jacrev
-from jax.config import config
-from tensorly.decomposition import non_negative_parafac
-from tensordata.atyeo import data
 
 def test_import_affinity():
     """ Test that affinity file is loaded correctly. """
