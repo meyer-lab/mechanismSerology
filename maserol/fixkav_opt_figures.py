@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import xarray as xr 
+import opt_common as oc
+import jax.numpy as jnp
 
 matplotlib.rcParams["legend.labelspacing"] = 0.2
 matplotlib.rcParams["legend.fontsize"] = 8
@@ -52,18 +54,18 @@ def configure_heatmap(data, title, color, loc):
     Configures settings for and creates heatmap for make_triple_plot.
     """ 
     f = sns.heatmap(data, cmap=color, ax=loc)
-    f.set_xticklabels(['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4', 'IgG4f'], rotation=0)
+    f.set_xticklabels(helpers.absf, rotation=0)
     f.set_xlabel("Antibodies", fontsize=11, rotation=0)
     f.set_title(title, fontsize=13)
     return f
 
-def make_triple_plot(name, subj, ag, kav):
+def make_triple_plot(name, subj, ag, kav, n_ab):
     """
     Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
     """
     # prepare data
     kav_log = np.log(kav)
-    subj_norm, ag_norm = helpers.normalize_subj_ag_whole(subj, ag)
+    subj_norm, ag_norm = helpers.normalize_subj_ag(subj, ag, n_ab)
     axs, f = getKavSetup((16,6),(1,3))
     plt.subplots_adjust(wspace=.4)
 
@@ -97,7 +99,7 @@ def add_triple_plot_labels(name, subj_fig, ag_fig, subj=None, ag=None):
     
     if (name == 'atyeo'):
         outcomes = helpers.atyeo_patient_labels()
-        subj = pd.DataFrame(subj, columns=helpers.abs)
+        subj = pd.DataFrame(subj, columns=helpers.absf)
         subj['Outcomes'] = outcomes
         subj = subj.sort_values('Outcomes')
         subj_fig.set_yticks([0,len(subj['Outcomes'][subj["Outcomes"] == 0.0])], ['Deceased', 'Convalescent'], rotation=0, va='center')
@@ -124,7 +126,7 @@ def configure_scatterplot(data : xr.DataArray, lbound, loc=None):
     f.set_ylabel("Actual", fontsize=12)
     return f
 
-def make_initial_final_lbound_correlation_plot(cube, initial_lbound, final_lbound):
+def make_initial_final_lbound_correlation_plot(cube, initial_lbound, final_lbound, per_receptor):
     """
     Creates two scatterplots comparing correlations between the cube and the initial and final lbound predictions.
     """
@@ -134,10 +136,10 @@ def make_initial_final_lbound_correlation_plot(cube, initial_lbound, final_lboun
     initial_f.set_title("Initial", fontsize=13)
     final_f = configure_scatterplot(cube, final_lbound, axs[1])
     final_f.set_title("After Abundance Fit", fontsize=13)
-    add_r_text(cube, initial_lbound, final_lbound, f)
+    add_r_text(cube, initial_lbound, final_lbound, per_receptor, f)
     return f
 
-def add_r_text(cube, initial_lbound, final_lbound, f):
+def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
     """
     Prints r value of each receptor and the average r value on the plot f.
     """
@@ -146,22 +148,27 @@ def add_r_text(cube, initial_lbound, final_lbound, f):
     lbound_flat_initial = initial_lbound.flatten()[nonzero]
     lbound_flat_final = final_lbound.flatten()[nonzero]
 
-    receptor_labels, _ = helpers.make_rec_subj_labels(cube)
-    r_index_list = helpers.get_receptor_indices(cube)
+    receptor_labels, ag_labels = helpers.make_rec_subj_labels(cube)
+    r_index_list = helpers.get_indices(cube, per_receptor) if per_receptor else helpers.get_indices(cube, per_receptor)
+    labels = receptor_labels if per_receptor else ag_labels
 
     initial_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list, True)
     final_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list, True)
+    r_initial = jnp.corrcoef(cube_flat, lbound_flat_initial) [0,1]
+    r_final = jnp.corrcoef(cube_flat, lbound_flat_final) [0,1]
     
     # initial
-    start = 0.80
-    for i in range(len(np.unique(receptor_labels[nonzero]))):
-        f.text(0.05, start, '$r_{' + np.unique(receptor_labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(initial_r[i]), fontsize=13)
+    start = 0.78
+    for i in range(len(np.unique(labels[nonzero]))):
+        f.text(0.05, start, '$r_{' + np.unique(labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(initial_r[i]), fontsize=12)
         start -=.03
-    f.text(0.05, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(initial_r)/len(initial_r)), fontsize=13)
+    f.text(0.05, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(initial_r)/len(initial_r)), fontsize=12)
+    f.text(0.05, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_initial), fontsize=12)
 
     # final
-    start = 0.80
-    for i in range(len(np.unique(receptor_labels[nonzero]))):
-        f.text(0.55, start, '$r_{' + np.unique(receptor_labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(final_r[i]), fontsize=13)
+    start = 0.78
+    for i in range(len(np.unique(labels[nonzero]))):
+        f.text(0.55, start, '$r_{' + np.unique(labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(final_r[i]), fontsize=12)
         start -=.03
-    f.text(0.55, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(final_r)/len(final_r)), fontsize=13)
+    f.text(0.55, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(final_r)/len(final_r)), fontsize=12)
+    f.text(0.55, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_final), fontsize=12)

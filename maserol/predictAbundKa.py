@@ -16,7 +16,7 @@ from tensorly.decomposition import non_negative_parafac
 
 config.update("jax_enable_x64", True)
 
-def initial_AbundKa(cube, n_ab=1):
+def initial_AbundKa(cube, lrank, n_ab=1):
     """
     generate abundance and Ka matrices from linear analysis
     cube.shape == n_subj * n_rec * n_Ag

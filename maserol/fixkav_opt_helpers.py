@@ -1,14 +1,15 @@
-from tensordata.atyeo import load_file
-from tensordata.zohar import pbsSubtractOriginal
+from tensordata.tensordata.atyeo import load_file
+from tensordata.tensordata.zohar import pbsSubtractOriginal
 import jax.numpy as jnp
 import numpy as np
 import xarray as xr
 
-abs = ['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4', 'IgG4f']
+absf = ['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4', 'IgG4f']
+#absf = ['IgG1', 'IgG2', 'IgG3', 'IgG4']
 
 affinities_dict = {
     'alter' : ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'IgG'],
-    'atyeo' : ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcRg2A', 'FcRg2b', 'FcRg3A'],
+    'atyeo' : ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcRg2A', 'FcRg3A'], #'FcRg2b'
     'kaplonek_mgh' : ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcR2A', 'FcR2B', 'FcR3A', 'FcR3B'],
     'kaplonek_spacex' : ['IgG1', 'IgG3', 'FcR2A', 'FcR3A'],
     'zohar' : ['IgG1', 'IgG2', 'IgG3', 'FcR2A', 'FcR2B', 'FcR3A', 'FcR3B'],
@@ -35,6 +36,13 @@ def normalize_subj_ag_whole(subj, ag):
     subj *= ag.max()
     return subj, ag
 
+def normalize_subj_ag(subj, ag, n_ab): 
+    for i in range(n_ab):
+        max = ag[:,i].max()
+        ag = ag.at[:,i].set(ag[:,i] / max)
+        subj = subj.at[:,i].set(subj[:,i] * max)
+    return subj, ag
+
 def zohar_patients_labels(): 
     """
     Returns a list of Zohar patient outcomes and a list of the number of patients for each outcome.
@@ -51,17 +59,19 @@ def atyeo_patient_labels():
     df = load_file("atyeo_covid")
     return list(df["Outcome"][0:22])
 
-def get_receptor_indices(data : xr.DataArray):
+def get_indices(data : xr.DataArray, per_receptor):
     """
     Returns a matrix of indices where each receptor occurs in a given cube of data.
     """
-    receptor_labels, _ = make_rec_subj_labels(data)
+    receptor_labels, ag_labels = make_rec_subj_labels(data)
+    labels = (receptor_labels) if per_receptor else (ag_labels)
     nonzero_indices = np.nonzero(jnp.ravel(data.values))
-    receptor_labels = receptor_labels[nonzero_indices]
+    labels = labels[nonzero_indices]
+
 
     r_index_matrix = []
-    for receptor in np.unique(receptor_labels):
-        r_index_matrix.append(np.where(receptor_labels == receptor))
+    for i in np.unique(labels):
+        r_index_matrix.append(np.where(labels == i))
     return r_index_matrix
 
 def make_rec_subj_labels(data: xr.DataArray): 

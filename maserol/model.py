@@ -63,7 +63,7 @@ def assemble_Kavf(data: xr.DataArray):
     Assemblies fixed affinities matrix for a given dataset
     """
     f = ["IgG1f", "IgG2f", "IgG3f", "IgG4f"]
-    absf = helpers.abs
+    absf = helpers.absf
     receptors = data.Receptor.values
 
     # get known affinities

@@ -1,7 +1,7 @@
 from jax import value_and_grad, jit, jacfwd, jacrev
 from mechanismSerology.maserol.model import prepare_data, assemble_Kavf
 from mechanismSerology.maserol.predictAbundKa import infer_Lbound
-from mechanismSerology.maserol.fixkav_opt_helpers import calculate_r_list_from_index, get_receptor_indices
+from mechanismSerology.maserol.fixkav_opt_helpers import calculate_r_list_from_index, get_indices
 from scipy.optimize import minimize
 from tqdm import tqdm
 import jax.numpy as jnp
@@ -11,11 +11,11 @@ import xarray as xr
 def initialize_params(cube, lrank=False, n_ab=1,):
     """Generate initial guesses for input parameters."""
     if lrank:
-        subj_matrix = np.random.uniform(1E4, 2E4, (cube.shape[0], n_ab))
-        ag_matrix = np.random.uniform(1E4, 2E4, (cube.shape[2], n_ab))
+        subj_matrix = np.random.uniform(1E5, 5E5, (cube.shape[0], n_ab))
+        ag_matrix = np.random.uniform(1E5, 5E5, (cube.shape[2], n_ab))
         return subj_matrix, ag_matrix
     else:
-        abundance_matrix = np.random.uniform(1E4, 2E4, (cube.shape[0] * cube.shape[2], n_ab))
+        abundance_matrix = np.random.uniform(1E10, 2E10, (cube.shape[0] * cube.shape[2], n_ab))
         return abundance_matrix
 
 def flatten_params(lrank=False, **kwargs):
@@ -39,12 +39,13 @@ def reshape_params(x, cube, lrank=False):
         abundance_matrix = x.reshape((n_subj * n_ag, n_ab))
         return abundance_matrix
 
+
 def model_lossfunc(x, cube, kav, metric, lrank=False, L0=1e-9, KxStar=1e-12, *args):
     """
     Inputs: 
         x - flattened parameter fector
         cube - raw data
-        kav - matrix of known affinity values
+        input - either known affinity or abundance depending on what is being fit
         metric - r, rtot, mean
         lrank - when True, performs low rank optimization, when False performs
                 high rank optimization
@@ -53,17 +54,22 @@ def model_lossfunc(x, cube, kav, metric, lrank=False, L0=1e-9, KxStar=1e-12, *ar
                 
     Loss function comparing model output and flattened tensor.
     """
+    arr = x[:-1]
+    scale = x[-1]
+    
     if (lrank):
-        r_subj, r_ag = reshape_params(x, cube, lrank=lrank)
+        r_subj, r_ag = reshape_params(arr, cube, lrank=lrank)
         Lbound = infer_Lbound(cube, kav, lrank=lrank, L0=L0, KxStar=KxStar, r_subj=r_subj, r_ag=r_ag)
     else:
-        r_abund = reshape_params(x, cube, lrank=lrank)
+        r_abund = reshape_params(arr, cube, lrank=lrank)
         Lbound = infer_Lbound(cube, kav, lrank=lrank, L0=L0, KxStar=KxStar, r_abund=r_abund)
-    
+
     if (metric == 'mean'):
         mask = (cube > 0)
-        diff = ((jnp.log(cube) - jnp.log(Lbound)) * mask) 
-        diff -= jnp.mean(diff)
+        Lbound = Lbound * scale  
+        diff = ((jnp.log(cube) - jnp.log(Lbound)) * mask)  
+        #diff -= jnp.mean(diff)
+        #return jnp.linalg.norm(jnp.log(Lbound) * scale)
         return jnp.linalg.norm(diff)
     else:
         Lbound_flat = jnp.ravel(Lbound)[args[0]]
@@ -78,7 +84,7 @@ def model_lossfunc(x, cube, kav, metric, lrank=False, L0=1e-9, KxStar=1e-12, *ar
             avg = -(sum(r_list)/len(r_list))
             return avg
 
-def optimize_lossfunc(data: xr.DataArray, kav, metric, lrank=False, n_ab=1, maxiter=500):
+def optimize_lossfunc(data: xr.DataArray, kav, metric, lrank=False, per_receptor= False, n_ab=1, maxiter=1000):
     """
     Optimization method to minimize model_lossfunc output
     """
@@ -87,15 +93,17 @@ def optimize_lossfunc(data: xr.DataArray, kav, metric, lrank=False, n_ab=1, maxi
     data = prepare_data(data)
     if lrank:
         r_subj_guess, r_ag_guess = initialize_params(data.values, lrank=True, n_ab=n_ab)
-        x0 = flatten_params(lrank, r_subj=r_subj_guess, r_ag=r_ag_guess)
+        array = flatten_params(lrank, r_subj=r_subj_guess, r_ag=r_ag_guess)
+        x0 = np.append(array, 1E2)
 
     else:
         r_abund_guess = initialize_params(data.values, lrank=False, n_ab=n_ab)
-        x0 = flatten_params(lrank, r_abund=r_abund_guess)
+        array = flatten_params(lrank, r_abund=r_abund_guess)
+        x0 = np.append(array, 1E2)
     
     if (metric != 'mean'):
         nonzero_indices = np.nonzero(jnp.ravel(data.values))
-        r_index_matrix = get_receptor_indices(data)
+        r_index_matrix = get_indices(data, per_receptor)
         arrgs = (data.values, kav, metric, lrank, 1e-9, 1e-12, nonzero_indices, r_index_matrix)
     else:
         arrgs = (data.values, kav, metric, lrank, 1e-9, 1e-12)
@@ -124,12 +132,13 @@ def optimize_lossfunc(data: xr.DataArray, kav, metric, lrank=False, n_ab=1, maxi
 
     return opt.x[:, np.newaxis]
 
-def run_optimization(data: xr.DataArray, metric, lrank=False, n_ab=1):
+def run_optimization(data: xr.DataArray, metric, lrank=False, per_receptor=False, n_ab=1):
     data = prepare_data(data)
     kav = assemble_Kavf(data)
     kav[np.where(kav == 0)] = 10
     kav_log = np.log(kav)
-    final_matrix = optimize_lossfunc(data, kav_log.values, metric, lrank=lrank, n_ab=n_ab)
+    final_matrix = optimize_lossfunc(data, kav_log.values, metric, lrank=lrank, per_receptor=per_receptor, n_ab=n_ab)
+    final_matrix = final_matrix[:-1]
     if lrank:
         r_subj_pred, r_ag_pred = reshape_params(final_matrix, data, lrank=lrank)
         lbound = infer_Lbound(data, kav_log.values, lrank=lrank, r_subj=r_subj_pred, r_ag=r_ag_pred)
