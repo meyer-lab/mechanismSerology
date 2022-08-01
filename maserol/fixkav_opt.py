@@ -1,5 +1,5 @@
-from jax import value_and_grad, jit, jacfwd, jacrev
 from mechanismSerology.maserol.model import prepare_data, assemble_Kavf
+from jax import value_and_grad, jit, grad, jacfwd, jacrev
 from mechanismSerology.maserol.predictAbundKa import infer_Lbound
 from mechanismSerology.maserol.fixkav_opt_helpers import calculate_r_list_from_index, get_indices
 from scipy.optimize import minimize
@@ -68,8 +68,6 @@ def model_lossfunc(x, cube, kav, metric, lrank=False, L0=1e-9, KxStar=1e-12, *ar
         mask = (cube > 0)
         Lbound = Lbound * scale  
         diff = ((jnp.log(cube) - jnp.log(Lbound)) * mask)  
-        #diff -= jnp.mean(diff)
-        #return jnp.linalg.norm(jnp.log(Lbound) * scale)
         return jnp.linalg.norm(diff)
     else:
         Lbound_flat = jnp.ravel(Lbound)[args[0]]
@@ -91,24 +89,26 @@ def optimize_lossfunc(data: xr.DataArray, kav, metric, lrank=False, per_receptor
     nonzero_indices = []
     r_index_matrix = []
     data = prepare_data(data)
+
     if lrank:
         r_subj_guess, r_ag_guess = initialize_params(data.values, lrank=True, n_ab=n_ab)
         array = flatten_params(lrank, r_subj=r_subj_guess, r_ag=r_ag_guess)
-        x0 = np.append(array, 1E2)
-
     else:
         r_abund_guess = initialize_params(data.values, lrank=False, n_ab=n_ab)
         array = flatten_params(lrank, r_abund=r_abund_guess)
-        x0 = np.append(array, 1E2)
+
+    x0 = np.append(array, 1E2)
     
     if (metric != 'mean'):
         nonzero_indices = np.nonzero(jnp.ravel(data.values))
         r_index_matrix = get_indices(data, per_receptor)
-        arrgs = (data.values, kav, metric, lrank, 1e-9, 1e-12, nonzero_indices, r_index_matrix)
-    else:
-        arrgs = (data.values, kav, metric, lrank, 1e-9, 1e-12)
+    arrgs = (data.values, kav, metric, lrank, 1e-9, 1e-12, nonzero_indices, r_index_matrix)
 
     func = jit(value_and_grad(model_lossfunc), static_argnums=[3, 4])
+    #def hvp(x, v, *argss):
+    #    return grad(lambda x: jnp.vdot(func(x, *argss)[1], v))(x)
+
+    #hvpj = jit(hvp, static_argnums=[3,4])
     hess = jit(jacfwd(jacrev(model_lossfunc)), static_argnums=[3, 4])
     opts = {'maxiter': maxiter}
    
