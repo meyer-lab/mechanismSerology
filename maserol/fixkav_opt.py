@@ -1,7 +1,14 @@
+<<<<<<< HEAD
 from mechanismSerology.maserol.model import prepare_data, assemble_Kavf
 from jax import value_and_grad, jit, grad, jacfwd, jacrev
 from mechanismSerology.maserol.predictAbundKa import infer_Lbound
 from mechanismSerology.maserol.fixkav_opt_helpers import calculate_r_list_from_index, get_indices
+=======
+from jax import value_and_grad, jit, jacfwd, jacrev
+from .model import prepare_data, assemble_Kavf
+from .predictAbundKa import infer_Lbound, flattenParams
+from .fixkav_opt_helpers import calculate_r_list_from_index, get_receptor_indices
+>>>>>>> f8b57a051a4e17cf9f105cccff76c00378ae1f2c
 from scipy.optimize import minimize
 from tqdm import tqdm
 import jax.numpy as jnp
@@ -17,13 +24,6 @@ def initialize_params(cube, lrank=False, n_ab=1,):
     else:
         abundance_matrix = np.random.uniform(1E10, 2E10, (cube.shape[0] * cube.shape[2], n_ab))
         return abundance_matrix
-
-def flatten_params(lrank=False, **kwargs):
-    """ Flatten initialized matrices into a parameter vector."""
-    if lrank:
-        return np.log(np.concatenate((kwargs['r_subj'].flatten(), kwargs['r_ag'].flatten())))
-    else:
-        return np.log(kwargs['r_abund']).flatten()
 
 def reshape_params(x, cube, lrank=False):
     """ Unflatten parameter vector back into matrix """
@@ -92,12 +92,20 @@ def optimize_lossfunc(data: xr.DataArray, kav, metric, lrank=False, per_receptor
 
     if lrank:
         r_subj_guess, r_ag_guess = initialize_params(data.values, lrank=True, n_ab=n_ab)
+<<<<<<< HEAD
         array = flatten_params(lrank, r_subj=r_subj_guess, r_ag=r_ag_guess)
     else:
         r_abund_guess = initialize_params(data.values, lrank=False, n_ab=n_ab)
         array = flatten_params(lrank, r_abund=r_abund_guess)
 
     x0 = np.append(array, 1E2)
+=======
+        x0 = flattenParams(r_subj_guess, r_ag_guess)
+
+    else:
+        r_abund_guess = initialize_params(data.values, lrank=False, n_ab=n_ab)
+        x0 = flattenParams(r_abund_guess)
+>>>>>>> f8b57a051a4e17cf9f105cccff76c00378ae1f2c
     
     if (metric != 'mean'):
         nonzero_indices = np.nonzero(jnp.ravel(data.values))

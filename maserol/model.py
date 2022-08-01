@@ -1,13 +1,11 @@
 """ Import binding affinities. """
 
-from ast import Pass
-from curses import KEY_SAVE
 from os.path import join, dirname
 import numpy as np
 import pandas as pd
 import xarray as xr
 import re
-import mechanismSerology.maserol.fixkav_opt_helpers as helpers
+from .fixkav_opt_helpers import abs
 
 path_here = dirname(dirname(__file__))
 initial_affinity = 10**8
@@ -63,7 +61,7 @@ def assemble_Kavf(data: xr.DataArray):
     Assemblies fixed affinities matrix for a given dataset
     """
     f = ["IgG1f", "IgG2f", "IgG3f", "IgG4f"]
-    absf = helpers.absf
+    absf = abs
     receptors = data.Receptor.values
 
     # get known affinities

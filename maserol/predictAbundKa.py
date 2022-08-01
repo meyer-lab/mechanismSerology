@@ -53,21 +53,23 @@ def infer_Lbound(cube, Ka, lrank, L0=1e-9, KxStar=1e-12, **kwargs):
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
 
-def reshapeParams(x, cube):
+def reshapeParams(x, cube, retKa=True):
     # unflatten to three matrices
     x = jnp.exp(x)
     n_subj, n_rec, n_Ag = cube.shape
-    n_ab = int(len(x) / np.sum(cube.shape))
+    n_ab = int(len(x) / (np.sum(cube.shape) if retKa else (n_subj + n_Ag)))
 
     R_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
     R_Ag = x[(n_subj * n_ab):((n_subj + n_Ag) * n_ab)].reshape(n_Ag, n_ab)
+    if not retKa:
+        return R_subj, R_Ag
     Ka = x[(n_subj + n_Ag) * n_ab:(n_subj + n_Ag + n_rec) * n_ab].reshape(n_rec, n_ab)
     return R_subj, R_Ag, Ka
 
 
-def flattenParams(R_subj, R_Ag, Ka):
+def flattenParams(*args):
     """ Flatten into a parameter vector. """
-    return np.log(np.concatenate((R_subj.flatten(), R_Ag.flatten(), Ka.flatten())))
+    return np.log(np.concatenate([a.flatten() for a in args]))
 
 
 def model_lossfunc(x, cube, L0=1e-9, KxStar=1e-12):

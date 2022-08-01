@@ -1,5 +1,5 @@
-from mechanismSerology.maserol.model import prepare_data
-import mechanismSerology.maserol.fixkav_opt_helpers as helpers
+from .model import prepare_data
+from .fixkav_opt_helpers import *
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -65,7 +65,7 @@ def make_triple_plot(name, subj, ag, kav, n_ab):
     """
     # prepare data
     kav_log = np.log(kav)
-    subj_norm, ag_norm = helpers.normalize_subj_ag(subj, ag, n_ab)
+    subj_norm, ag_norm = normalize_subj_ag_whole(subj, ag)
     axs, f = getKavSetup((16,6),(1,3))
     plt.subplots_adjust(wspace=.4)
 
@@ -75,7 +75,7 @@ def make_triple_plot(name, subj, ag, kav, n_ab):
     af_fig = configure_heatmap(kav_log, "Affinities (1/M)", "PuBuGn", axs[2])
     add_triple_plot_labels(name, subj_fig, ag_fig, subj, ag)
 
-    af_fig.set_yticklabels(helpers.affinities_dict[name], fontsize=10, rotation=0)
+    af_fig.set_yticklabels(affinities_dict[name], fontsize=10, rotation=0)
     f.suptitle(f'{name}', fontsize=18)
     return f
 
@@ -84,7 +84,7 @@ def add_triple_plot_labels(name, subj_fig, ag_fig, subj=None, ag=None):
     Adds labels for specific datasets for make_triple_plot figure.
     """
     if (name == "zohar"):
-            outcomes, values = helpers.zohar_patients_labels()
+            outcomes, values = zohar_patients_labels()
             sum = 0
             for i in range(len(values)):
                 original = values[i]
@@ -93,13 +93,13 @@ def add_triple_plot_labels(name, subj_fig, ag_fig, subj=None, ag=None):
             subj_fig.set_yticks(values, outcomes, fontsize=8)
 
     if (name == "alter"):
-        ag_fig.set_yticklabels(helpers.antigen_dict[name], fontsize=8, rotation=0)
+        ag_fig.set_yticklabels(antigen_dict[name], fontsize=8, rotation=0)
     else:
-        ag_fig.set_yticklabels(helpers.antigen_dict[name], fontsize=10, rotation=0)
+        ag_fig.set_yticklabels(antigen_dict[name], fontsize=10, rotation=0)
     
     if (name == 'atyeo'):
-        outcomes = helpers.atyeo_patient_labels()
-        subj = pd.DataFrame(subj, columns=helpers.absf)
+        outcomes = atyeo_patient_labels()
+        subj = pd.DataFrame(subj, columns=abs)
         subj['Outcomes'] = outcomes
         subj = subj.sort_values('Outcomes')
         subj_fig.set_yticks([0,len(subj['Outcomes'][subj["Outcomes"] == 0.0])], ['Deceased', 'Convalescent'], rotation=0, va='center')
@@ -112,7 +112,7 @@ def configure_scatterplot(data : xr.DataArray, lbound, loc=None):
     # prepare data
     cube_flat = (prepare_data(data)).values.flatten()
     nonzero = np.nonzero(cube_flat)
-    receptor_labels, antigen_labels = helpers.make_rec_subj_labels(data)
+    receptor_labels, antigen_labels = make_rec_subj_labels(data)
 
     lbound_flat = lbound.flatten()[nonzero]
     cube_flat = cube_flat[nonzero]
@@ -148,14 +148,11 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
     lbound_flat_initial = initial_lbound.flatten()[nonzero]
     lbound_flat_final = final_lbound.flatten()[nonzero]
 
-    receptor_labels, ag_labels = helpers.make_rec_subj_labels(cube)
-    r_index_list = helpers.get_indices(cube, per_receptor) if per_receptor else helpers.get_indices(cube, per_receptor)
-    labels = receptor_labels if per_receptor else ag_labels
+    receptor_labels, _ = make_rec_subj_labels(cube)
+    r_index_list = get_receptor_indices(cube)
 
-    initial_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list, True)
-    final_r = helpers.calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list, True)
-    r_initial = jnp.corrcoef(cube_flat, lbound_flat_initial) [0,1]
-    r_final = jnp.corrcoef(cube_flat, lbound_flat_final) [0,1]
+    initial_r = calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list, True)
+    final_r = calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list, True)
     
     # initial
     start = 0.78
