@@ -93,13 +93,11 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
     else:
         cube_flat = jnp.ravel(cube)[args[2]]
         lbound_flat = jnp.ravel(Lbound)[args[2]]
-        if (metric == 'rtot'):
-            corr_matrix = jnp.corrcoef(cube_flat, lbound_flat)
-            return -corr_matrix[0,1]
+        if (metric == 'rtot'): 
+            return -jnp.corrcoef(cube_flat, lbound_flat) [0,1]
         elif (metric == 'r'):
             r_list = calculate_r_list_from_index(cube_flat, lbound_flat, args[1], False)
-            avg = -(sum(r_list)/len(r_list))
-            return avg
+            return -(sum(r_list)/len(r_list))
 
 
 def optimize_lossfunc(data: xr.DataArray, metric, lrank=True, retKav=True, perReceptor=True, n_ab=1, maxiter=100):

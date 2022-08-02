@@ -3,10 +3,8 @@ from .fixkav_opt_helpers import *
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import seaborn as sns
 import xarray as xr 
-import opt_common as oc
 import jax.numpy as jnp
 
 matplotlib.rcParams["legend.labelspacing"] = 0.2
@@ -49,61 +47,40 @@ def getKavSetup(figsize, gridd, multz=None, empts=None):
 
     return (ax, f)
 
-def configure_heatmap(data, title, color, loc):
+def configure_heatmap(data, title, color, abs, loc):
     """
     Configures settings for and creates heatmap for make_triple_plot.
     """ 
     f = sns.heatmap(data, cmap=color, ax=loc)
-    f.set_xticklabels(absf, rotation=0)
+    f.set_xticklabels(abs, rotation=0)
     f.set_xlabel("Antibodies", fontsize=11, rotation=0)
     f.set_title(title, fontsize=13)
     return f
 
-def make_triple_plot(name, subj, ag, kav, n_ab):
+def make_triple_plot(name, cube, subj, ag, kav, outcomes, abs):
     """
     Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
     """
     # prepare data
     kav_log = np.log(kav)
-    subj_norm, ag_norm = normalize_subj_ag_whole(subj, ag)
+    subj_norm, ag_norm = normalize_subj_ag(subj, ag, len(abs), whole=True)
     axs, f = getKavSetup((16,6),(1,3))
     plt.subplots_adjust(wspace=.4)
 
     # plot
-    subj_fig = configure_heatmap(subj_norm, "Subjects", "PuBuGn", axs[0])
-    ag_fig = configure_heatmap(ag_norm, "Antigens", "PuBuGn", axs[1])
-    af_fig = configure_heatmap(kav_log, "Affinities (1/M)", "PuBuGn", axs[2])
-    add_triple_plot_labels(name, subj_fig, ag_fig, subj, ag)
+    subj_fig = configure_heatmap(subj_norm, "Subjects", "PuBuGn", abs, axs[0])
+    ag_fig = configure_heatmap(ag_norm, "Antigens", "PuBuGn", abs, axs[1])
+    af_fig = configure_heatmap(kav_log, "Affinities (1/M)", "PuBuGn", abs, axs[2])
 
-    af_fig.set_yticklabels(affinities_dict[name], fontsize=10, rotation=0)
-    f.suptitle(f'{name}', fontsize=18)
+    # label axes
+    ag_fig.set_yticklabels(cube.Antigen.values, fontsize=8, rotation=0)
+    af_fig.set_yticklabels(cube.Receptor.values, fontsize=8, rotation=0)
+    outcomes.sort()
+    labels = set(outcomes)
+    outcome_index = [outcomes.index(outcome) for outcome in labels]
+    subj_fig.set_yticks(outcome_index, labels, fontsize=8, rotation=0)
+    f.suptitle(f'{name.capitalize()}', fontsize=18)
     return f
-
-def add_triple_plot_labels(name, subj_fig, ag_fig, subj=None, ag=None):
-    """
-    Adds labels for specific datasets for make_triple_plot figure.
-    """
-    if (name == "zohar"):
-            outcomes, values = zohar_patients_labels()
-            sum = 0
-            for i in range(len(values)):
-                original = values[i]
-                values[i] = sum
-                sum+=original
-            subj_fig.set_yticks(values, outcomes, fontsize=8)
-
-    if (name == "alter"):
-        ag_fig.set_yticklabels(antigen_dict[name], fontsize=8, rotation=0)
-    else:
-        ag_fig.set_yticklabels(antigen_dict[name], fontsize=10, rotation=0)
-    
-    if (name == 'atyeo'):
-        outcomes = atyeo_patient_labels()
-        subj = pd.DataFrame(subj, columns=absf)
-        subj['Outcomes'] = outcomes
-        subj = subj.sort_values('Outcomes')
-        subj_fig.set_yticks([0,len(subj['Outcomes'][subj["Outcomes"] == 0.0])], ['Deceased', 'Convalescent'], rotation=0, va='center')
-
 
 def configure_scatterplot(data : xr.DataArray, lbound, loc=None): 
     """
@@ -154,6 +131,8 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
 
     initial_r = calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list, True)
     final_r = calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list, True)
+    r_tot_initial = jnp.corrcoef(cube_flat, lbound_flat_initial) [0,1]
+    r_tot_final = jnp.corrcoef(cube_flat, lbound_flat_final) [0,1]
     
     # initial
     start = 0.78
@@ -161,7 +140,7 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
         f.text(0.05, start, '$r_{' + np.unique(labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(initial_r[i]), fontsize=12)
         start -=.03
     f.text(0.05, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(initial_r)/len(initial_r)), fontsize=12)
-    #f.text(0.05, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_initial), fontsize=12)
+    f.text(0.05, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_tot_initial), fontsize=12)
 
     # final
     start = 0.78
@@ -169,4 +148,4 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
         f.text(0.55, start, '$r_{' + np.unique(labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(final_r[i]), fontsize=12)
         start -=.03
     f.text(0.55, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(final_r)/len(final_r)), fontsize=12)
-    #f.text(0.55, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_final), fontsize=12)
+    f.text(0.55, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_tot_final), fontsize=12)
