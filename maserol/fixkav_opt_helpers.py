@@ -4,7 +4,7 @@ import xarray as xr
 
 def normalize_subj_ag(subj, ag, n_ab, whole=True): 
     """
-    Normalizes entire antigen matrix.
+    Normalizes antigen matrix.
     """
     if (whole):
         ag /= ag.max()
@@ -47,20 +47,16 @@ def get_indices(data : xr.DataArray, per_receptor):
         r_index_matrix.append(np.where(labels == i))
     return r_index_matrix
 
-def calculate_r_list_from_index(cube_flat, lbound_flat, index_matrix, label):
+def calculate_r_list_from_index(cube_flat, lbound_flat, index):
     """
     Returns a list of r values for every receptor/antigen in the cube and lbound
     """
     r_list = []
-    length = cube_flat.shape[0]
-    for indices in index_matrix:
+    for indices in index:
         cube_val = cube_flat[indices]
         lbound_val = lbound_flat[indices]
         corr_matrix = jnp.corrcoef(jnp.log(cube_val), jnp.log(lbound_val))
         r = corr_matrix[0,1]
-        if not label:
-            weight = len(lbound_val) / length
-            r *= weight
         r_list.append(r)
     return r_list
 
