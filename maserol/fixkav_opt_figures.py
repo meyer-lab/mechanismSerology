@@ -54,7 +54,7 @@ def configure_heatmap(data, title, color, loc):
     Configures settings for and creates heatmap for make_triple_plot.
     """ 
     f = sns.heatmap(data, cmap=color, ax=loc)
-    f.set_xticklabels(helpers.absf, rotation=0)
+    f.set_xticklabels(absf, rotation=0)
     f.set_xlabel("Antibodies", fontsize=11, rotation=0)
     f.set_title(title, fontsize=13)
     return f
@@ -99,7 +99,7 @@ def add_triple_plot_labels(name, subj_fig, ag_fig, subj=None, ag=None):
     
     if (name == 'atyeo'):
         outcomes = atyeo_patient_labels()
-        subj = pd.DataFrame(subj, columns=abs)
+        subj = pd.DataFrame(subj, columns=absf)
         subj['Outcomes'] = outcomes
         subj = subj.sort_values('Outcomes')
         subj_fig.set_yticks([0,len(subj['Outcomes'][subj["Outcomes"] == 0.0])], ['Deceased', 'Convalescent'], rotation=0, va='center')
@@ -148,8 +148,9 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
     lbound_flat_initial = initial_lbound.flatten()[nonzero]
     lbound_flat_final = final_lbound.flatten()[nonzero]
 
-    receptor_labels, _ = make_rec_subj_labels(cube)
-    r_index_list = get_receptor_indices(cube)
+    receptor_labels, ag_labels = make_rec_subj_labels(cube)
+    r_index_list = get_indices(cube, per_receptor)
+    labels = receptor_labels if per_receptor else ag_labels
 
     initial_r = calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list, True)
     final_r = calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list, True)
@@ -160,7 +161,7 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
         f.text(0.05, start, '$r_{' + np.unique(labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(initial_r[i]), fontsize=12)
         start -=.03
     f.text(0.05, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(initial_r)/len(initial_r)), fontsize=12)
-    f.text(0.05, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_initial), fontsize=12)
+    #f.text(0.05, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_initial), fontsize=12)
 
     # final
     start = 0.78
@@ -168,4 +169,4 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
         f.text(0.55, start, '$r_{' + np.unique(labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(final_r[i]), fontsize=12)
         start -=.03
     f.text(0.55, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(final_r)/len(final_r)), fontsize=12)
-    f.text(0.55, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_final), fontsize=12)
+    #f.text(0.55, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_final), fontsize=12)

@@ -5,7 +5,6 @@ import numpy as np
 import xarray as xr
 
 absf = ['IgG1', 'IgG1f', 'IgG2', 'IgG2f', 'IgG3', 'IgG3f', 'IgG4', 'IgG4f']
-#absf = ['IgG1', 'IgG2', 'IgG3', 'IgG4']
 
 affinities_dict = {
     'alter' : ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'IgG'],

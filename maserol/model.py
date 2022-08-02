@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import re
-from .fixkav_opt_helpers import abs
+from .fixkav_opt_helpers import absf
 
 path_here = dirname(dirname(__file__))
 initial_affinity = 10**8
@@ -61,9 +61,8 @@ def assemble_Kavf(data: xr.DataArray):
     Assemblies fixed affinities matrix for a given dataset
     """
     f = ["IgG1f", "IgG2f", "IgG3f", "IgG4f"]
-    absf = abs
     receptors = data.Receptor.values
-
+    
     # get known affinities
     affinities = human_affinity()
 
