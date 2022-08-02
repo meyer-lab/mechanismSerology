@@ -129,8 +129,8 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
     r_index_list = get_indices(cube, per_receptor)
     labels = receptor_labels if per_receptor else ag_labels
 
-    initial_r = calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list, True)
-    final_r = calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list, True)
+    initial_r = calculate_r_list_from_index(cube_flat, lbound_flat_initial, r_index_list)
+    final_r = calculate_r_list_from_index(cube_flat, lbound_flat_final, r_index_list)
     r_tot_initial = jnp.corrcoef(cube_flat, lbound_flat_initial) [0,1]
     r_tot_final = jnp.corrcoef(cube_flat, lbound_flat_final) [0,1]
     

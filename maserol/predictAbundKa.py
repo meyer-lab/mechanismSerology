@@ -18,7 +18,7 @@ from jax.config import config
 config.update("jax_enable_x64", True)
 
 def initializeParams(cube, lrank=True, retKa=True, n_ab=1):
-    """Generate initial guesses for input parameters."""
+    """ Generate initial guesses for input parameters. """
     Ka = None
     if (retKa):
         Ka = np.random.uniform(1E5, 5E5, (cube.shape[1], n_ab))
@@ -41,8 +41,8 @@ def phi(Phisum, Rtot, L0, KxStar, Ka):
 def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     """
     Pass the matrices generated above into polyfc, run through each receptor
-    and ant x sub pair and store in matrix same size as flatten
-    *args = r_subj, r_ag, kav OR abundance, kav
+    and ant x sub pair and store in matrix same size as flatten.
+    *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
     """
     Ka = args[1] if not lrank else args[2]
     Phisum = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
@@ -56,7 +56,7 @@ def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
 
 
 def reshapeParams(x, cube, lrank=True, retKa=True):
-    # unflatten to three matrices
+    """ Reshapes x into matrices. """
     x = jnp.exp(x)
     n_subj, n_rec, n_ag = cube.shape
     n_ab = int(len(x) / (np.sum(cube.shape) if retKa else ((n_subj + n_ag) if lrank else (n_subj * n_ag))))
@@ -75,9 +75,7 @@ def flattenParams(*args):
 
 
 def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-12, *args):
-    """
-        Loss function, comparing model output and flattened tensor
-    """
+    """ Loss function, comparing model output and actual values. """
     arr = x[:-1]
     scale = x[-1]
 
@@ -96,14 +94,12 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
         if (metric == 'rtot'): 
             return -jnp.corrcoef(cube_flat, lbound_flat) [0,1]
         elif (metric == 'r'):
-            r_list = calculate_r_list_from_index(cube_flat, lbound_flat, args[1], False)
+            r_list = calculate_r_list_from_index(cube_flat, lbound_flat, args[1])
             return -(sum(r_list)/len(r_list))
 
 
 def optimize_lossfunc(data: xr.DataArray, metric, lrank=True, retKav=True, perReceptor=True, n_ab=1, maxiter=100):
-    """
-        Optimization method to minimize model_lossfunc output
-    """
+    """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
     kav = None if retKav else assemble_Kavf(data)
     if kav.all() : kav_log = np.log(kav)

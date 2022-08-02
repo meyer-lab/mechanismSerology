@@ -4,7 +4,7 @@ import xarray as xr
 
 def normalize_subj_ag(subj, ag, n_ab, whole=True): 
     """
-    Normalizes antigen matrix.
+    Normalizes antigen matrix. If 'whole' is False, normalizes antigen matrix by columns.
     """
     if (whole):
         ag /= ag.max()
@@ -18,7 +18,7 @@ def normalize_subj_ag(subj, ag, n_ab, whole=True):
 
 def make_rec_subj_labels(data: xr.DataArray): 
     """
-    Returns a flattened array of receptor and antigen labels for each element of the cube that is given.
+    Returns a flattened array of receptor and antigen labels for each element of data.
     """
     cube_labels = np.zeros((len(data.Sample.values), len(data.Receptor.values), len(data.Antigen.values)), dtype="O")
     for i in range (len(data.Sample.values)):
@@ -33,9 +33,10 @@ def make_rec_subj_labels(data: xr.DataArray):
         antigen_labels.append(antigen)
     return np.array(receptor_labels), np.array(antigen_labels)
 
-def get_indices(data : xr.DataArray, per_receptor):
+def get_indices(data : xr.DataArray, per_receptor=True):
     """
-    Returns a matrix of indices where each receptor occurs in a given cube of data.
+    Returns a matrix of indices where each receptor occurs in data.
+    If 'per_receptor' is False, returns a matrix of indices where each antigen occurs in data.
     """
     receptor_labels, ag_labels = make_rec_subj_labels(data)
     labels = (receptor_labels) if per_receptor else (ag_labels)
