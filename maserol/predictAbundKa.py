@@ -113,19 +113,19 @@ def optimize_lossfunc(data: xr.DataArray, metric, absf, lrank=True, retKav=True,
 
     hvpj = jit(hvp, static_argnums=[3, 4, 5])
 
-    with tqdm(total=maxiter, delay=0.1) as tq:
-        saved_params = { "iteration_number" : 0 }
-        def callback(xk):
-            a, b = func(xk, *arrgs)
-            gNorm = np.linalg.norm(b)
-            tq.set_postfix(val='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
-            tq.update(1)
-            if saved_params["iteration_number"] % 5 == 0:
-                print("{:3} | {}".format(
-                saved_params["iteration_number"], model_lossfunc(xk, data.values, metric, lrank, retKav, 1e-9, 1e-12, kav_log.values, get_indices(data, perReceptor), jnp.nonzero(data_flat))))
-            saved_params["iteration_number"] += 1
-
+    saved_params = { "iteration_number" : 0 }
+    def callback(xk):
+        a, b = func(xk, *arrgs)
+        gNorm = np.linalg.norm(b)
+        tq.set_postfix(val='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
+        tq.update(1)
+        if saved_params["iteration_number"] % 5 == 0:
+            print("{:3} | {}".format(
+            saved_params["iteration_number"], model_lossfunc(xk, data.values, metric, lrank, retKav, 1e-9, 1e-12, kav_log.values, get_indices(data, perReceptor), jnp.nonzero(data_flat))))
+        saved_params["iteration_number"] += 1
         print("")
+
+    with tqdm(total=maxiter, delay=0.1) as tq:
         opt = minimize(func, x0, method="trust-ncg", args=arrgs, hessp=hvpj, callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
