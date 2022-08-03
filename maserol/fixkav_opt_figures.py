@@ -57,7 +57,7 @@ def configure_heatmap(data, title, color, abs, loc):
     f.set_title(title, fontsize=13)
     return f
 
-def make_triple_plot(name, cube, subj, ag, kav, outcomes, abs):
+def make_triple_plot(name, cube, subj, ag, kav, abs, outcomes=None):
     """
     Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
     """
@@ -75,10 +75,11 @@ def make_triple_plot(name, cube, subj, ag, kav, outcomes, abs):
     # label axes
     ag_fig.set_yticklabels(cube.Antigen.values, fontsize=8, rotation=0)
     af_fig.set_yticklabels(cube.Receptor.values, fontsize=8, rotation=0)
-    outcomes.sort()
-    labels = set(outcomes)
-    outcome_index = [outcomes.index(outcome) for outcome in labels]
-    subj_fig.set_yticks(outcome_index, labels, fontsize=8, rotation=0)
+    if (outcomes != None):
+        outcomes.sort()
+        labels = set(outcomes)
+        outcome_index = [outcomes.index(outcome) for outcome in labels]
+        subj_fig.set_yticks(outcome_index, labels, fontsize=8, rotation=0)
     f.suptitle(f'{name.capitalize()}', fontsize=18)
     return f
 
@@ -87,8 +88,10 @@ def configure_scatterplot(data : xr.DataArray, lbound, loc=None):
     Configures settings and creates scatterplot for make_initial_final_lbound_correlation_plot.
     """
     # prepare data
-    cube_flat = (prepare_data(data)).values.flatten()
+    cube_flat = data.values.flatten()
+    print(cube_flat.min())
     nonzero = np.nonzero(cube_flat)
+    print(nonzero)
     receptor_labels, antigen_labels = make_rec_subj_labels(data)
 
     lbound_flat = lbound.flatten()[nonzero]
@@ -107,7 +110,6 @@ def make_initial_final_lbound_correlation_plot(cube, initial_lbound, final_lboun
     """
     Creates two scatterplots comparing correlations between the cube and the initial and final lbound predictions.
     """
-    cube = prepare_data(cube)
     axs, f = getKavSetup((13, 5), (1, 2))
     initial_f = configure_scatterplot(cube, initial_lbound, axs[0])
     initial_f.set_title("Initial", fontsize=13)
@@ -122,8 +124,9 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
     """
     cube_flat = (prepare_data(cube)).values.flatten()
     nonzero = np.nonzero(cube_flat)
+    cube_flat = cube_flat[nonzero]
     lbound_flat_initial = initial_lbound.flatten()[nonzero]
-    lbound_flat_final = final_lbound.flatten()[nonzero]
+    lbound_flat_final = final_lbound.flatten() [nonzero]
 
     receptor_labels, ag_labels = make_rec_subj_labels(cube)
     r_index_list = get_indices(cube, per_receptor)
@@ -136,16 +139,16 @@ def add_r_text(cube, initial_lbound, final_lbound, per_receptor, f):
     
     # initial
     start = 0.78
-    for i in range(len(np.unique(labels[nonzero]))):
-        f.text(0.05, start, '$r_{' + np.unique(labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(initial_r[i]), fontsize=12)
+    for i in range(len(np.unique(labels))):
+        f.text(0.05, start, '$r_{' + np.unique(labels)[i] + '}$' + r'= {:.2f}'.format(initial_r[i]), fontsize=12)
         start -=.03
     f.text(0.05, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(initial_r)/len(initial_r)), fontsize=12)
     f.text(0.05, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_tot_initial), fontsize=12)
 
     # final
     start = 0.78
-    for i in range(len(np.unique(labels[nonzero]))):
-        f.text(0.55, start, '$r_{' + np.unique(labels[nonzero])[i] + '}$' + r'= {:.2f}'.format(final_r[i]), fontsize=12)
+    for i in range(len(np.unique(labels))):
+        f.text(0.55, start, '$r_{' + np.unique(labels)[i] + '}$' + r'= {:.2f}'.format(final_r[i]), fontsize=12)
         start -=.03
     f.text(0.55, 0.86, '$r_{avg}$' + r'= {:.2f}'.format(sum(final_r)/len(final_r)), fontsize=12)
     f.text(0.55, 0.83, '$r_{total}$' + r'= {:.2f}'.format(r_tot_final), fontsize=12)

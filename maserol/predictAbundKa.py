@@ -19,7 +19,6 @@ config.update("jax_enable_x64", True)
 
 def initializeParams(cube, lrank=True, retKa=True, n_ab=1):
     """ Generate initial guesses for input parameters. """
-    Ka = None
     if (retKa):
         Ka = np.random.uniform(1E5, 5E5, (cube.shape[1], n_ab))
     if lrank:
@@ -37,7 +36,6 @@ def phi(Phisum, Rtot, L0, KxStar, Ka):
     assert Phisum_n.shape == Phisum.shape
     return Phisum_n
 
-
 def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     """
     Pass the matrices generated above into polyfc, run through each receptor
@@ -53,7 +51,6 @@ def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
         Phisum = Phisum_n
 
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
-
 
 def reshapeParams(x, cube, lrank=True, retKa=True):
     """ Reshapes x into matrices. """
@@ -73,7 +70,6 @@ def flattenParams(*args):
     """ Flatten into a parameter vector. """
     return np.log(np.concatenate([a.flatten() for a in args]))
 
-
 def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-12, *args):
     """ Loss function, comparing model output and actual values. """
     arr = x[:-1]
@@ -89,8 +85,8 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
         diff = ((jnp.log(cube) - jnp.log(Lbound)) * mask)  
         return jnp.linalg.norm(diff)
     else:
-        cube_flat = jnp.ravel(cube)[args[2]]
-        lbound_flat = jnp.ravel(Lbound)[args[2]]
+        cube_flat = jnp.ravel(jnp.log(cube))[args[2]]
+        lbound_flat = jnp.ravel(jnp.log(Lbound))[args[2]]
         if (metric == 'rtot'): 
             return -jnp.corrcoef(cube_flat, lbound_flat) [0,1]
         elif (metric == 'r'):
@@ -98,18 +94,15 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
             return -(sum(r_list)/len(r_list))
 
 
-def optimize_lossfunc(data: xr.DataArray, metric, lrank=True, retKav=True, perReceptor=True, n_ab=1, maxiter=100):
+def optimize_lossfunc(data: xr.DataArray, metric, absf, lrank=True, retKav=True, perReceptor=True, n_ab=1, maxiter=500):
     """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
-    kav = None if retKav else assemble_Kavf(data)
+    kav = None if retKav else assemble_Kavf(data, absf)
     if kav.all() : kav_log = np.log(kav)
     params = initializeParams(data, lrank=lrank, retKa=retKav, n_ab=n_ab)
     x0 = flattenParams(*params)
     x0 = np.append(x0, 1E2) # scaling factor
     data_flat = jnp.ravel(data.values)
-    for i in range(len(data_flat)):
-        if (data_flat[i] == np.inf or data_flat[i] == -np.inf or data_flat[i] == np.nan):
-            data_flat[i] == 0
 
     arrgs = (data.values, metric, lrank, retKav, 1e-9, 1e-12, kav_log.values, get_indices(data, perReceptor), jnp.nonzero(data_flat))
     func = jit(value_and_grad(model_lossfunc), static_argnums=[2, 3, 4])

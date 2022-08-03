@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import re
-from .fixkav_opt_helpers import absf
 
 path_here = dirname(dirname(__file__))
 initial_affinity = 10**8
@@ -43,20 +42,21 @@ def get_affinity(affinities_df, receptor, abs):
             return affinities_df.at[r,abs]
     return 0
 
-def prepare_data(data: xr.DataArray, abs="IgG"):
+def prepare_data(data: xr.DataArray, abs="IgG", remove=None):
     """
     Transposes data to be in ("Sample", "Antigen", "Receptor") order 
-    and omits all receptor data that does not pertain to the specified antibody
+    and omits all receptor data that does not pertain to the specified antibody.
     """
     data = data.transpose(mode_order[0], mode_order[1], mode_order[2])
     data_receptors = data.Receptor.values
-    wanted_receptors = [x for x in data_receptors if x.startswith(abs)] + \
-                       [x for x in data_receptors if (x.startswith("FcR") and x != "FcRalpha")]
-    data[np.where(data == np.inf)] = np.nan
-    data[np.where(data == -np.inf)] = np.nan
+    wanted_receptors = [x for x in data_receptors if re.match("^igg", x, flags=re.IGNORECASE)] + \
+                       [x for x in data_receptors if re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha"]
+    data[np.where(data == np.inf)] = 0
+    data[np.where(data == -np.inf)] = 0
+    data[np.where(data == np.nan)] = 0
     return data.sel(Receptor=wanted_receptors)
 
-def assemble_Kavf(data: xr.DataArray):
+def assemble_Kavf(data: xr.DataArray, absf):
     """
     Assemblies fixed affinities matrix for a given dataset
     """
