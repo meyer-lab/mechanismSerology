@@ -42,48 +42,56 @@ def get_affinity(affinities_df, receptor, abs):
             return affinities_df.at[r,abs]
     return 0
 
-def prepare_data(data: xr.DataArray, abs="IgG"):
+def prepare_data(data: xr.DataArray, abs="IgG", remove=None):
     """
     Transposes data to be in ("Sample", "Antigen", "Receptor") order 
-    and omits all receptor data that does not pertain to the specified antibody
+    and omits all receptor data that does not pertain to the specified antibody.
     """
     data = data.transpose(mode_order[0], mode_order[1], mode_order[2])
-
     data_receptors = data.Receptor.values
-
-    wanted_receptors = [x for x in data_receptors if x.startswith(abs)] + \
-                       [x for x in data_receptors if (x.startswith("FcR") and x != "FcRalpha")]
-
+    wanted_receptors = [x for x in data_receptors if re.match("^igg", x, flags=re.IGNORECASE)] + \
+                       [x for x in data_receptors if re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha"]
+    data[np.where(data == np.inf)] = 0
+    data[np.where(data == -np.inf)] = 0
+    data[np.where(data == np.nan)] = 0
     return data.sel(Receptor=wanted_receptors)
 
-def assemble_Kav(data: xr.DataArray):
+def assemble_Kavf(data: xr.DataArray, absf):
     """
     Assemblies fixed affinities matrix for a given dataset
     """
-    abs = ["IgG1", "IgG2", "IgG3", "IgG4"]
+    f = ["IgG1f", "IgG2f", "IgG3f", "IgG4f"]
     receptors = data.Receptor.values
-
+    
     # get known affinities
     affinities = human_affinity()
 
     # assemble matrix
-    data_placeholder = np.full((len(receptors), len(abs)), 10)
-    Kav = xr.DataArray(data_placeholder, coords=[receptors, abs], dims=["Receptor", "Abs"])
+    data_placeholder = np.full((len(receptors), len(absf)), 10)
+    Kav = xr.DataArray(data_placeholder, coords=[receptors, absf], dims=["Receptor", "Abs"])
     
     # separate into list of fc and igg receptors
     fc = [x for x in receptors if (re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha")]
     igg = [x for x in receptors if (re.match("^igg", x, flags=re.IGNORECASE))]
 
     # fill in all IgG - IgG pair affinity values
-    for ab in abs:
+    for ab in absf:
         for ig in igg:
-            if (ab == ig):
+            if (ab == ig or ab[:-1] == ig):
                 Kav.loc[dict(Receptor=ig, Abs=ab)] = initial_affinity
 
     # fill in remaining affinity values
-    for ab in abs:
+    for ab in absf:
         for r in fc:
-            affinity = get_affinity(affinities, r, ab)
-            Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
-        
+            if (ab in f):
+                if (re.match("fc[gr]*3", r, flags=re.IGNORECASE)):
+                    Kav.loc[dict(Receptor=r, Abs=ab)] = 10
+                else:
+                    affinity = get_affinity(affinities, r, ab[:-1])
+                    Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
+            else:
+                affinity = get_affinity(affinities, r, ab)
+                Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
+    
+    Kav[np.where(Kav==0.0)] = 10
     return Kav
