@@ -82,11 +82,11 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
     if (metric == 'mean'):
         mask = (cube > 0)
         Lbound = Lbound * scale  
-        diff = ((jnp.log(cube) - jnp.log(Lbound)) * mask)  
+        diff = (cube - Lbound) * mask
         return jnp.linalg.norm(diff)
     else:
-        cube_flat = jnp.ravel(jnp.log(cube))[args[2]]
-        lbound_flat = jnp.ravel(jnp.log(Lbound))[args[2]]
+        cube_flat = jnp.ravel(cube)[args[2]]
+        lbound_flat = jnp.ravel(Lbound)[args[2]]
         if (metric == 'rtot'): 
             return -jnp.corrcoef(cube_flat, lbound_flat) [0,1]
         elif (metric == 'r'):
