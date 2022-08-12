@@ -75,7 +75,7 @@ def make_triple_plot(name, cube, subj, ag, kav, abs, outcomes=None):
     # label axes
     ag_fig.set_yticklabels(cube.Antigen.values, fontsize=8, rotation=0)
     af_fig.set_yticklabels(cube.Receptor.values, fontsize=8, rotation=0)
-    if (outcomes != None):
+    if (len(outcomes) != 0):
         outcomes.sort()
         labels = set(outcomes)
         outcome_index = [outcomes.index(outcome) for outcome in labels]
@@ -89,9 +89,7 @@ def configure_scatterplot(data : xr.DataArray, lbound, loc=None):
     """
     # prepare data
     cube_flat = data.values.flatten()
-    print(cube_flat.min())
     nonzero = np.nonzero(cube_flat)
-    print(nonzero)
     receptor_labels, antigen_labels = make_rec_subj_labels(data)
 
     lbound_flat = lbound.flatten()[nonzero]
