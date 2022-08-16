@@ -68,7 +68,7 @@ def make_triple_plot(name, cube, subj, ag, kav, abs, outcomes=None):
     plt.subplots_adjust(wspace=.4)
 
     # plot
-    subj_fig = configure_heatmap(subj_norm, "Subjects", "PuBuGn", abs, axs[0])
+    subj_fig = configure_heatmap(subj_norm, "Subjects Log10 ", "PuBuGn", abs, axs[0])
     ag_fig = configure_heatmap(ag_norm, "Antigens", "PuBuGn", abs, axs[1])
     af_fig = configure_heatmap(kav_log, "Affinities (1/M)", "PuBuGn", abs, axs[2])
 
