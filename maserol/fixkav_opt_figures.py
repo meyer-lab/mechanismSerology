@@ -52,7 +52,7 @@ def configure_heatmap(data, title, color, abs, loc):
     Configures settings for and creates heatmap for make_triple_plot.
     """ 
     f = sns.heatmap(data, cmap=color, ax=loc)
-    f.set_xticklabels(abs, rotation=0)
+    f.set_xticklabels(abs, rotation=90)
     f.set_xlabel("Antibodies", fontsize=11, rotation=0)
     f.set_title(title, fontsize=13)
     return f
@@ -73,9 +73,9 @@ def make_triple_plot(name, cube, subj, ag, kav, abs, outcomes=None):
     af_fig = configure_heatmap(kav_log, "Affinities (1/M)", "PuBuGn", abs, axs[2])
 
     # label axes
-    ag_fig.set_yticklabels(cube.Antigen.values, fontsize=8, rotation=0)
+    ag_fig.set_yticks([x for x in range(len(cube.Antigen))], cube.Antigen.values, fontsize=8, rotation=0)
     af_fig.set_yticklabels(cube.Receptor.values, fontsize=8, rotation=0)
-    if (len(outcomes) != 0):
+    if (outcomes != None):
         outcomes.sort()
         labels = set(outcomes)
         outcome_index = [outcomes.index(outcome) for outcome in labels]
