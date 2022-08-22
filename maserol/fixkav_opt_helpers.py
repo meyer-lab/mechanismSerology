@@ -40,7 +40,7 @@ def get_indices(data : xr.DataArray, per_receptor=True):
     """
     receptor_labels, ag_labels = make_rec_subj_labels(data)
     labels = (receptor_labels) if per_receptor else (ag_labels)
-    nonzero_indices = np.nonzero(jnp.ravel(data.values))
+    nonzero_indices = ~np.isnan(jnp.ravel(data.values))
     labels = labels[nonzero_indices]
 
     r_index_matrix = []
@@ -56,7 +56,7 @@ def calculate_r_list_from_index(cube_flat, lbound_flat, index):
     for indices in index:
         cube_val = cube_flat[indices]
         lbound_val = lbound_flat[indices]
-        corr_matrix = jnp.corrcoef(jnp.log(cube_val), jnp.log(lbound_val))
+        corr_matrix = jnp.corrcoef(jnp.log10(cube_val), jnp.log10(lbound_val))
         r = corr_matrix[0,1]
         r_list.append(r)
     return r_list

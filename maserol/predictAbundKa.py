@@ -78,11 +78,10 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
     params = reshapeParams(arr, cube, lrank=lrank, retKa=retKa)
     if not retKa: params.append(args[0])
     Lbound = infer_Lbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
-
+    mask = (cube > 0)
     if (metric == 'mean'):
-        mask = (cube > 0)
         Lbound = Lbound * scale  
-        diff = (jnp.log(cube) - jnp.log(Lbound)) * mask
+        diff = (jnp.log10(cube) - jnp.log10(Lbound)) * mask
         return jnp.linalg.norm(diff)
     else:
         cube_flat = jnp.ravel(cube)[args[2]]
