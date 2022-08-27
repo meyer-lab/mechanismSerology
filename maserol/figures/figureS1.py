@@ -1,5 +1,5 @@
 from tensorpack import xplot_components
-from ..dataImport import importConcat
+from tensordata.serology import importConcat
 
 def makeFigure():
     combined, M, S, _ = importConcat()
