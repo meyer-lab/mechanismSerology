@@ -12,7 +12,7 @@ mode_order = ["Sample", "Receptor", "Antigen"]
 
 def human_affinity():
     """
-    Return a dataFrame of known affinity measurments
+    Returns a dataFrame of known affinity measurments.
     """
     df = pd.read_csv(join(path_here, "maserol/data/human-affinities.csv"),
                        delimiter=",", comment="#", index_col=0)
@@ -22,7 +22,7 @@ def human_affinity():
 def get_affinity(affinities_df, receptor, abs):
     """ 
     Given a receptor and antibody pair and dataFrame of known affinity values,
-    returns the associatied human affinity value 
+    returns the associatied human affinity value.
     """
     # figure out of receptor uses iii or 1,2,3 system
     x = re.search("3|2|1|i+", receptor, flags=re.IGNORECASE)
@@ -52,14 +52,18 @@ def prepare_data(data: xr.DataArray, abs="IgG", remove=None, exp=False):
     data_receptors = data.Receptor.values
     wanted_receptors = [x for x in data_receptors if re.match("^igg", x, flags=re.IGNORECASE)] + \
                        [x for x in data_receptors if re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha"]
+    
+    # remove receptors specificed in 'remove' parameter
     if remove != None:
         for r in remove:
             wanted_receptors.remove(r)
+    
     data[np.where(data == np.inf)] = 0
     data[np.where(data == -np.inf)] = 0
     data[np.where(data == np.nan)] = 0
     missing_ag = []
 
+    # remove antigens with all missing values
     for antigen in data.Antigen:
         if np.unique(data.sel(Antigen = antigen).values).size == 1: # only nan values for antigen
             missing_ag.append(antigen.values)
@@ -68,7 +72,7 @@ def prepare_data(data: xr.DataArray, abs="IgG", remove=None, exp=False):
 
 def assemble_Kavf(data: xr.DataArray, absf):
     """
-    Assemblies fixed affinities matrix for a given dataset
+    Assemblies fixed affinities matrix for a given dataset.
     """
     f = ["IgG1f", "IgG2f", "IgG3f", "IgG4f"]
     receptors = data.Receptor.values
