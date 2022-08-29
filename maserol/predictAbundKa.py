@@ -10,7 +10,7 @@ from tqdm import tqdm
 import xarray as xr
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, grad
-from .model import prepare_data, assemble_Kavf
+from .data_preparation import prepare_data, assemble_Kavf
 from .fixkav_opt_helpers import calculate_r_list_from_index, get_indices
 from jax.config import config
 
@@ -130,5 +130,5 @@ def optimize_lossfunc(data: xr.DataArray, metric, absf, lrank=True, retKav=True,
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
 
-    return opt.x[:, np.newaxis]
+    return opt.x[:, np.newaxis], opt.fun
 
