@@ -1,7 +1,7 @@
 """
 Test any functionality that is related to the binding model
 """
-from ..model import human_affinity, assemble_Kav, prepare_data
+from ..data_preparation import human_affinity, assemble_Kav, prepare_data
 from ....fixkav_opt import optimize_lossfunc
 from tensordata.atyeo import data as atyeo
 
