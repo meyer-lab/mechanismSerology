@@ -18,14 +18,20 @@ from jax.config import config
 config.update("jax_enable_x64", True)
 
 def initializeParams(cube, lrank=True, retKa=True, n_ab=1):
-    """ Generate initial guesses for input parameters. """
-    if (retKa):
+    """
+        Generate initial guesses for input parameters.
+        cube = Subjs x Receptors x Ags
+        lrank: whether assume a low-rank structure.
+            Return separate Subj and Ag matrices if do, otherwise return just one abundance matrix
+        retKa: if Ka is not fix, return a random Ka matrix too
+    """
+    if (retKa):     # when Ka matrix is not fixed
         Ka = np.random.uniform(1E5, 5E5, (cube.shape[1], n_ab))
-    if lrank:
+    if lrank:       # with low-rank assumption
         subj = np.random.uniform(1E5, 5E5, (cube.shape[0], n_ab))
         ag = np.random.uniform(1E5, 5E5, (cube.shape[2], n_ab))
         return [subj, ag, Ka] if retKa else [subj, ag]
-    else:
+    else:           # without low-rank assumption
         abundance = np.random.uniform(1E10, 2E10, (cube.shape[0] * cube.shape[2], n_ab))
         return [abundance, Ka] if retKa else [abundance]
 
@@ -42,9 +48,15 @@ def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     and ant x sub pair and store in matrix same size as flatten.
     *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
     """
-    Ka = args[1] if not lrank else args[2]
+    if lrank:
+        assert len(args) == 3, "args take 1) r_subj, 2) r_ag, 3) kav [when lrank is True]"
+        Ka = args[2]
+        Rtot = jnp.einsum("ij,kj->ijk", args[0], args[1])
+    else:
+        assert len(args) == 2, "args take 1) abundance, 2) kav [when lrank is False]"
+        Ka = args[1]
+        Rtot = args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
     Phisum = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
-    Rtot = jnp.einsum("ij,kj->ijk", args[0], args[1]) if lrank else args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
 
     for ii in range(5):
         Phisum_n = phi(Phisum, Rtot, L0, KxStar, Ka)
@@ -53,10 +65,10 @@ def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
 def reshapeParams(x, cube, lrank=True, retKa=True):
-    """ Reshapes x into matrices. """
+    """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
     x = jnp.exp(x)
     n_subj, n_rec, n_ag = cube.shape
-    n_ab = int(len(x) / (np.sum(cube.shape) if retKa else ((n_subj + n_ag) if lrank else (n_subj * n_ag))))
+    n_ab = int(len(x) / (jnp.sum(cube.shape) if retKa else ((n_subj + n_ag) if lrank else (n_subj * n_ag))))
     if (retKa):
         Ka = x[(n_subj + n_ag) * n_ab:(n_subj + n_ag + n_rec) * n_ab].reshape(n_rec, n_ab)
     if not lrank:
@@ -67,8 +79,8 @@ def reshapeParams(x, cube, lrank=True, retKa=True):
     return [r_subj, r_ag, Ka] if retKa else [r_subj, r_ag]
 
 def flattenParams(*args):
-    """ Flatten into a parameter vector. """
-    return np.log(np.concatenate([a.flatten() for a in args]))
+    """ Flatten into a parameter vector. Inverse operation of reshapeParams(). """
+    return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
 def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-12, *args):
     """ Loss function, comparing model output and actual values. """
@@ -80,7 +92,7 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
     Lbound = infer_Lbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
     if (metric == 'mean'):
         mask = (cube > 0)
-        Lbound = Lbound * scale  
+        Lbound = Lbound * scale
         diff = (jnp.log10(cube) - jnp.log10(Lbound)) * mask
         return jnp.linalg.norm(diff)
     else:

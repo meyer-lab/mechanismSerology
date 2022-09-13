@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from ..predictAbundKa import initial_AbundKa, model_lossfunc, optimize_lossfunc, flattenParams
+from ..core import initial_AbundKa, model_lossfunc, optimize_lossfunc, flattenParams
 from tensordata.atyeo import createCube
 
 

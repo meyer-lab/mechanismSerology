@@ -1,5 +1,5 @@
 from .common import getSetup, subplotLabel
-from ..predictAbundKa import *
+from ..core import *
 from tensordata.atyeo import data as atyeo
 from scipy.stats import pearsonr
 
