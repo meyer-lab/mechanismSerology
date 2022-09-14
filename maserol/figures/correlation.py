@@ -1,21 +1,6 @@
-import numpy as np
-import seaborn as sns
-import jax.numpy as jnp
-import xarray as xr
 from .common import *
 from ..fixkav_opt_helpers import *
 
-matplotlib.rcParams["legend.labelspacing"] = 0.2
-matplotlib.rcParams["legend.fontsize"] = 8
-matplotlib.rcParams["xtick.major.pad"] = 1.0
-matplotlib.rcParams["ytick.major.pad"] = 1.0
-matplotlib.rcParams["xtick.minor.pad"] = 0.9
-matplotlib.rcParams["ytick.minor.pad"] = 0.9
-matplotlib.rcParams["legend.handletextpad"] = 0.5
-matplotlib.rcParams["legend.handlelength"] = 0.5
-matplotlib.rcParams["legend.framealpha"] = 0.5
-matplotlib.rcParams["legend.markerscale"] = 0.7
-matplotlib.rcParams["legend.borderpad"] = 0.35
 
 def configure_scatterplot(original_flat, pred_flat, receptors=False, antigens=False, loc=None, palette=None): 
     """

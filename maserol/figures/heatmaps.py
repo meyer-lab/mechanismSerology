@@ -1,20 +1,7 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from .common import *
 from matplotlib.tri import Triangulation
 import xarray as xr
-
-matplotlib.rcParams["legend.labelspacing"] = 0.2
-matplotlib.rcParams["legend.fontsize"] = 8
-matplotlib.rcParams["xtick.major.pad"] = 1.0
-matplotlib.rcParams["ytick.major.pad"] = 1.0
-matplotlib.rcParams["xtick.minor.pad"] = 0.9
-matplotlib.rcParams["ytick.minor.pad"] = 0.9
-matplotlib.rcParams["legend.handletextpad"] = 0.5
-matplotlib.rcParams["legend.handlelength"] = 0.5
-matplotlib.rcParams["legend.framealpha"] = 0.5
-matplotlib.rcParams["legend.markerscale"] = 0.7
-matplotlib.rcParams["legend.borderpad"] = 0.35
 
 def configure_heatmap(data, title, color, abs, loc, annot=False):
     """
@@ -52,7 +39,7 @@ def make_triple_plot(name, cube : xr.DataArray, subj, ag, kav, abs, outcomes=Non
     f.suptitle(f'{name.capitalize()}', fontsize=18)
     return f, subj_fig, ag_fig, af_fig
 
-def plot_split_heatmap(cube : xr.DataArray, mean_matrix, std_matrix, absf, ylabels):
+def plot_split_heatmap(mean_matrix, std_matrix, absf, ylabels):
     '''
     Creates a split-triangle heatmap summarizing MTD bootstrapping results. 
     Inputs:

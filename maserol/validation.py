@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, cross_validate, train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import MinMaxScaler
-from mechanismSerology.maserol.predictAbundKa import reshapeParams, optimize_lossfunc
+from .core import reshapeParams, optimize_lossfunc
 
 def resample(cube : xr.DataArray):
     '''

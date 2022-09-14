@@ -1,16 +1,9 @@
 """
 Test any functionality that is related to the binding model
 """
-from ..data_preparation import human_affinity, assemble_Kav, prepare_data
+from ..data_preparation import assemble_Kav, prepare_data
 from ....fixkav_opt import optimize_lossfunc
 from tensordata.atyeo import data as atyeo
-
-
-def test_import_affinity():
-    """ Test that affinity file is loaded correctly. """
-    df = human_affinity()
-    #assert df["IgG1"]["FcgRIIB"] > 0
-    #assert df["IgG2b"]["FcgRIV"] > 0
 
 
 def test_assemble_Kav():

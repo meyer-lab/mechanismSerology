@@ -10,7 +10,7 @@ from tqdm import tqdm
 import xarray as xr
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, grad
-from .data_preparation import prepare_data, assemble_Kavf
+from .data_preparation import prepare_data, assemble_Kav
 from .fixkav_opt_helpers import calculate_r_list_from_index, get_indices
 from jax.config import config
 
@@ -44,7 +44,7 @@ def phi(Phisum, Rtot, L0, KxStar, Ka):
 
 def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     """
-    Pass the matrices generated above into polyfc, run through each receptor
+    Pass the matrices generated above into polyc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten.
     *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
     """
@@ -106,10 +106,10 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
             return -(sum(r_list)/len(r_list))
 
 
-def optimize_lossfunc(data: xr.DataArray, metric, absf, lrank=True, retKav=True, perReceptor=True, n_ab=1, maxiter=500):
+def optimize_lossfunc(data: xr.DataArray, metric, lrank=True, retKav=True, perReceptor=True, n_ab=1, maxiter=500):
     """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
-    kav = None if retKav else assemble_Kavf(data, absf)
+    kav = None if retKav else assemble_Kav(data)
     if kav.all() : kav_log = np.log(kav)
     params = initializeParams(data, lrank=lrank, retKa=retKav, n_ab=n_ab)
     x0 = flattenParams(*params)

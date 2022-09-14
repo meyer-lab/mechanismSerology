@@ -4,7 +4,8 @@ import xarray as xr
 
 def normalize_subj_ag(subj, ag, n_ab, whole=True): 
     """
-    Normalizes antigen matrix. If 'whole' is False, normalizes antigen matrix by columns.
+        Normalizes antigen matrix in factor plotting.
+        If 'whole' is False, normalizes antigen matrix by columns.
     """
     if (whole):
         ag /= ag.max()
