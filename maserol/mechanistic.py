@@ -17,7 +17,7 @@ from jax.config import config
 
 config.update("jax_enable_x64", True)
 
-def initializeParams(cube, lrank=True, fitKa=True, n_ab=1):
+def initializeParams(cube, lrank=True, fitKa=True, n_ab=4):
     """
         Generate initial guesses for input parameters.
         cube = Subjs x Receptors x Ags
@@ -68,16 +68,19 @@ def reshapeParams(x, cube, lrank=True, fitKa=True):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
     x = jnp.exp(x)
     n_subj, n_rec, n_ag = cube.shape
-    edge_size = (jnp.sum(cube.shape) if fitKa else ((n_subj + n_ag) if lrank else (n_subj * n_ag)))
+    edge_size = np.sum(cube.shape) if fitKa else ((n_subj + n_ag) if lrank else (n_subj * n_ag))
     n_ab = int(len(x) / edge_size)
-    if (fitKa):
-        Ka = x[(n_subj + n_ag) * n_ab:(n_subj + n_ag + n_rec) * n_ab].reshape(n_rec, n_ab)
-    if not lrank:
+    if not lrank:  # abundance as a whole big matrix
         abundance = x.reshape((n_subj * n_ag, n_ab))
-        return [abundance, Ka] if fitKa else [abundance]
-    r_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
-    r_ag = x[(n_subj * n_ab):((n_subj + n_ag) * n_ab)].reshape(n_ag, n_ab)
-    return [r_subj, r_ag, Ka] if fitKa else [r_subj, r_ag]
+        retVal = [abundance]
+    else:   # separate receptor and antigen matrices
+        r_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
+        r_ag = x[(n_subj * n_ab):((n_subj + n_ag) * n_ab)].reshape(n_ag, n_ab)
+        retVal = [r_subj, r_ag]
+    if fitKa:   # retrieve Ka from x as well
+        Ka = x[(n_subj + n_ag) * n_ab:(n_subj + n_ag + n_rec) * n_ab].reshape(n_rec, n_ab)
+        retVal.append(Ka)
+    return retVal
 
 def flattenParams(*args):
     """ Flatten into a parameter vector. Inverse operation of reshapeParams(). """
@@ -85,18 +88,17 @@ def flattenParams(*args):
 
 def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args):
     """ Loss function, comparing model output and actual values.
-        retKa:
     """
-    arr = x[:-1]
-    scale = x[-1]
-
-    params = reshapeParams(arr, cube, lrank=lrank, fitKa=fitKa)
+    params = reshapeParams(x, cube, lrank=lrank, fitKa=fitKa)   # one more item there as scale is fine
+    if isinstance(cube, xr.DataArray):
+        cube = jnp.array(cube)
     if not fitKa:
         params.append(args[0])
     Lbound = infer_Lbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
     if (metric == 'mean'):
         mask = (cube > 0)
-        Lbound = Lbound * scale
+        if len(x) % np.sum([p.shape[0] for p in params]) == 1:  # deal with possible scalar
+            Lbound = Lbound * x[-1]
         diff = (jnp.log10(cube) - jnp.log10(Lbound)) * mask
         return jnp.linalg.norm(diff)
     else:
