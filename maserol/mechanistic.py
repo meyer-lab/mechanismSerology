@@ -17,23 +17,23 @@ from jax.config import config
 
 config.update("jax_enable_x64", True)
 
-def initializeParams(cube, lrank=True, retKa=True, n_ab=1):
+def initializeParams(cube, lrank=True, fitKa=True, n_ab=1):
     """
         Generate initial guesses for input parameters.
         cube = Subjs x Receptors x Ags
         lrank: whether assume a low-rank structure.
             Return separate Subj and Ag matrices if do, otherwise return just one abundance matrix
-        retKa: if Ka is not fix, return a random Ka matrix too
+        fitKa: if Ka is not fix, return a random Ka matrix too
     """
-    if (retKa):     # when Ka matrix is not fixed
+    if fitKa:     # when Ka matrix is not fixed
         Ka = np.random.uniform(1E5, 5E5, (cube.shape[1], n_ab))
     if lrank:       # with low-rank assumption
         subj = np.random.uniform(1E5, 5E5, (cube.shape[0], n_ab))
         ag = np.random.uniform(1E5, 5E5, (cube.shape[2], n_ab))
-        return [subj, ag, Ka] if retKa else [subj, ag]
+        return [subj, ag, Ka] if fitKa else [subj, ag]
     else:           # without low-rank assumption
         abundance = np.random.uniform(1E10, 2E10, (cube.shape[0] * cube.shape[2], n_ab))
-        return [abundance, Ka] if retKa else [abundance]
+        return [abundance, Ka] if fitKa else [abundance]
 
 def phi(Phisum, Rtot, L0, KxStar, Ka):
     temp = jnp.einsum("jl,ijk->ilkj", Ka, 1.0 + Phisum)
@@ -64,31 +64,35 @@ def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
 
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
-def reshapeParams(x, cube, lrank=True, retKa=True):
+def reshapeParams(x, cube, lrank=True, fitKa=True):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
     x = jnp.exp(x)
     n_subj, n_rec, n_ag = cube.shape
-    n_ab = int(len(x) / (jnp.sum(cube.shape) if retKa else ((n_subj + n_ag) if lrank else (n_subj * n_ag))))
-    if (retKa):
+    edge_size = (jnp.sum(cube.shape) if fitKa else ((n_subj + n_ag) if lrank else (n_subj * n_ag)))
+    n_ab = int(len(x) / edge_size)
+    if (fitKa):
         Ka = x[(n_subj + n_ag) * n_ab:(n_subj + n_ag + n_rec) * n_ab].reshape(n_rec, n_ab)
     if not lrank:
         abundance = x.reshape((n_subj * n_ag, n_ab))
-        return [abundance, Ka] if retKa else [abundance]
+        return [abundance, Ka] if fitKa else [abundance]
     r_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
     r_ag = x[(n_subj * n_ab):((n_subj + n_ag) * n_ab)].reshape(n_ag, n_ab)
-    return [r_subj, r_ag, Ka] if retKa else [r_subj, r_ag]
+    return [r_subj, r_ag, Ka] if fitKa else [r_subj, r_ag]
 
 def flattenParams(*args):
     """ Flatten into a parameter vector. Inverse operation of reshapeParams(). """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
-def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-12, *args):
-    """ Loss function, comparing model output and actual values. """
+def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args):
+    """ Loss function, comparing model output and actual values.
+        retKa:
+    """
     arr = x[:-1]
     scale = x[-1]
 
-    params = reshapeParams(arr, cube, lrank=lrank, retKa=retKa)
-    if not retKa: params.append(args[0])
+    params = reshapeParams(arr, cube, lrank=lrank, fitKa=fitKa)
+    if not fitKa:
+        params.append(args[0])
     Lbound = infer_Lbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
     if (metric == 'mean'):
         mask = (cube > 0)
@@ -106,17 +110,21 @@ def model_lossfunc(x, cube, metric, lrank=True, retKa=True, L0=1e-9, KxStar=1e-1
             return -(sum(r_list)/len(r_list))
 
 
-def optimize_lossfunc(data: xr.DataArray, metric, lrank=True, retKav=True, perReceptor=True, n_ab=1, maxiter=500):
+def optimize_lossfunc(data: xr.DataArray, metric, lrank=True, fitKa=True,
+                      perReceptor=True, n_ab=1, maxiter=500):
     """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
-    kav = None if retKav else assemble_Kav(data)
-    if kav.all() : kav_log = np.log(kav)
-    params = initializeParams(data, lrank=lrank, retKa=retKav, n_ab=n_ab)
+    kav = None if fitKa else assemble_Kav(data)
+    if kav.all():
+        kav_log = np.log(kav)
+    params = initializeParams(data, lrank=lrank, fitKa=fitKa, n_ab=n_ab)
     x0 = flattenParams(*params)
     x0 = np.append(x0, 1E2) # scaling factor
     data_flat = jnp.ravel(data.values)
 
-    arrgs = (data.values, metric, lrank, retKav, 1e-9, 1e-12, kav_log.values, get_indices(data, perReceptor), jnp.nonzero(data_flat))
+    arrgs = (data.values, metric, lrank, fitKa, 1e-9, 1e-12, kav_log.values,
+             get_indices(data, perReceptor),
+             jnp.nonzero(data_flat))
     func = jit(value_and_grad(model_lossfunc), static_argnums=[2, 3, 4])
     opts = {'maxiter': maxiter}
 
@@ -133,7 +141,7 @@ def optimize_lossfunc(data: xr.DataArray, metric, lrank=True, retKav=True, perRe
         tq.update(1)
         if saved_params["iteration_number"] % 5 == 0:
             print("{:3} | {}".format(
-            saved_params["iteration_number"], model_lossfunc(xk, data.values, metric, lrank, retKav, 1e-9, 1e-12, kav_log.values, get_indices(data, perReceptor), jnp.nonzero(data_flat))))
+            saved_params["iteration_number"], model_lossfunc(xk, data.values, metric, lrank, fitKa, 1e-9, 1e-12, kav_log.values, get_indices(data, perReceptor), jnp.nonzero(data_flat))))
         saved_params["iteration_number"] += 1
         print("")
 
