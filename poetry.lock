@@ -464,7 +464,7 @@ lxml = "*"
 
 [[package]]
 name = "tensordata"
-version = "0.0.5"
+version = "0.0.6"
 description = "A common repository for tensor structured datasets."
 category = "main"
 optional = false
@@ -480,7 +480,7 @@ xarray = "^2022.3.0"
 type = "git"
 url = "https://github.com/meyer-lab/tensordata.git"
 reference = "main"
-resolved_reference = "4fd222b4b8255c6fe471e84b380734bf16b18bf8"
+resolved_reference = "bd06b8e55ecda8c8896c54883d4272ebf9cdcbea"
 
 [[package]]
 name = "tensorly"

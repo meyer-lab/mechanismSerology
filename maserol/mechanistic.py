@@ -87,7 +87,12 @@ def flattenParams(*args):
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
 def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args):
-    """ Loss function, comparing model output and actual values.
+    """
+        Loss function, comparing model output and actual values.
+        args:
+            [0]: KaFixed, won't be used if fitKa
+            [1]: get_indices(data, perReceptor)
+            [2]: jnp.nonzero(data_flat)
     """
     params = reshapeParams(x, cube, lrank=lrank, fitKa=fitKa)   # one more item there as scale is fine
     if isinstance(cube, xr.DataArray):
@@ -112,19 +117,23 @@ def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxSt
             return -(sum(r_list)/len(r_list))
 
 
-def optimize_lossfunc(data: xr.DataArray, metric, lrank=True, fitKa=True,
+def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                       perReceptor=True, n_ab=1, maxiter=500):
     """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
-    kav = None if fitKa else assemble_Kav(data)
-    if kav.all():
-        kav_log = np.log(kav)
+    KaFixed = assemble_Kav(data)   # if fitKa this value won't be used
+    assert np.all(KaFixed > 0)
     params = initializeParams(data, lrank=lrank, fitKa=fitKa, n_ab=n_ab)
     x0 = flattenParams(*params)
-    x0 = np.append(x0, 1E2) # scaling factor
+    if metric == "mean":
+        x0 = np.append(x0, 1E2) # scaling factor
     data_flat = jnp.ravel(data.values)
 
-    arrgs = (data.values, metric, lrank, fitKa, 1e-9, 1e-12, kav_log.values,
+    # (x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args)
+
+    arrgs = (data.values, metric, lrank, fitKa,
+             1e-9, 1e-12,   # L0 and KxStar
+             np.log(KaFixed).values,
              get_indices(data, perReceptor),
              jnp.nonzero(data_flat))
     func = jit(value_and_grad(model_lossfunc), static_argnums=[2, 3, 4])
