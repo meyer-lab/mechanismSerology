@@ -92,7 +92,6 @@ def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxSt
         args:
             [0]: KaFixed, won't be used if fitKa
             [1]: get_indices(data, perReceptor)
-            [2]: jnp.nonzero(data_flat)
     """
     params = reshapeParams(x, cube, lrank=lrank, fitKa=fitKa)   # one more item there as scale is fine
     if isinstance(cube, xr.DataArray):
@@ -102,13 +101,14 @@ def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxSt
     Lbound = infer_Lbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
     if (metric == 'mean'):
         mask = (cube > 0)
-        if len(x) % np.sum([p.shape[0] for p in params]) == 1:  # deal with possible scalar
+        if len(x) % np.sum([p.shape[0] for p in params]) == 1:  # deal with possible scaling factor
             Lbound = Lbound * x[-1]
-        diff = (jnp.log10(cube) - jnp.log10(Lbound)) * mask
+        diff = (jnp.log(cube) - jnp.log(Lbound)) * mask
         return jnp.linalg.norm(diff)
     else:
-        cube_flat = jnp.ravel(cube)[args[2]]
-        lbound_flat = jnp.ravel(Lbound)[args[2]]
+        non_zero = jnp.nonzero(jnp.ravel(cube.values))
+        cube_flat = jnp.ravel(cube)[non_zero]
+        lbound_flat = jnp.ravel(Lbound)[non_zero]
         non_nan = (~jnp.isnan(cube_flat))
         if (metric == 'rtot'): 
             return -jnp.corrcoef(cube_flat * non_nan, lbound_flat * non_nan) [0,1]
@@ -118,24 +118,22 @@ def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxSt
 
 
 def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
-                      perReceptor=True, n_ab=1, maxiter=500, verbose=False):
+                      perReceptor=True, n_ab=1, maxiter=500, verbose=False, fucose=False):
     """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
-    KaFixed = assemble_Kav(data)   # if fitKa this value won't be used
+    KaFixed = assemble_Kav(data, fucose=fucose)   # if fitKa this value won't be used
     assert np.all(KaFixed > 0)
+    if not fitKa:     # if not fitKa the input n_ab is useless
+        n_ab = KaFixed.shape[1]
     params = initializeParams(data, lrank=lrank, fitKa=fitKa, n_ab=n_ab)
     x0 = flattenParams(*params)
     if metric == "mean":
-        x0 = np.append(x0, 1E2) # scaling factor
-    data_flat = jnp.ravel(data.values)
-
-    # (x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args)
+        x0 = np.append(x0, 1E2)   # scaling factor
 
     arrgs = (data.values, metric, lrank, fitKa,
-             1e-9, 1e-12,   # L0 and KxStar
-             np.log(KaFixed).values,
-             get_indices(data, perReceptor),
-             jnp.nonzero(data_flat))
+             1e-9, 1e-12,    # L0 and KxStar
+             np.log(KaFixed).values,   # if fitKa this value won't be used
+             get_indices(data, perReceptor))
     func = jit(value_and_grad(model_lossfunc), static_argnums=[2, 3, 4])
     opts = {'maxiter': maxiter}
 
@@ -156,8 +154,7 @@ def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False
                     saved_params["iteration_number"],
                     model_lossfunc(xk, data.values, metric, lrank, fitKa, 1e-9, 1e-12,
                                    jnp.log(KaFixed.values),
-                                   get_indices(data, perReceptor),
-                                   jnp.nonzero(data_flat))
+                                   get_indices(data, perReceptor))
                 ))
             print("")
         saved_params["iteration_number"] += 1
@@ -167,6 +164,5 @@ def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
-
     return opt.x[:, np.newaxis], opt.fun
 

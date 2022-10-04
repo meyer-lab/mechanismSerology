@@ -37,7 +37,7 @@ def get_affinity(receptor, abs):
 def prepare_data(data: xr.DataArray, remove_rcp=None, exp=False):
     """
     Transposes data to be in ("Sample", "Antigen", "Receptor") order 
-    and omits all receptor data that does not pertain to the specified antibody.
+    and omits any data not pertaining to IgG or FcgR.
     """
     if exp:
         data = np.exp(data)
