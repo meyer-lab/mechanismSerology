@@ -38,7 +38,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
 name = "coverage"
-version = "6.4.4"
+version = "6.5.0"
 description = "Code coverage measurement for Python"
 category = "dev"
 optional = false
@@ -497,7 +497,7 @@ scipy = "*"
 
 [[package]]
 name = "tensorpack"
-version = "0.1.0"
+version = "0.1.1"
 description = "A collection of tensor methods from the Meyer lab."
 category = "main"
 optional = false
@@ -507,6 +507,7 @@ develop = false
 [package.dependencies]
 matplotlib = "^3.5.0"
 numpy = "^1.21"
+scikit-learn = "^1.1.2"
 seaborn = "^0.11.2"
 svgutils = "^0.3.4"
 tensorly = "^0.7"
@@ -517,7 +518,7 @@ xarray = "^2022.6.0"
 type = "git"
 url = "https://github.com/meyer-lab/tensorpack.git"
 reference = "main"
-resolved_reference = "6d6573e60fe5b246e0a2d1a68efbaa320cd92021"
+resolved_reference = "76c94782b899b9a83e26ab56b1ec40536495ce37"
 
 [[package]]
 name = "threadpoolctl"

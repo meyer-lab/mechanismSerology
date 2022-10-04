@@ -118,7 +118,7 @@ def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxSt
 
 
 def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
-                      perReceptor=True, n_ab=1, maxiter=500):
+                      perReceptor=True, n_ab=1, maxiter=500, verbose=False):
     """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
     KaFixed = assemble_Kav(data)   # if fitKa this value won't be used
@@ -150,14 +150,21 @@ def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False
         gNorm = np.linalg.norm(b)
         tq.set_postfix(val='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
         tq.update(1)
-        if saved_params["iteration_number"] % 5 == 0:
-            print("{:3} | {}".format(
-            saved_params["iteration_number"], model_lossfunc(xk, data.values, metric, lrank, fitKa, 1e-9, 1e-12, kav_log.values, get_indices(data, perReceptor), jnp.nonzero(data_flat))))
+        if verbose:
+            if saved_params["iteration_number"] % 5 == 0:
+                print("{:3} | {}".format(
+                    saved_params["iteration_number"],
+                    model_lossfunc(xk, data.values, metric, lrank, fitKa, 1e-9, 1e-12,
+                                   jnp.log(KaFixed.values),
+                                   get_indices(data, perReceptor),
+                                   jnp.nonzero(data_flat))
+                ))
+            print("")
         saved_params["iteration_number"] += 1
-        print("")
 
     with tqdm(total=maxiter, delay=0.1) as tq:
-        opt = minimize(func, x0, method="trust-ncg", args=arrgs, hessp=hvpj, callback=callback, jac=True, options=opts)
+        opt = minimize(func, x0, method="trust-ncg", args=arrgs, hessp=hvpj,
+                       callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
 
