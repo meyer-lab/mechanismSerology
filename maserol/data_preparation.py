@@ -51,7 +51,7 @@ def prepare_data(data: xr.DataArray, remove_rcp=None, exp=False):
         for r in remove_rcp:
             wanted_receptors.remove(r)
 
-    assert np.all(np.isfinite(data)), "In prepare_data(), some entries contain infinity or NaN."
+    #assert np.all(np.isfinite(data)), "In prepare_data(), some entries contain infinity or NaN."
     missing_ag = []
 
     # remove antigens with all missing values

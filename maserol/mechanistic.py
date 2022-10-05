@@ -42,7 +42,7 @@ def phi(Phisum, Rtot, L0, KxStar, Ka):
     assert Phisum_n.shape == Phisum.shape
     return Phisum_n
 
-def infer_Lbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
+def inferLbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     """
     Pass the matrices generated above into polyc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten.
@@ -86,19 +86,20 @@ def flattenParams(*args):
     """ Flatten into a parameter vector. Inverse operation of reshapeParams(). """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
-def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args):
+def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args):
     """
         Loss function, comparing model output and actual values.
         args:
             [0]: KaFixed, won't be used if fitKa
             [1]: get_indices(data, perReceptor)
+            [2]: jnp.nonzero(data.flatten)
     """
     params = reshapeParams(x, cube, lrank=lrank, fitKa=fitKa)   # one more item there as scale is fine
     if isinstance(cube, xr.DataArray):
         cube = jnp.array(cube)
     if not fitKa:
         params.append(args[0])
-    Lbound = infer_Lbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
+    Lbound = inferLbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
     if (metric == 'mean'):
         mask = (cube > 0)
         if len(x) % np.sum([p.shape[0] for p in params]) == 1:  # deal with possible scaling factor
@@ -106,9 +107,8 @@ def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxSt
         diff = (jnp.log(cube) - jnp.log(Lbound)) * mask
         return jnp.linalg.norm(diff)
     else:
-        non_zero = jnp.nonzero(jnp.ravel(cube.values))
-        cube_flat = jnp.ravel(cube)[non_zero]
-        lbound_flat = jnp.ravel(Lbound)[non_zero]
+        cube_flat = jnp.ravel(cube)[args[2]]
+        lbound_flat = jnp.ravel(Lbound)[args[2]]
         non_nan = (~jnp.isnan(cube_flat))
         if (metric == 'rtot'): 
             return -jnp.corrcoef(cube_flat * non_nan, lbound_flat * non_nan) [0,1]
@@ -117,8 +117,8 @@ def model_lossfunc(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxSt
             return -(sum(r_list)/len(r_list))
 
 
-def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
-                      perReceptor=True, n_ab=1, maxiter=500, verbose=False, fucose=False):
+def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
+                 perReceptor=True, n_ab=1, maxiter=500, verbose=False, fucose=False):
     """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
     KaFixed = assemble_Kav(data, fucose=fucose)   # if fitKa this value won't be used
@@ -133,8 +133,9 @@ def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False
     arrgs = (data.values, metric, lrank, fitKa,
              1e-9, 1e-12,    # L0 and KxStar
              np.log(KaFixed).values,   # if fitKa this value won't be used
-             get_indices(data, perReceptor))
-    func = jit(value_and_grad(model_lossfunc), static_argnums=[2, 3, 4])
+             get_indices(data, perReceptor),
+             jnp.nonzero(jnp.ravel(data.values)))
+    func = jit(value_and_grad(modelLoss), static_argnums=[2, 3, 4])
     opts = {'maxiter': maxiter}
 
     def hvp(x, v, *argss):
@@ -152,9 +153,10 @@ def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False
             if saved_params["iteration_number"] % 5 == 0:
                 print("{:3} | {}".format(
                     saved_params["iteration_number"],
-                    model_lossfunc(xk, data.values, metric, lrank, fitKa, 1e-9, 1e-12,
-                                   jnp.log(KaFixed.values),
-                                   get_indices(data, perReceptor))
+                    modelLoss(xk, data.values, metric, lrank, fitKa, 1e-9, 1e-12,
+                              jnp.log(KaFixed.values),
+                              get_indices(data, perReceptor),
+                              jnp.nonzero(jnp.ravel(data.values)))
                 ))
             print("")
         saved_params["iteration_number"] += 1
@@ -164,5 +166,5 @@ def optimize_lossfunc(data: xr.DataArray, metric="mean", lrank=True, fitKa=False
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
-    return opt.x[:, np.newaxis], opt.fun
+    return opt.x, opt.fun
 

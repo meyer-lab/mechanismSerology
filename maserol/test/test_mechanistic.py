@@ -18,24 +18,40 @@ def test_initialize(n_ab):
 
 @pytest.mark.parametrize("fucose", [True, False])
 def test_fit_mean(fucose):
+    """ Test mean (MSE) mode, not fitting Ka """
     cube = zohar(xarray=True, logscale=False)
     cube = prepare_data(cube)
+    cube.values[np.random.rand(*cube.shape) < 0.05] = np.nan    # introduce missing values
     Ka = assemble_Kav(cube, fucose=fucose).values
     R_subj_guess, R_Ag_guess = initializeParams(cube, lrank=True, fitKa=False, n_ab=Ka.shape[1])
     x0 = flattenParams(R_subj_guess, R_Ag_guess)
 
     # test mean (MSE) method
-    RKa_opt = model_lossfunc(x0, cube,
+    x0_loss = modelLoss(x0, cube,
                              "mean", True, False, 1e-9, 1e-12, Ka)  # = metric, lrank, fitKa, L0, KxStar, Ka
-    assert RKa_opt > 0.0
-    assert np.isfinite(RKa_opt)
-    x_opt, opt_f = optimize_lossfunc(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, fucose=fucose)
-    assert opt_f < RKa_opt
+    assert x0_loss > 0.0
+    assert np.isfinite(x0_loss)
+    x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, fucose=fucose)
+    assert opt_f < x0_loss
     assert len(x0) == len(x_opt) - 1  # subtract the scaling factor
 
 def test_fit_rtot():
-    pass
+    """ Test Rtot mode, without low rank assumption, not fitting Ka """
+    cube = zohar(xarray=True, logscale=False)
+    cube = prepare_data(cube)
+    cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
+    Ka = assemble_Kav(cube, fucose=False).values
+    Abund_guess = initializeParams(cube, lrank=False, fitKa=False, n_ab=Ka.shape[1])
+    assert len(Abund_guess) == 1
+    x0 = flattenParams(Abund_guess[0])
 
-def test_fit_r():
-    pass
+    # test Rtot method
+    x0_R2 = modelLoss(x0, cube.values,
+                        "rtot", False, False, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
+                        Ka, get_indices(cube, True), jnp.nonzero(jnp.ravel(cube.values)))
+    assert np.isfinite(x0_R2)
+    x_opt, opt_f = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20, fucose=False)
+    assert opt_f < -0.3
+    assert len(x0) == len(x_opt)
+
 

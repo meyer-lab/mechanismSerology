@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, cross_validate, train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import MinMaxScaler
-from .mechanistic import reshapeParams, optimize_lossfunc
+from .mechanistic import reshapeParams, optimizeLoss
 
 def resample(cube : xr.DataArray):
     '''
@@ -43,8 +43,8 @@ def bootstrap(cube : xr.DataArray, param_dict, numResample=10):
     
     for i in range(numResample):
         data = resample(cube)
-        x, val = optimize_lossfunc(data, param_dict['metric'], param_dict['absf'], param_dict['lrank'], \
-                                    param_dict['retKav'], param_dict['perReceptor'], len(param_dict['absf']))
+        x, val = optimizeLoss(data, param_dict['metric'], param_dict['absf'], param_dict['lrank'], \
+                              param_dict['retKav'], param_dict['perReceptor'], len(param_dict['absf']))
         x = reshapeParams(x[:-1], data, param_dict['lrank'], param_dict['retKav'])
 
         if (param_dict['lrank']):
