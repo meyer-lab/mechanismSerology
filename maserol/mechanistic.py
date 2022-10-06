@@ -11,7 +11,7 @@ import xarray as xr
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, grad
 from .data_preparation import prepare_data, assemble_Kav
-from .fixkav_opt_helpers import calculate_r_list_from_index, get_indices
+from .fixkav_opt_helpers import *
 from jax.config import config
 
 
@@ -20,7 +20,7 @@ config.update("jax_enable_x64", True)
 def initializeParams(cube, lrank=True, fitKa=True, n_ab=4):
     """
         Generate initial guesses for input parameters.
-        cube = Subjs x Receptors x Ags
+        cube = Samples x Receptors x Ags
         lrank: whether assume a low-rank structure.
             Return separate Subj and Ag matrices if do, otherwise return just one abundance matrix
         fitKa: if Ka is not fix, return a random Ka matrix too
@@ -28,9 +28,9 @@ def initializeParams(cube, lrank=True, fitKa=True, n_ab=4):
     if fitKa:     # when Ka matrix is not fixed
         Ka = np.random.uniform(1E5, 5E5, (cube.shape[1], n_ab))
     if lrank:       # with low-rank assumption
-        subj = np.random.uniform(1E5, 5E5, (cube.shape[0], n_ab))
+        samp = np.random.uniform(1E5, 5E5, (cube.shape[0], n_ab))
         ag = np.random.uniform(1E5, 5E5, (cube.shape[2], n_ab))
-        return [subj, ag, Ka] if fitKa else [subj, ag]
+        return [samp, ag, Ka] if fitKa else [samp, ag]
     else:           # without low-rank assumption
         abundance = np.random.uniform(1E10, 2E10, (cube.shape[0] * cube.shape[2], n_ab))
         return [abundance, Ka] if fitKa else [abundance]
@@ -47,6 +47,7 @@ def inferLbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     Pass the matrices generated above into polyc, run through each receptor
     and ant x sub pair and store in matrix same size as flatten.
     *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
+    Numbers in args should NOT be log scaled.
     """
     if lrank:
         assert len(args) == 3, "args take 1) r_subj, 2) r_ag, 3) kav [when lrank is True]"
@@ -83,7 +84,8 @@ def reshapeParams(x, cube, lrank=True, fitKa=True):
     return retVal
 
 def flattenParams(*args):
-    """ Flatten into a parameter vector. Inverse operation of reshapeParams(). """
+    """ Flatten into a parameter vector. Inverse operation of reshapeParams().
+    Order: (r_subj, r_ag) / abund, Ka """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
 def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args):

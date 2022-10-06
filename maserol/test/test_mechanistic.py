@@ -18,7 +18,7 @@ def test_initialize(n_ab):
 
 @pytest.mark.parametrize("fucose", [True, False])
 def test_fit_mean(fucose):
-    """ Test mean (MSE) mode, not fitting Ka """
+    """ Test mean (MSE) mode, low rank assumption, not fitting Ka """
     cube = zohar(xarray=True, logscale=False)
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.05] = np.nan    # introduce missing values
@@ -55,3 +55,21 @@ def test_fit_rtot():
     assert len(x0) == len(x_opt)
 
 
+@pytest.mark.parametrize("n_ab", [2, 3])
+def test_fit_r(n_ab):
+    """ Test R per receptor mode, low rank assumption, fit Ka """
+    cube = zohar(xarray=True, logscale=False)
+    cube = prepare_data(cube)
+    cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
+    R_subj_guess, R_Ag_guess, Ka_guess = initializeParams(cube, lrank=True, fitKa=True, n_ab=n_ab)
+    x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka_guess)
+
+    # test Rtot method
+    x0_R2 = modelLoss(jnp.array(x0), jnp.array(cube.values),
+                        "r", True, True, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
+                        Ka_guess, 1, jnp.nonzero(jnp.ravel(cube.values)))
+    assert np.isfinite(x0_R2)
+    assert x0_R2 > -0.3
+    x_opt, opt_f = optimizeLoss(cube, metric="r", lrank=False, fitKa=False, maxiter=20, fucose=False)
+    assert opt_f < -0.3
+    assert len(x0) == len(x_opt)
