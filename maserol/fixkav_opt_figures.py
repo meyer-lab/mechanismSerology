@@ -1,5 +1,4 @@
-from .model import prepare_data
-from .fixkav_opt_helpers import *
+from .data_preparation import prepare_data, normalize_subj_ag
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
