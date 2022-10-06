@@ -48,10 +48,11 @@ def test_fit_rtot():
     # test Rtot method
     x0_R2 = modelLoss(x0, cube.values,
                         "rtot", False, False, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
-                        Ka, get_indices(cube, True), jnp.nonzero(jnp.ravel(cube.values)))
+                        Ka, getNonnegIdx(cube, metric="rtot"))
     assert np.isfinite(x0_R2)
-    x_opt, opt_f = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20, fucose=False)
-    assert opt_f < -0.3
+    assert x0_R2 > -0.2
+    x_opt, opt_R2 = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20, fucose=False)
+    assert opt_R2 < -0.8
     assert len(x0) == len(x_opt)
 
 
@@ -70,6 +71,6 @@ def test_fit_r(n_ab):
                         Ka_guess, 1, jnp.nonzero(jnp.ravel(cube.values)))
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3
-    x_opt, opt_f = optimizeLoss(cube, metric="r", lrank=False, fitKa=False, maxiter=20, fucose=False)
-    assert opt_f < -0.3
+    x_opt, opt_R2 = optimizeLoss(cube, metric="r", lrank=False, fitKa=False, maxiter=20, fucose=False)
+    assert opt_R2 < -0.3
     assert len(x0) == len(x_opt)

@@ -67,7 +67,7 @@ def getNonnegIdx(cube, metric="rtot"):
     if isinstance(cube, xr.DataArray):
         cube = cube.values
     if metric == "rtot":
-        return jnp.ravel(cube) > 0.0
+        return jnp.where(jnp.ravel(cube) > 0)
     else:
         # assume cube has shape Samples x Receptors x Ags
         i_list = []
@@ -76,7 +76,7 @@ def getNonnegIdx(cube, metric="rtot"):
         else:   # per Ag
             cube = np.swapaxes(cube, 0, 2)
         for i in range(cube.shape[0]):
-            i_list.append(np.ravel(cube[i, :]) > 0.0)
+            i_list.append(jnp.where(jnp.ravel(cube[i, :]) > 0))
         return i_list
 
 def dimensionalR(cube, lbound, axis=0):

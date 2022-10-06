@@ -93,8 +93,7 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
         Loss function, comparing model output and actual values.
         args:
             [0]: KaFixed, won't be used if fitKa
-            [1]: get_indices(data, perReceptor)
-            [2]: jnp.nonzero(data.flatten)
+            [1]: getNonnegIdx(cube, metric)
     """
     params = reshapeParams(x, cube, lrank=lrank, fitKa=fitKa)   # one more item there as scale is fine
     if isinstance(cube, xr.DataArray):
@@ -108,19 +107,21 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
             Lbound = Lbound * x[-1]
         diff = (jnp.log(cube) - jnp.log(Lbound)) * mask
         return jnp.linalg.norm(diff)
-    else:
-        cube_flat = jnp.ravel(cube)[args[2]]
-        lbound_flat = jnp.ravel(Lbound)[args[2]]
+    elif metric == "rtot":
+        cube_flat = jnp.ravel(cube)[args[1]]
+        lbound_flat = jnp.ravel(Lbound)[args[1]]
         non_nan = (~jnp.isnan(cube_flat))
-        if (metric == 'rtot'): 
-            return -jnp.corrcoef(cube_flat * non_nan, lbound_flat * non_nan) [0,1]
-        elif (metric == 'r'):
-            r_list = calculate_r_list_from_index(cube_flat * non_nan, lbound_flat * non_nan, args[1])
-            return -(sum(r_list)/len(r_list))
+        return -jnp.corrcoef(cube_flat * non_nan, lbound_flat * non_nan)[0,1]
+    else:
+        cube_flat = jnp.ravel(cube)[args[1]]
+        lbound_flat = jnp.ravel(Lbound)[args[1]]
+        non_nan = (~jnp.isnan(cube_flat))
+        r_list = calculate_r_list_from_index(cube_flat * non_nan, lbound_flat * non_nan, args[1])
+        return -(sum(r_list)/len(r_list))
 
 
 def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
-                 perReceptor=True, n_ab=1, maxiter=500, verbose=False, fucose=False):
+                 n_ab=1, maxiter=500, verbose=False, fucose=False):
     """ Optimization method to minimize model_lossfunc output """
     data = prepare_data(data)
     KaFixed = assemble_Kav(data, fucose=fucose)   # if fitKa this value won't be used
@@ -135,8 +136,7 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
     arrgs = (data.values, metric, lrank, fitKa,
              1e-9, 1e-12,    # L0 and KxStar
              np.log(KaFixed).values,   # if fitKa this value won't be used
-             get_indices(data, perReceptor),
-             jnp.nonzero(jnp.ravel(data.values)))
+             getNonnegIdx(data.values, metric=metric))
     func = jit(value_and_grad(modelLoss), static_argnums=[2, 3, 4])
     opts = {'maxiter': maxiter}
 
@@ -157,8 +157,7 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                     saved_params["iteration_number"],
                     modelLoss(xk, data.values, metric, lrank, fitKa, 1e-9, 1e-12,
                               jnp.log(KaFixed.values),
-                              get_indices(data, perReceptor),
-                              jnp.nonzero(jnp.ravel(data.values)))
+                              getNonnegIdx(data.values, metric=metric))
                 ))
             print("")
         saved_params["iteration_number"] += 1
