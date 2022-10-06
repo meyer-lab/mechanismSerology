@@ -100,7 +100,7 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
     if not fitKa:
         params.append(args[0])
     Lbound = inferLbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
-    if (metric == 'mean'):
+    if metric == 'mean':
         mask = (cube > 0)
         if len(x) % np.sum([p.shape[0] for p in params]) == 1:  # deal with possible scaling factor
             Lbound = Lbound * x[-1]
