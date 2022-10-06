@@ -63,3 +63,34 @@ def calculate_r_list_from_index(cube_flat, lbound_flat, index):
     return r_list
 
 
+def getNonnegIdx(cube, metric="rtot"):
+    if isinstance(cube, xr.DataArray):
+        cube = cube.values
+    if metric == "rtot":
+        return jnp.ravel(cube) > 0.0
+    else:
+        # assume cube has shape Samples x Receptors x Ags
+        i_list = []
+        if metric == "r":
+            cube = np.swapaxes(cube, 0, 1)
+        else:   # per Ag
+            cube = np.swapaxes(cube, 0, 2)
+        for i in range(cube.shape[0]):
+            i_list.append(np.ravel(cube[i, :]) > 0.0)
+        return i_list
+
+def dimensionalR(cube, lbound, axis=0):
+    if isinstance(cube, xr.DataArray):
+        cube = cube.values
+    if isinstance(lbound, xr.DataArray):
+        lbound = lbound.values
+    cube = np.swapaxes(cube, 0, axis)
+    lbound = np.swapaxes(lbound, 0, axis)
+    r_list = np.zeros((cube.shape[0]))
+    for i in range(cube.shape[0]):
+        cube_val = np.ravel(cube[i, :])
+        lbound_val = np.ravel(lbound[i, :])
+        cube_idx = cube_val > 0.0
+        corr_matrix = jnp.corrcoef(jnp.log(cube_val) * cube_idx, jnp.log(lbound_val) * cube_idx)
+        r_list[i] = corr_matrix[0,1]
+    return r_list
