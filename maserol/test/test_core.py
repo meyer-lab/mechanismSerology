@@ -1,5 +1,5 @@
 import pytest
-from ..mechanistic import *
+from ..core import *
 from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data3D as zohar
 
@@ -50,15 +50,16 @@ def test_fit_rtot():
                         "rtot", False, False, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
                         Ka, getNonnegIdx(cube, metric="rtot"))
     assert np.isfinite(x0_R2)
-    assert x0_R2 > -0.2
+    assert x0_R2 > -0.3
     x_opt, opt_R2 = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20, fucose=False)
     assert opt_R2 < -0.8
     assert len(x0) == len(x_opt)
 
 
 @pytest.mark.parametrize("n_ab", [2, 3])
-def test_fit_r(n_ab):
-    """ Test R per receptor mode, low rank assumption, fit Ka """
+@pytest.mark.parametrize("metric", ["rrcp", "rag"])
+def test_fit_r(n_ab, metric):
+    """ Test R per Receptor/Ag mode, low rank assumption, fit Ka """
     cube = zohar(xarray=True, logscale=False)
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
@@ -67,10 +68,11 @@ def test_fit_r(n_ab):
 
     # test Rtot method
     x0_R2 = modelLoss(jnp.array(x0), jnp.array(cube.values),
-                        "r", True, True, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
-                        Ka_guess, 1, jnp.nonzero(jnp.ravel(cube.values)))
+                        metric, True, True, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
+                        jnp.ones_like(Ka_guess) * -1, getNonnegIdx(cube, metric=metric))
+                        # Ka after kwargs must not be used here
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3
-    x_opt, opt_R2 = optimizeLoss(cube, metric="r", lrank=False, fitKa=False, maxiter=20, fucose=False)
-    assert opt_R2 < -0.3
+    x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, n_ab=n_ab, maxiter=20, fucose=False)
+    assert opt_R2 < -0.7
     assert len(x0) == len(x_opt)

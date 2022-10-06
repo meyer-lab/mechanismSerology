@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, cross_validate, train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import MinMaxScaler
-from .mechanistic import reshapeParams, optimizeLoss
+from .core import reshapeParams, optimizeLoss
 
 def resample(cube : xr.DataArray):
     '''

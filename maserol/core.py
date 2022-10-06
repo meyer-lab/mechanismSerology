@@ -11,7 +11,6 @@ import xarray as xr
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, grad
 from .data_preparation import prepare_data, assemble_Kav
-from .fixkav_opt_helpers import *
 from jax.config import config
 
 
@@ -108,15 +107,19 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
         diff = (jnp.log(cube) - jnp.log(Lbound)) * mask
         return jnp.linalg.norm(diff)
     elif metric == "rtot":
-        cube_flat = jnp.ravel(cube)[args[1]]
-        lbound_flat = jnp.ravel(Lbound)[args[1]]
-        non_nan = (~jnp.isnan(cube_flat))
-        return -jnp.corrcoef(cube_flat * non_nan, lbound_flat * non_nan)[0,1]
-    else:
-        cube_flat = jnp.ravel(cube)[args[1]]
-        lbound_flat = jnp.ravel(Lbound)[args[1]]
-        non_nan = (~jnp.isnan(cube_flat))
-        r_list = calculate_r_list_from_index(cube_flat * non_nan, lbound_flat * non_nan, args[1])
+        return -jnp.corrcoef(jnp.ravel(cube)[args[1]],
+                             jnp.ravel(Lbound)[args[1]])[0,1]
+    else:   # per Receptor or per Ag ("rag")
+        axis = (2 if metric == "rag" else 1)
+        cube = jnp.swapaxes(cube, 0, axis)
+        lbound = jnp.swapaxes(Lbound, 0, axis)
+        r_list = []
+        for i in range(cube.shape[0]):
+            cube_val = jnp.ravel(cube[i, :])
+            lbound_val = jnp.ravel(lbound[i, :])
+            cube_idx = args[1][i]
+            r_list.append(jnp.corrcoef(jnp.log(cube_val[cube_idx]),
+                                       jnp.log(lbound_val[cube_idx]))[0, 1])
         return -(sum(r_list)/len(r_list))
 
 
@@ -169,3 +172,17 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
         print(f"Exit status: {opt.status}")
     return opt.x, opt.fun
 
+
+def getNonnegIdx(cube, metric="rtot"):
+    """ Generate/save nonnegative indices for cube so index operations seem static for JAX """
+    if isinstance(cube, xr.DataArray):
+        cube = cube.values
+    if metric == "rtot":
+        return jnp.where(jnp.ravel(cube) > 0)
+    else:
+        i_list = []
+        # assume cube has shape Samples x Receptors x Ags
+        cube = np.swapaxes(cube, 0, (2 if metric == "rag" else 1))  # else = per Receptor
+        for i in range(cube.shape[0]):
+            i_list.append(jnp.where(jnp.ravel(cube[i, :]) > 0))
+        return i_list

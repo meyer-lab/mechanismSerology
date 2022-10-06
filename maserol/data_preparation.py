@@ -101,3 +101,18 @@ def assemble_Kav(data: xr.DataArray, fucose=True):
     
     Kav[np.where(Kav<10.0)] = 10
     return Kav
+
+def normalize_subj_ag(subj, ag, n_ab, whole=True):
+    """
+        Normalizes antigen matrix in factor plotting.
+        If 'whole' is False, normalizes antigen matrix by columns.
+    """
+    if (whole):
+        ag /= ag.max()
+        subj *= ag.max()
+    else:
+        for i in range(n_ab):
+            max = ag[:,i].max()
+            ag = ag.at[:,i].set(ag[:,i] / max)
+            subj = subj.at[:,i].set(subj[:,i] * max)
+    return subj, ag
