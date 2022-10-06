@@ -1,8 +1,7 @@
 """
 Test any functionality that is related to the binding model
 """
-from ..data_preparation import assemble_Kav, prepare_data
-from ....fixkav_opt import optimize_lossfunc
+from ..data_preparation import assemble_Kav
 from tensordata.atyeo import data as atyeo
 
 
@@ -31,16 +30,3 @@ def test_assemble_Kav():
     assert Kav.sel(Receptor="FcRg2b", Abs="IgG2") == 20000.0
     assert Kav.sel(Receptor="FcRg3A", Abs="IgG4") == 200000.0
 
-
-def test_optimize_loss_func():
-    cube = atyeo()
-    xarray = atyeo(xarray=True)
-    xarray = prepare_data(xarray)
-    Kav = assemble_Kav(xarray)
-    matrix = optimize_lossfunc(xarray.values, Kav.values, 4)
-    pass
-
-if __name__ == "__main__":
-    test_import_affinity()
-    test_assemble_Kav()
-    test_optimize_loss_func()
