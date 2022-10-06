@@ -29,7 +29,7 @@ def prepare_data(data: xr.DataArray, remove_rcp=None):
     # Antigens: remove those with all missing values
     missing_ag = []
     for antigen in data.Antigen:
-        if np.unique(data.sel(Antigen=antigen).values).size == 1:  # only nan values for antigen
+        if not np.any(np.isfinite(data.sel(Antigen=antigen))):  # only nan values for antigen
             missing_ag.append(antigen.values)
     data = data.drop_sel(Antigen=missing_ag)
     return data
@@ -61,25 +61,19 @@ def get_affinity(receptor, abs):
     return 0
 
 
+def assembleKav(data: xr.DataArray, fucose=True):
+    """ Assemble affinity matrix for a given dataset. """
+    absf = ["IgG1", "IgG2", "IgG3", "IgG4"] if not fucose else \
+        ["IgG1", "IgG1f", "IgG2", "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f"]
 
-def assemble_Kav(data: xr.DataArray, fucose=True):
-    """
-    Assemblies fixed affinities matrix for a given dataset.
-    """
-    absf = ["IgG1", "IgG2", "IgG3", "IgG4"]
-    if fucose:
-        absf = ["IgG1", "IgG1f", "IgG2", "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f"]
-    f = ["IgG1f", "IgG2f", "IgG3f", "IgG4f"]
-    receptors = data.Receptor.values
+    receptors = data.Receptor.values    # work even when data did not go thru prepare_data()
+    igg = [x for x in receptors if (re.match("^igg", x, flags=re.IGNORECASE))]
+    fc = [x for x in receptors if (re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha")]
 
     # assemble matrix
-    Kav = xr.DataArray(np.full((len(receptors), len(absf)), 10),
-                       coords=[receptors, absf],
+    Kav = xr.DataArray(np.full((len(igg+fc), len(absf)), 10),
+                       coords=[igg+fc, absf],
                        dims=["Receptor", "Abs"])
-    
-    # separate into list of fc and igg receptors
-    fc = [x for x in receptors if (re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha")]
-    igg = [x for x in receptors if (re.match("^igg", x, flags=re.IGNORECASE))]
 
     # fill in all IgG - IgG pair affinity values
     for ab in absf:
@@ -90,14 +84,8 @@ def assemble_Kav(data: xr.DataArray, fucose=True):
     # fill in remaining affinity values
     for ab in absf:
         for r in fc:
-            if (ab in f):
-                if (re.match("fc[gr]*3", r, flags=re.IGNORECASE)):
-                    Kav.loc[dict(Receptor=r, Abs=ab)] = 10
-                else:
-                    affinity = get_affinity(r, ab[:-1])
-                    Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
-            else:
-                affinity = get_affinity(r, ab)
+            if not (ab[-1]=='f' and re.match("fc[gr]*3", r, flags=re.IGNORECASE)):
+                affinity = get_affinity(r, ab[:4])
                 Kav.loc[dict(Receptor=r, Abs=ab)] = affinity
     
     Kav[np.where(Kav<10.0)] = 10

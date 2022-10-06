@@ -10,7 +10,7 @@ from tqdm import tqdm
 import xarray as xr
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, grad
-from .preprocess import prepare_data, assemble_Kav
+from .preprocess import prepare_data, assembleKav
 from jax.config import config
 
 
@@ -127,7 +127,7 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                  n_ab=1, maxiter=500, verbose=False, fucose=False):
     """ Optimization method to minimize modelLoss() output """
     data = prepare_data(data)
-    KaFixed = assemble_Kav(data, fucose=fucose)   # if fitKa this value won't be used
+    KaFixed = assembleKav(data, fucose=fucose)   # if fitKa this value won't be used
     assert np.all(KaFixed > 0)
     if not fitKa:     # if not fitKa the input n_ab is useless
         n_ab = KaFixed.shape[1]
