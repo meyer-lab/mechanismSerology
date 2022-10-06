@@ -7,7 +7,33 @@ import xarray as xr
 import re
 
 path_here = dirname(dirname(__file__))
-mode_order = ["Sample", "Receptor", "Antigen"]
+
+
+def prepare_data(data: xr.DataArray, remove_rcp=None):
+    """
+    Transposes data to be in ("Sample", "Receptor", "Antigen") order
+    and omits any data not pertaining to IgG or FcgR.
+    """
+    # Make the modes in the right order
+    data = data.transpose("Sample", "Receptor", "Antigen")
+
+    # Receptors: only keep those with "IgGx" or "FcgRx"
+    data_receptors = data.Receptor.values
+    wanted_receptors = [x for x in data_receptors if re.match("^igg", x, flags=re.IGNORECASE)] + \
+                       [x for x in data_receptors if re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha"]
+    if remove_rcp != None:
+        for r in remove_rcp:
+            wanted_receptors.remove(r)
+    data = data.sel(Receptor=wanted_receptors)
+
+    # Antigens: remove those with all missing values
+    missing_ag = []
+    for antigen in data.Antigen:
+        if np.unique(data.sel(Antigen=antigen).values).size == 1:  # only nan values for antigen
+            missing_ag.append(antigen.values)
+    data = data.drop_sel(Antigen=missing_ag)
+    return data
+
 
 def get_affinity(receptor, abs):
     """ 
@@ -34,32 +60,7 @@ def get_affinity(receptor, abs):
             return df.at[r,abs]
     return 0
 
-def prepare_data(data: xr.DataArray, remove_rcp=None, exp=False):
-    """
-    Transposes data to be in ("Sample", "Antigen", "Receptor") order 
-    and omits any data not pertaining to IgG or FcgR.
-    """
-    if exp:
-        data = np.exp(data)
-    data = data.transpose(mode_order[0], mode_order[1], mode_order[2])
-    data_receptors = data.Receptor.values
-    wanted_receptors = [x for x in data_receptors if re.match("^igg", x, flags=re.IGNORECASE)] + \
-                       [x for x in data_receptors if re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha"]
-    
-    # remove receptors specified in 'remove' parameter
-    if remove_rcp != None:
-        for r in remove_rcp:
-            wanted_receptors.remove(r)
 
-    #assert np.all(np.isfinite(data)), "In prepare_data(), some entries contain infinity or NaN."
-    missing_ag = []
-
-    # remove antigens with all missing values
-    for antigen in data.Antigen:
-        if np.unique(data.sel(Antigen = antigen).values).size == 1: # only nan values for antigen
-            missing_ag.append(antigen.values)
-    data = data.drop(labels = missing_ag, dim='Antigen')
-    return data.sel(Receptor=wanted_receptors)
 
 def assemble_Kav(data: xr.DataArray, fucose=True):
     """
