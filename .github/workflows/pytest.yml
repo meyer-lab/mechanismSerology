@@ -11,8 +11,8 @@ on:
 
 jobs:
   build:
-
     runs-on: self-hosted
+    
     steps:
     - name: Install dependencies
       run: poetry install --no-root
