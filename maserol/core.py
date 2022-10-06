@@ -10,7 +10,7 @@ from tqdm import tqdm
 import xarray as xr
 from scipy.optimize import minimize
 from jax import value_and_grad, jit, grad
-from .data_preparation import prepare_data, assemble_Kav
+from .preprocess import prepare_data, assemble_Kav
 from jax.config import config
 
 
@@ -21,7 +21,7 @@ def initializeParams(cube, lrank=True, fitKa=True, n_ab=4):
         Generate initial guesses for input parameters.
         cube = Samples x Receptors x Ags
         lrank: whether assume a low-rank structure.
-            Return separate Subj and Ag matrices if do, otherwise return just one abundance matrix
+            Return separate Subj and Ag matrices if true, otherwise return just one abundance matrix
         fitKa: if Ka is not fix, return a random Ka matrix too
     """
     if fitKa:     # when Ka matrix is not fixed
@@ -125,7 +125,7 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
 
 def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                  n_ab=1, maxiter=500, verbose=False, fucose=False):
-    """ Optimization method to minimize model_lossfunc output """
+    """ Optimization method to minimize modelLoss() output """
     data = prepare_data(data)
     KaFixed = assemble_Kav(data, fucose=fucose)   # if fitKa this value won't be used
     assert np.all(KaFixed > 0)
