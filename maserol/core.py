@@ -1,8 +1,5 @@
 """
-Currently runs polyfc to compare with SpaceX data with 6 receptors, 117 subjects, and 14 antigens.
-Polyfc is ran with initial guesses for abundance (117x1) and (14x1)  and Ka for each receptor (6x1).
-Polyfc output is compared to SpaceX data and cost function is minimzied through scipy.optimize.minimize.
-Total fitting parameters = 147
+Core function for serology mechanistic tensor factorization
 """ 
 import numpy as np
 import jax.numpy as jnp
@@ -45,10 +42,10 @@ def phi(Phisum, Rtot, L0, KxStar, Ka):
 
 def inferLbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     """
-    Pass the matrices generated above into polyc, run through each receptor
-    and ant x sub pair and store in matrix same size as flatten.
-    *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
-    Numbers in args should NOT be log scaled.
+        Pass the matrices generated above into polyc, run through each receptor
+        and ant x sub pair and store in matrix same size as flatten.
+        *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
+        Numbers in args should NOT be log scaled.
     """
     if lrank:
         assert len(args) == 3, "args take 1) r_subj, 2) r_ag, 3) kav [when lrank is True]"
@@ -109,10 +106,9 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
         diff = (jnp.log(cube) - jnp.log(Lbound)) * mask
         return jnp.linalg.norm(diff)
     elif metric == "rtot":
-        return -jnp.corrcoef(jnp.ravel(cube)[args[1]],
-                             jnp.ravel(Lbound)[args[1]])[0,1]
+        return -calcModalR(cube, Lbound, valid_idx=args[1])
     else:   # per Receptor or per Ag ("rag")
-        r_list = calcModalR(cube, Lbound, (2 if metric == "rag" else 1), valid_idx=args[1])
+        r_list = calcModalR(cube, Lbound, axis=(2 if metric == "rag" else 1), valid_idx=args[1])
         return -(sum(r_list)/len(r_list))
 
 def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
@@ -168,8 +164,13 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
         return opt.x, opt.fun, params
     return opt.x, opt.fun
 
-def calcModalR(cube, lbound, axis, valid_idx=None):
+def calcModalR(cube, lbound, axis=-1, valid_idx=None):
     """ Calculate per Receptor or per Ag R """
+    if isinstance(cube, xr.DataArray):
+        cube = cube.values
+    if axis == -1:  # find overall R
+        return jnp.corrcoef(jnp.ravel(cube)[valid_idx], jnp.ravel(lbound)[valid_idx])[0, 1]
+    # find modal R
     cube = jnp.swapaxes(cube, 0, axis)
     lbound = jnp.swapaxes(lbound, 0, axis)
     r_list = []
