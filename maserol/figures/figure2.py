@@ -4,6 +4,8 @@ from tensordata.atyeo import data as atyeo
 from scipy.stats import pearsonr
 
 def makeFigure():
+    return True
+
     axs, f = getSetup((8, 4), (1, 2))
 
     d = atyeo()
@@ -26,7 +28,7 @@ def plot_correlation_heatmap(ax, RKa_opt, cube, rec_names, ant_names):
     """
 
     R_subj, R_Ag, Ka = reshapeParams(RKa_opt, cube)
-    Lbound_model = infer_Lbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12)
+    Lbound_model = inferLbound(R_subj, R_Ag, Ka, L0=1e-9, KxStar=1e-12)
 
     coeff = np.zeros([cube.shape[1], cube.shape[2]])
     for ii in range(cube.shape[1]):

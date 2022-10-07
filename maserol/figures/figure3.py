@@ -6,3 +6,6 @@ c-e) triple plot for results
 f) a schematic for leave-one-receptor-out
 g-i) predicted left out receptor measurement (R2a, R3a, R3b)
 """
+
+def makeFigure():
+    pass

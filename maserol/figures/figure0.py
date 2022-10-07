@@ -7,8 +7,9 @@ from scipy.optimize import least_squares
 from .common import subplotLabel, getSetup
 from tensordata.alter import data as alter
 
-
 def makeFigure():
+    return True
+
     """ Compare genotype vs non-genotype specific readings. """
     data = alter()
     cube = data.tensor

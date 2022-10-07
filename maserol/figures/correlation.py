@@ -1,6 +1,7 @@
 from .common import *
-from ..fixkav_opt_helpers import *
-
+import numpy as np
+import xarray as xr
+import jax.numpy as jnp
 
 def configure_scatterplot(original_flat, pred_flat, receptors=False, antigens=False, loc=None, palette=None): 
     """
