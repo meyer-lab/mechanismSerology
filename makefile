@@ -1,9 +1,9 @@
 
 flist = $(wildcard maserol/figures/figure*.py)
 
-all: $(patsubst %, output/figure%.svg, $(flist))
+all: $(patsubst maserol/figures/figure%.py, output/figure%.svg, $(flist))
 
-output/figure%.svg: syserol/figures/figure%.py
+output/figure%.svg: maserol/figures/figure%.py
 	mkdir -p output
 	poetry run fbuild $*
 
