@@ -1,4 +1,4 @@
-from .data_preparation import prepare_data, normalize_subj_ag
+from .preprocess import prepare_data, normalize_subj_ag
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np

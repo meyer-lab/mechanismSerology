@@ -22,7 +22,7 @@ def test_fit_mean(fucose):
     cube = zohar(xarray=True, logscale=False)
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.05] = np.nan    # introduce missing values
-    Ka = assemble_Kav(cube, fucose=fucose).values
+    Ka = assembleKav(cube, fucose=fucose).values
     R_subj_guess, R_Ag_guess = initializeParams(cube, lrank=True, fitKa=False, n_ab=Ka.shape[1])
     x0 = flattenParams(R_subj_guess, R_Ag_guess)
 
@@ -40,7 +40,7 @@ def test_fit_rtot():
     cube = zohar(xarray=True, logscale=False)
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
-    Ka = assemble_Kav(cube, fucose=False).values
+    Ka = assembleKav(cube, fucose=False).values
     Abund_guess = initializeParams(cube, lrank=False, fitKa=False, n_ab=Ka.shape[1])
     assert len(Abund_guess) == 1
     x0 = flattenParams(Abund_guess[0])
