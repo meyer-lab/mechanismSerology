@@ -6,7 +6,7 @@ from ..preprocess import normalize_subj_ag
 
 def configure_heatmap(data, title, color, abs, loc, annot=False):
     """
-    Configures settings for and creates heatmap for make_triple_plot.
+    Configures settings for and creates heatmap for plotHeatmaps().
     """ 
     f = sns.heatmap(data, cmap=color, ax=loc, annot=annot, annot_kws={'rotation': 90})
     f.set_xticklabels(abs, rotation=90)
@@ -14,7 +14,7 @@ def configure_heatmap(data, title, color, abs, loc, annot=False):
     f.set_title(title, fontsize=13)
     return f
 
-def make_triple_plot(name, cube: xr.DataArray, subj, ag, kav, abs, outcomes=None):
+def plotHeatmaps(name, cube: xr.DataArray, subj, ag, kav, abs, outcomes=None):
     """
     Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
     """

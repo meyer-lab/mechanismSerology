@@ -91,6 +91,11 @@ def assembleKav(data: xr.DataArray, fucose=True):
     Kav[np.where(Kav<10.0)] = 10
     return Kav
 
+def makeRcpAgLabels(data: xr.DataArray):
+    data_flat = data.stack(label=["Sample", "Receptor", "Antigen"])["label"]
+    return np.array([x.Receptor.values for x in data_flat]), \
+           np.array([x.Antigen.values for x in data_flat])
+
 def normalize_subj_ag(subj, ag, n_ab, whole=True):
     """
         Normalizes antigen matrix in factor plotting.

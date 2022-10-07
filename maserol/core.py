@@ -16,6 +16,8 @@ from jax.config import config
 
 config.update("jax_enable_x64", True)
 
+INIT_SCALER = 100
+
 def initializeParams(cube, lrank=True, fitKa=True, n_ab=4):
     """
         Generate initial guesses for input parameters.
@@ -110,21 +112,11 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
         return -jnp.corrcoef(jnp.ravel(cube)[args[1]],
                              jnp.ravel(Lbound)[args[1]])[0,1]
     else:   # per Receptor or per Ag ("rag")
-        axis = (2 if metric == "rag" else 1)
-        cube = jnp.swapaxes(cube, 0, axis)
-        lbound = jnp.swapaxes(Lbound, 0, axis)
-        r_list = []
-        for i in range(cube.shape[0]):
-            cube_val = jnp.ravel(cube[i, :])
-            lbound_val = jnp.ravel(lbound[i, :])
-            cube_idx = args[1][i]
-            r_list.append(jnp.corrcoef(jnp.log(cube_val[cube_idx]),
-                                       jnp.log(lbound_val[cube_idx]))[0, 1])
+        r_list = calcModalR(cube, Lbound, (2 if metric == "rag" else 1), valid_idx=args[1])
         return -(sum(r_list)/len(r_list))
 
-
 def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
-                 n_ab=1, maxiter=500, verbose=False, fucose=False):
+                 n_ab=1, maxiter=500, verbose=False, fucose=False, retInit=False):
     """ Optimization method to minimize modelLoss() output """
     data = prepare_data(data)
     KaFixed = assembleKav(data, fucose=fucose)   # if fitKa this value won't be used
@@ -134,7 +126,7 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
     params = initializeParams(data, lrank=lrank, fitKa=fitKa, n_ab=n_ab)
     x0 = flattenParams(*params)
     if metric == "mean":
-        x0 = np.append(x0, 1E2)   # scaling factor
+        x0 = np.append(x0, INIT_SCALER)   # scaling factor
 
     arrgs = (data.values, metric, lrank, fitKa,
              1e-9, 1e-12,    # L0 and KxStar
@@ -170,8 +162,24 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
+    if retInit:
+        if not fitKa:
+            params.append(KaFixed.values)
+        return opt.x, opt.fun, params
     return opt.x, opt.fun
 
+def calcModalR(cube, lbound, axis, valid_idx=None):
+    """ Calculate per Receptor or per Ag R """
+    cube = jnp.swapaxes(cube, 0, axis)
+    lbound = jnp.swapaxes(lbound, 0, axis)
+    r_list = []
+    for i in range(cube.shape[0]):
+        cube_val = jnp.ravel(cube[i, :])
+        lbound_val = jnp.ravel(lbound[i, :])
+        cube_idx = jnp.arange(len(cube_val)) if valid_idx is None else valid_idx[i]
+        r_list.append(jnp.corrcoef(jnp.log(cube_val[cube_idx]),
+                                   jnp.log(lbound_val[cube_idx]))[0, 1])
+    return r_list
 
 def getNonnegIdx(cube, metric="rtot"):
     """ Generate/save nonnegative indices for cube so index operations seem static for JAX """
