@@ -2,6 +2,7 @@ import numpy as np
 from .common import *
 from matplotlib.tri import Triangulation
 import xarray as xr
+from ..preprocess import normalize_subj_ag
 
 def configure_heatmap(data, title, color, abs, loc, annot=False):
     """
@@ -13,13 +14,13 @@ def configure_heatmap(data, title, color, abs, loc, annot=False):
     f.set_title(title, fontsize=13)
     return f
 
-def make_triple_plot(name, cube : xr.DataArray, subj, ag, kav, abs, outcomes=None):
+def make_triple_plot(name, cube: xr.DataArray, subj, ag, kav, abs, outcomes=None):
     """
     Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
     """
     # prepare data
     kav_log = np.log(kav)
-    subj_norm, ag_norm = subj, ag
+    subj_norm, ag_norm = normalize_subj_ag(subj, ag, len(abs), whole=True)
     axs, f = getSetup((16,6),(1,3))
     plt.subplots_adjust(wspace=.4)
 

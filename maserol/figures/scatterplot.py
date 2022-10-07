@@ -1,88 +1,11 @@
-from .preprocess import prepare_data, normalize_subj_ag
-import matplotlib
-import matplotlib.pyplot as plt
+from ..preprocess import prepare_data
+from .common import *
 import numpy as np
 import seaborn as sns
 import xarray as xr 
 import jax.numpy as jnp
 
-matplotlib.rcParams["legend.labelspacing"] = 0.2
-matplotlib.rcParams["legend.fontsize"] = 8
-matplotlib.rcParams["xtick.major.pad"] = 1.0
-matplotlib.rcParams["ytick.major.pad"] = 1.0
-matplotlib.rcParams["xtick.minor.pad"] = 0.9
-matplotlib.rcParams["ytick.minor.pad"] = 0.9
-matplotlib.rcParams["legend.handletextpad"] = 0.5
-matplotlib.rcParams["legend.handlelength"] = 0.5
-matplotlib.rcParams["legend.framealpha"] = 0.5
-matplotlib.rcParams["legend.markerscale"] = 0.7
-matplotlib.rcParams["legend.borderpad"] = 0.35
-
-def getKavSetup(figsize, gridd, multz=None, empts=None):
-    """ Establish figure set-up with subplots. """
-    sns.set(style="darkgrid", font_scale=1, color_codes=True, palette="colorblind", rc={"grid.linestyle": "dotted", "axes.linewidth": 0.6})
-
-    # create empty list if empts isn't specified
-    if empts is None:
-        empts = []
-
-    if multz is None:
-        multz = dict()
-
-    # Setup plotting space and grid
-    f = plt.figure(figsize=figsize, constrained_layout=True)
-    gs1 = matplotlib.gridspec.GridSpec(*gridd, figure=f)
-
-    # Get list of axis objects
-    x = 0
-    ax = list()
-    while x < gridd[0] * gridd[1]:
-        if x not in empts and x not in multz.keys():  # If this is just a normal subplot
-            ax.append(f.add_subplot(gs1[x]))
-        elif x in multz.keys():  # If this is a subplot that spans grid elements
-            ax.append(f.add_subplot(gs1[x: x + multz[x] + 1]))
-            x += multz[x]
-        x += 1
-
-    return (ax, f)
-
-def configure_heatmap(data, title, color, abs, loc):
-    """
-    Configures settings for and creates heatmap for make_triple_plot.
-    """ 
-    f = sns.heatmap(data, cmap=color, ax=loc)
-    f.set_xticklabels(abs, rotation=0)
-    f.set_xlabel("Antibodies", fontsize=11, rotation=0)
-    f.set_title(title, fontsize=13)
-    return f
-
-def make_triple_plot(name, cube, subj, ag, kav, abs, outcomes=None):
-    """
-    Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
-    """
-    # prepare data
-    kav_log = np.log(kav)
-    subj_norm, ag_norm = normalize_subj_ag(subj, ag, len(abs), whole=True)
-    axs, f = getKavSetup((16,6),(1,3))
-    plt.subplots_adjust(wspace=.4)
-
-    # plot
-    subj_fig = configure_heatmap(subj_norm, "Subjects", "PuBuGn", abs, axs[0])
-    ag_fig = configure_heatmap(ag_norm, "Antigens", "PuBuGn", abs, axs[1])
-    af_fig = configure_heatmap(kav_log, "Affinities (1/M)", "PuBuGn", abs, axs[2])
-
-    # label axes
-    ag_fig.set_yticklabels(cube.Antigen.values, fontsize=8, rotation=0)
-    af_fig.set_yticklabels(cube.Receptor.values, fontsize=8, rotation=0)
-    if (outcomes != None):
-        outcomes.sort()
-        labels = set(outcomes)
-        outcome_index = [outcomes.index(outcome) for outcome in labels]
-        subj_fig.set_yticks(outcome_index, labels, fontsize=8, rotation=0)
-    f.suptitle(f'{name.capitalize()}', fontsize=18)
-    return f
-
-def configure_scatterplot(data : xr.DataArray, lbound, loc=None): 
+def configure_scatterplot(data: xr.DataArray, lbound, loc=None):
     """
     Configures settings and creates scatterplot for make_initial_final_lbound_correlation_plot.
     """
@@ -109,7 +32,8 @@ def make_initial_final_lbound_correlation_plot(cube, initial_lbound, final_lboun
     """
     Creates two scatterplots comparing correlations between the cube and the initial and final lbound predictions.
     """
-    axs, f = getKavSetup((13, 5), (1, 2))
+    axs, f = getSetup((13, 5), (1, 2))
+    sns.set(style="darkgrid", font_scale=1)
     initial_f = configure_scatterplot(cube, initial_lbound, axs[0])
     initial_f.set_title("Initial", fontsize=13)
     final_f = configure_scatterplot(cube, final_lbound, axs[1])
