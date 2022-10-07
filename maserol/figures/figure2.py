@@ -1,10 +1,11 @@
 from .common import getSetup, subplotLabel
 from ..core import *
+from matplotlib import pyplot as plt
 from tensordata.atyeo import data as atyeo
 from scipy.stats import pearsonr
 
 def makeFigure():
-    return True
+    return plt.figure()
 
     axs, f = getSetup((8, 4), (1, 2))
 
