@@ -1,4 +1,5 @@
 from .common import *
+from ..preprocess import makeRcpAgLabels
 import numpy as np
 import xarray as xr
 import jax.numpy as jnp
@@ -29,7 +30,8 @@ def plot_receptor_validation_plot(receptor, data : xr.DataArray, cube_flat, lbou
     r_list = []
     non_nan = ~np.isnan(cube_flat)
     cube_flat = cube_flat[non_nan]
-    receptor_labels, antigen_labels = make_rec_subj_labels(data)
+
+    receptor_labels, antigen_labels = makeRcpAgLabels(data)
     receptor_labels = receptor_labels[non_nan]
     antigen_labels = antigen_labels[non_nan] if antigens else None
     lbound_flat = lbound_flat[non_nan]
@@ -72,7 +74,8 @@ def make_initial_final_lbound_correlation_plot(data : xr.DataArray, cube_flat, i
     # prepare data
     non_nan = ~np.isnan(cube_flat)
     cube_flat = cube_flat[non_nan]
-    receptor_labels, antigen_labels = make_rec_subj_labels(data)
+
+    receptor_labels, antigen_labels = makeRcpAgLabels(data)
     antigen_labels = antigen_labels[non_nan] if antigens else None
     receptor_labels = receptor_labels[non_nan]
     ilbound = ilbound[non_nan]
@@ -93,7 +96,7 @@ def add_r_text(cube, ilbound, flbound, per_receptor, f, antigens=False):
     cube_flat = cube.values.flatten()
     non_nan = ~np.isnan(cube_flat)
     cube_flat = cube_flat[non_nan]
-    receptor_labels, ag_labels = make_rec_subj_labels(cube)
+    receptor_labels, ag_labels = makeRcpAgLabels(cube)
     r_index_list = get_indices(cube, per_receptor)
     labels = receptor_labels if per_receptor else ag_labels
 

@@ -2,31 +2,54 @@ import numpy as np
 from .common import *
 from matplotlib.tri import Triangulation
 import xarray as xr
+from ..preprocess import HIgGs, HIgGFs
+from ..core import *
 
-def configure_heatmap(data, title, color, abs, loc, annot=False):
+def plotOneHeatmap(data, title, color, abs, ax, annot=False):
     """
-    Configures settings for and creates heatmap for make_triple_plot.
+    Configures settings for and creates heatmap for plotHeatmaps().
     """ 
-    f = sns.heatmap(data, cmap=color, ax=loc, annot=annot, annot_kws={'rotation': 90})
+    f = sns.heatmap(data, cmap=color, ax=ax, annot=annot, annot_kws={'rotation': 90})
     f.set_xticklabels(abs, rotation=90)
     f.set_xlabel("Antibodies", fontsize=11, rotation=0)
     f.set_title(title, fontsize=13)
     return f
 
-def make_triple_plot(name, cube : xr.DataArray, subj, ag, kav, abs, outcomes=None):
+def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=False, lrank=True,
+                 outcomes=None, name="", normPerAg=False):
     """
-    Creates three heatmaps in one plot (Subjects Matrix, Antigen Matrix, Kav Matrix).
+    Creates three heatmaps in one plot (Samples, Antigens, Kav).
     """
-    # prepare data
+    # extract optimization results
+    assert lrank, "plotHeatmaps() can only handle low rank-ed abundance (as two matrices)"
+    cube = prepare_data(cube)
+    opt_ps = reshapeParams(x_opt, cube, lrank=True, fitKa=fitKa)
+    if fitKa:
+        samp, ag, kav = opt_ps[0], opt_ps[1], opt_ps[2]
+    else:
+        samp, ag = opt_ps[0], opt_ps[1]
+        kav = assembleKav(cube)
+
+    # preprocess data
     kav_log = np.log(kav)
-    subj_norm, ag_norm = subj, ag
+    n_ab = samp.shape[1]
+    abs = ["Ab"+str(i) for i in range(1, n_ab+1)]   # default Ag label as "Abx"
+    if n_ab == 4:
+        abs = HIgGs
+    if n_ab == 8:
+        abs = HIgGFs
+    # normalize Ag matrix and shift weights to samp matrix, may do by each Ag
+    agmax = np.max(ag, axis=(0 if normPerAg else None))
+    ag /= agmax
+    samp *= agmax
+
     axs, f = getSetup((16,6),(1,3))
     plt.subplots_adjust(wspace=.4)
 
     # plot
-    subj_fig = configure_heatmap(subj_norm, "Subjects Log10 ", "PuBuGn", abs, axs[0])
-    ag_fig = configure_heatmap(ag_norm, "Antigens", "PuBuGn", abs, axs[1])
-    af_fig = configure_heatmap(kav_log, "Affinities (1/M)", "PuBuGn", abs, axs[2], True)
+    subj_fig = plotOneHeatmap(samp, "Subjects Log10 ", "PuBuGn", abs, axs[0])
+    ag_fig = plotOneHeatmap(ag, "Antigens", "PuBuGn", abs, axs[1])
+    af_fig = plotOneHeatmap(kav_log, "Affinities (1/M)", "PuBuGn", abs, axs[2], True)
 
     # label axes
     ag_fig.set_yticks([x for x in range(len(cube.Antigen))], cube.Antigen.values, fontsize=8, rotation=0)

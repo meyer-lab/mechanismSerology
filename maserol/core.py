@@ -1,8 +1,5 @@
 """
-Currently runs polyfc to compare with SpaceX data with 6 receptors, 117 subjects, and 14 antigens.
-Polyfc is ran with initial guesses for abundance (117x1) and (14x1)  and Ka for each receptor (6x1).
-Polyfc output is compared to SpaceX data and cost function is minimzied through scipy.optimize.minimize.
-Total fitting parameters = 147
+Core function for serology mechanistic tensor factorization
 """ 
 import numpy as np
 import jax.numpy as jnp
@@ -15,6 +12,8 @@ from jax.config import config
 
 
 config.update("jax_enable_x64", True)
+
+INIT_SCALER = 100
 
 def initializeParams(cube, lrank=True, fitKa=True, n_ab=4):
     """
@@ -43,10 +42,10 @@ def phi(Phisum, Rtot, L0, KxStar, Ka):
 
 def inferLbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
     """
-    Pass the matrices generated above into polyc, run through each receptor
-    and ant x sub pair and store in matrix same size as flatten.
-    *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
-    Numbers in args should NOT be log scaled.
+        Pass the matrices generated above into polyc, run through each receptor
+        and ant x sub pair and store in matrix same size as flatten.
+        *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
+        Numbers in args should NOT be log scaled.
     """
     if lrank:
         assert len(args) == 3, "args take 1) r_subj, 2) r_ag, 3) kav [when lrank is True]"
@@ -107,24 +106,13 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
         diff = (jnp.log(cube) - jnp.log(Lbound)) * mask
         return jnp.linalg.norm(diff)
     elif metric == "rtot":
-        return -jnp.corrcoef(jnp.ravel(cube)[args[1]],
-                             jnp.ravel(Lbound)[args[1]])[0,1]
+        return -calcModalR(cube, Lbound, valid_idx=args[1])
     else:   # per Receptor or per Ag ("rag")
-        axis = (2 if metric == "rag" else 1)
-        cube = jnp.swapaxes(cube, 0, axis)
-        lbound = jnp.swapaxes(Lbound, 0, axis)
-        r_list = []
-        for i in range(cube.shape[0]):
-            cube_val = jnp.ravel(cube[i, :])
-            lbound_val = jnp.ravel(lbound[i, :])
-            cube_idx = args[1][i]
-            r_list.append(jnp.corrcoef(jnp.log(cube_val[cube_idx]),
-                                       jnp.log(lbound_val[cube_idx]))[0, 1])
+        r_list = calcModalR(cube, Lbound, axis=(2 if metric == "rag" else 1), valid_idx=args[1])
         return -(sum(r_list)/len(r_list))
 
-
 def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
-                 n_ab=1, maxiter=500, verbose=False, fucose=False):
+                 n_ab=1, maxiter=500, verbose=False, fucose=False, retInit=False):
     """ Optimization method to minimize modelLoss() output """
     data = prepare_data(data)
     KaFixed = assembleKav(data, fucose=fucose)   # if fitKa this value won't be used
@@ -134,7 +122,7 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
     params = initializeParams(data, lrank=lrank, fitKa=fitKa, n_ab=n_ab)
     x0 = flattenParams(*params)
     if metric == "mean":
-        x0 = np.append(x0, 1E2)   # scaling factor
+        x0 = np.append(x0, INIT_SCALER)   # scaling factor
 
     arrgs = (data.values, metric, lrank, fitKa,
              1e-9, 1e-12,    # L0 and KxStar
@@ -170,8 +158,29 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
+    if retInit:
+        if not fitKa:
+            params.append(KaFixed.values)
+        return opt.x, opt.fun, params
     return opt.x, opt.fun
 
+def calcModalR(cube, lbound, axis=-1, valid_idx=None):
+    """ Calculate per Receptor or per Ag R """
+    if isinstance(cube, xr.DataArray):
+        cube = cube.values
+    if axis == -1:  # find overall R
+        return jnp.corrcoef(jnp.ravel(cube)[valid_idx], jnp.ravel(lbound)[valid_idx])[0, 1]
+    # find modal R
+    cube = jnp.swapaxes(cube, 0, axis)
+    lbound = jnp.swapaxes(lbound, 0, axis)
+    r_list = []
+    for i in range(cube.shape[0]):
+        cube_val = jnp.ravel(cube[i, :])
+        lbound_val = jnp.ravel(lbound[i, :])
+        cube_idx = jnp.arange(len(cube_val)) if valid_idx is None else valid_idx[i]
+        r_list.append(jnp.corrcoef(jnp.log(cube_val[cube_idx]),
+                                   jnp.log(lbound_val[cube_idx]))[0, 1])
+    return r_list
 
 def getNonnegIdx(cube, metric="rtot"):
     """ Generate/save nonnegative indices for cube so index operations seem static for JAX """

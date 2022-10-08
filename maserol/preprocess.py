@@ -8,6 +8,9 @@ import re
 
 path_here = dirname(dirname(__file__))
 
+HIgGs = ["IgG1", "IgG2", "IgG3", "IgG4"]
+HIgGFs = ["IgG1", "IgG1f", "IgG2", "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f"]
+
 
 def prepare_data(data: xr.DataArray, remove_rcp=None):
     """
@@ -63,9 +66,7 @@ def get_affinity(receptor, abs):
 
 def assembleKav(data: xr.DataArray, fucose=True):
     """ Assemble affinity matrix for a given dataset. """
-    absf = ["IgG1", "IgG2", "IgG3", "IgG4"] if not fucose else \
-        ["IgG1", "IgG1f", "IgG2", "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f"]
-
+    absf = HIgGs if not fucose else HIgGFs
     receptors = data.Receptor.values    # work even when data did not go thru prepare_data()
     igg = [x for x in receptors if (re.match("^igg", x, flags=re.IGNORECASE))]
     fc = [x for x in receptors if (re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha")]
@@ -91,17 +92,8 @@ def assembleKav(data: xr.DataArray, fucose=True):
     Kav[np.where(Kav<10.0)] = 10
     return Kav
 
-def normalize_subj_ag(subj, ag, n_ab, whole=True):
-    """
-        Normalizes antigen matrix in factor plotting.
-        If 'whole' is False, normalizes antigen matrix by columns.
-    """
-    if (whole):
-        ag /= ag.max()
-        subj *= ag.max()
-    else:
-        for i in range(n_ab):
-            max = ag[:,i].max()
-            ag = ag.at[:,i].set(ag[:,i] / max)
-            subj = subj.at[:,i].set(subj[:,i] * max)
-    return subj, ag
+def makeRcpAgLabels(data: xr.DataArray):
+    data_flat = data.stack(label=["Sample", "Receptor", "Antigen"])["label"]
+    return np.array([x.Receptor.values for x in data_flat]), \
+           np.array([x.Antigen.values for x in data_flat])
+
