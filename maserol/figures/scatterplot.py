@@ -3,8 +3,7 @@ from ..core import *
 from .common import *
 import numpy as np
 import seaborn as sns
-import xarray as xr 
-import jax.numpy as jnp
+import xarray as xr
 
 def plotPrediction(data: xr.DataArray, lbound, ax=None):
     """ Create a basic figure of actual vs predict scatterplot. """
