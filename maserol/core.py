@@ -197,5 +197,5 @@ def getNonnegIdx(cube, metric="rtot"):
         return i_list
 
 def test_git_functions():
-    print("I'm testing git function in branch purple!")
+    print("LOL I deleted the previous code")
     
