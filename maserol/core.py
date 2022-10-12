@@ -195,3 +195,7 @@ def getNonnegIdx(cube, metric="rtot"):
         for i in range(cube.shape[0]):
             i_list.append(jnp.where(jnp.ravel(cube[i, :]) > 0))
         return i_list
+
+def test_git_functions():
+    print("I'm testing git function in branch purple!")
+    
