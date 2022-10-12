@@ -198,4 +198,5 @@ def getNonnegIdx(cube, metric="rtot"):
 
 def test_git_functions():
     print("LOL I deleted the previous code")
-    
+    a = 2 + 3
+    print(a + 5)
