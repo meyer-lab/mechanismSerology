@@ -1,5 +1,6 @@
 import pytest
 from ..core import *
+from ..preprocess import HIgGs, HIgGFs
 from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data3D as zohar
 
@@ -7,31 +8,34 @@ from tensordata.zohar import data3D as zohar
 def test_initialize(n_ab):
     """ Test initializeParams() work correctly """
     cube = atyeo(xarray=True)
+    cube = prepare_data(cube)
     n_samp, n_recp, n_ag = cube.shape
-    ps = initializeParams(cube, lrank=True, fitKa=False, n_ab=n_ab)  # should return subj, ag
+    ab_types = HIgGs[:n_ab]
+    ps = initializeParams(cube, lrank=True, fitKa=False, ab_types=ab_types)  # should return subj, ag
     assert len(ps) == 2
     assert ps[1].shape == (n_ag, n_ab)
-    ps = initializeParams(cube, lrank=False, fitKa=True, n_ab=n_ab)  # should return abund, Ka
+    ps = initializeParams(cube, lrank=False, fitKa=True, ab_types=ab_types)  # should return abund, Ka
     assert len(ps) == 2
     assert ps[0].shape == (n_samp * n_ag, n_ab)
     assert ps[1].shape == (n_recp, n_ab)
 
-@pytest.mark.parametrize("fucose", [True, False])
-def test_fit_mean(fucose):
+@pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
+def test_fit_mean(ab_types):
     """ Test mean (MSE) mode, low rank assumption, not fitting Ka """
     cube = zohar(xarray=True, logscale=False)
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.05] = np.nan    # introduce missing values
-    Ka = assembleKav(cube, fucose=fucose).values
-    R_subj_guess, R_Ag_guess = initializeParams(cube, lrank=True, fitKa=False, n_ab=Ka.shape[1])
+    nonneg_idx = getNonnegIdx(cube, "mean")
+    Ka = assembleKav(cube, ab_types=ab_types).values
+    R_subj_guess, R_Ag_guess = initializeParams(cube, lrank=True, fitKa=False, ab_types=ab_types)
     x0 = flattenParams(R_subj_guess, R_Ag_guess)
 
     # test mean (MSE) method
     x0_loss = modelLoss(x0, cube,
-                             "mean", True, False, 1e-9, 1e-12, Ka)  # = metric, lrank, fitKa, L0, KxStar, Ka
+                             "mean", True, False, 1e-9, 1e-12, Ka, nonneg_idx)  # = metric, lrank, fitKa, L0, KxStar, Ka
     assert x0_loss > 0.0
     assert np.isfinite(x0_loss)
-    x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, fucose=fucose)
+    x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
     assert opt_f < x0_loss
     assert len(x0) == len(x_opt) - 1  # subtract the scaling factor
 
@@ -40,8 +44,8 @@ def test_fit_rtot():
     cube = zohar(xarray=True, logscale=False)
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
-    Ka = assembleKav(cube, fucose=False).values
-    Abund_guess = initializeParams(cube, lrank=False, fitKa=False, n_ab=Ka.shape[1])
+    Ka = assembleKav(cube).values
+    Abund_guess = initializeParams(cube, lrank=False, fitKa=False)
     assert len(Abund_guess) == 1
     x0 = flattenParams(Abund_guess[0])
 
@@ -51,7 +55,7 @@ def test_fit_rtot():
                         Ka, getNonnegIdx(cube, metric="rtot"))
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3
-    x_opt, opt_R2 = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20, fucose=False)
+    x_opt, opt_R2 = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20)
     assert opt_R2 < -0.8
     assert len(x0) == len(x_opt)
 
@@ -63,7 +67,8 @@ def test_fit_r(n_ab, metric):
     cube = zohar(xarray=True, logscale=False)
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
-    R_subj_guess, R_Ag_guess, Ka_guess = initializeParams(cube, lrank=True, fitKa=True, n_ab=n_ab)
+    ab_types = HIgGs[:n_ab]
+    R_subj_guess, R_Ag_guess, Ka_guess = initializeParams(cube, lrank=True, fitKa=True, ab_types=ab_types)
     x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka_guess)
 
     # test Rtot method
@@ -73,6 +78,6 @@ def test_fit_r(n_ab, metric):
                         # Ka after kwargs must not be used here
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3
-    x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, n_ab=n_ab, maxiter=20, fucose=False)
+    x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, maxiter=20, ab_types=ab_types)
     assert opt_R2 < -0.7
     assert len(x0) == len(x_opt)
