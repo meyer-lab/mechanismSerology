@@ -1,21 +1,26 @@
 """
 Core function for serology mechanistic tensor factorization
 """ 
-import numpy as np
-import jax.numpy as jnp
-from tqdm import tqdm
-import xarray as xr
-from scipy.optimize import minimize
-from jax import value_and_grad, jit, grad
-from .preprocess import prepare_data, assembleKav
-from jax.config import config
+# Base Python
+from typing import Iterable, List
 
+# Extended Python
+import jax.numpy as jnp
+import numpy as np
+import xarray as xr
+from jax import value_and_grad, jit, grad
+from jax.config import config
+from scipy.optimize import minimize
+from tqdm import tqdm
+
+# Current Package
+from .preprocess import assembleKav, DEFAULT_AB_TYPES, prepare_data
 
 config.update("jax_enable_x64", True)
 
 INIT_SCALER = 100
 
-def initializeParams(cube, lrank=True, fitKa=True, n_ab=4):
+def initializeParams(cube, lrank=True, fitKa=True, ab_types: Iterable=DEFAULT_AB_TYPES) -> List:
     """
         Generate initial guesses for input parameters.
         cube = Samples x Receptors x Ags
@@ -23,14 +28,15 @@ def initializeParams(cube, lrank=True, fitKa=True, n_ab=4):
             Return separate Subj and Ag matrices if true, otherwise return just one abundance matrix
         fitKa: if Ka is not fix, return a random Ka matrix too
     """
+    n_ab_types = len(ab_types)
     if fitKa:     # when Ka matrix is not fixed
-        Ka = np.random.uniform(1E5, 5E5, (cube.shape[1], n_ab))
+        Ka = assembleKav(cube, ab_types).values
     if lrank:       # with low-rank assumption
-        samp = np.random.uniform(1E5, 5E5, (cube.shape[0], n_ab))
-        ag = np.random.uniform(1E5, 5E5, (cube.shape[2], n_ab))
+        samp = np.random.uniform(1E5, 5E5, (cube.shape[0], n_ab_types))
+        ag = np.random.uniform(1E5, 5E5, (cube.shape[2], n_ab_types))
         return [samp, ag, Ka] if fitKa else [samp, ag]
     else:           # without low-rank assumption
-        abundance = np.random.uniform(1E10, 2E10, (cube.shape[0] * cube.shape[2], n_ab))
+        abundance = np.random.uniform(1E10, 2E10, (cube.shape[0] * cube.shape[2], n_ab_types))
         return [abundance, Ka] if fitKa else [abundance]
 
 def phi(Phisum, Rtot, L0, KxStar, Ka):
@@ -100,26 +106,25 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
         params.append(args[0])
     Lbound = inferLbound(cube, *params, lrank=lrank, L0=L0, KxStar=KxStar)
     if metric == 'mean':
-        mask = (cube > 0)
         if len(x) % np.sum([p.shape[0] for p in params]) == 1:  # deal with possible scaling factor
             Lbound = Lbound * x[-1]
-        diff = (jnp.log(cube) - jnp.log(Lbound)) * mask
+        diff = jnp.ravel((jnp.log(cube) - jnp.log(Lbound)))[args[1]]
         return jnp.linalg.norm(diff)
     elif metric == "rtot":
-        return -calcModalR(cube, Lbound, valid_idx=args[1])
+        return -calcModalR(jnp.log(cube), jnp.log(Lbound), valid_idx=args[1])
     else:   # per Receptor or per Ag ("rag")
         r_list = calcModalR(cube, Lbound, axis=(2 if metric == "rag" else 1), valid_idx=args[1])
         return -(sum(r_list)/len(r_list))
 
 def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
-                 n_ab=1, maxiter=500, verbose=False, fucose=False, retInit=False):
+                 ab_types: Iterable=DEFAULT_AB_TYPES, maxiter=500, verbose=False, retInit=False):
     """ Optimization method to minimize modelLoss() output """
     data = prepare_data(data)
-    KaFixed = assembleKav(data, fucose=fucose)   # if fitKa this value won't be used
+    KaFixed = assembleKav(data, ab_types=ab_types)   # if fitKa this value won't be used
+
+
     assert np.all(KaFixed > 0)
-    if not fitKa:     # if not fitKa the input n_ab is useless
-        n_ab = KaFixed.shape[1]
-    params = initializeParams(data, lrank=lrank, fitKa=fitKa, n_ab=n_ab)
+    params = initializeParams(data, lrank=lrank, fitKa=fitKa, ab_types=ab_types)
     x0 = flattenParams(*params)
     if metric == "mean":
         x0 = np.append(x0, INIT_SCALER)   # scaling factor
@@ -186,9 +191,9 @@ def getNonnegIdx(cube, metric="rtot"):
     """ Generate/save nonnegative indices for cube so index operations seem static for JAX """
     if isinstance(cube, xr.DataArray):
         cube = cube.values
-    if metric == "rtot":
+    if metric in ("rtot", "mean"):
         return jnp.where(jnp.ravel(cube) > 0)
-    else:
+    else: # per receptor or per Ag
         i_list = []
         # assume cube has shape Samples x Receptors x Ags
         cube = np.swapaxes(cube, 0, (2 if metric == "rag" else 1))  # else = per Receptor
