@@ -1,10 +1,10 @@
 import numpy as np
-import statistics
 import xarray as xr
 import pandas as pd
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, cross_validate, train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import MinMaxScaler
+
 from .core import reshapeParams, optimizeLoss
 
 def resample(cube : xr.DataArray):
@@ -18,63 +18,35 @@ def resample(cube : xr.DataArray):
     cube.values = np.reshape(list(resampled['cube']), (cube.shape[0], cube.shape[1], cube.shape[2]))
     return cube
 
-def bootstrap(cube : xr.DataArray, param_dict, numResample=10):
+def bootstrap(cube : xr.DataArray, numResample=10, **opt_kwargs):
     '''
     Runs bootstrapping algorithm on MTD 'numResample' times.
 
-    Inputs:
-        cube: DataArray object
-        param_dict: list of parameters needed to run MTD
-            {metric: metric to use for evaluation function ('mean', 'rtot', or 'r'),
-            lrank: when True uses low-rank assumption, 
-            retKav: when True affinity matrix is also optimized,
-            perReceptor: only applicable with 'r' metric, when True r calculated per-receptor, when False r calculated per-antigen,
-            absf: list of antibody names
-            }
+    Args:
+        cube: DataArray object with processed data
         num_resample: number of times to run bootstrapping
+        param_dict: kwargs that are passed into optimizeLoss
     
-    Outputs:
-        list of bootstrapped sample matrix, antigen matrix values or abundance matrix values
+    Returns:
+        [[samples mean, samples std], [ag mean, ag std]] or [abundance mean, abundance std]
     '''
-    if param_dict['lrank']:
+    if opt_kwargs['lrank']:
         subjects_list, ag_list = [], []
     else:
         abundance_list = []
-    
-    for i in range(numResample):
-        data = resample(cube)
-        x, val = optimizeLoss(data, param_dict['metric'], param_dict['absf'], param_dict['lrank'], \
-                              param_dict['retKav'], param_dict['perReceptor'], len(param_dict['absf']))
-        x = reshapeParams(x[:-1], data, param_dict['lrank'], param_dict['retKav'])
 
-        if (param_dict['lrank']):
-            subjects_list.append(x[0].flatten())
-            ag_list.append(x[1].flatten())
+    for _ in range(numResample):
+        data = resample(cube)
+        x, _ = optimizeLoss(data, **opt_kwargs)
+        x = reshapeParams(x, data, opt_kwargs['lrank'], opt_kwargs['fitKa'])
+
+        if (opt_kwargs['lrank']):
+            subjects_list.append(x[0])
+            ag_list.append(x[1])
         else:
             abundance_list.append(x[0])
-    return subjects_list, ag_list if param_dict['lrank'] else abundance_list
-
-def calculate_bootstrap_mean(matrix_flat):
-    '''
-    Returns mean for each values in list of bootstrapped values given by 'matrix_flat'.
-    '''
-    means = []
-    for i in range(len(matrix_flat[0])):
-        values = [item[i] for item in matrix_flat]
-        mean = sum(values) / len(values)
-        means.append(mean)
-    return np.asarray(means)
-
-def calculate_bootstrap_std(matrix_flat):
-    '''
-    Returns standard deviation for each values in list of bootstrapped values given by 'matrix_flat'.
-    '''
-    stds = []
-    for i in range(len(matrix_flat[0])):
-        values = [item[i] for item in matrix_flat]
-        std = statistics.stdev(np.asarray(values))
-        stds.append(std)
-    return np.asarray(stds)
+    mean_std = lambda l : (np.mean(np.array(l), axis=0), np.std(np.array(l), axis=0))
+    return mean_std(subjects_list), mean_std(ag_list) if opt_kwargs['lrank'] else mean_std(abundance_list)
 
 def prepare_lr_data(subjects_matrix, outcomes, absf, classes, norm=None):
     '''

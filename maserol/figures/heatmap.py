@@ -62,7 +62,7 @@ def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=False, lrank=True,
     f.suptitle(f'{name.capitalize()}', fontsize=18)
     return f, subj_fig, ag_fig, af_fig
 
-def plot_split_heatmap(mean_matrix, std_matrix, absf, ylabels):
+def plot_deviation_heatmap(mean_matrix, std_matrix, absf, ylabels):
     '''
     Creates a split-triangle heatmap summarizing MTD bootstrapping results. 
     Inputs:
@@ -90,7 +90,7 @@ def plot_split_heatmap(mean_matrix, std_matrix, absf, ylabels):
     axes.set_xticks(range(0, len(absf)), absf)
     axes.set_yticks(range(0, len(ylabels)), ylabels)
     plt.show()
-    return fig, axes
+    return fig
 
 def plot_3D_heatmap(cube : xr.DataArray):
     '''

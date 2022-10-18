@@ -144,3 +144,5 @@ venv
 output
 .vscode/settings.json
 *.png
+
+.vscode/*
