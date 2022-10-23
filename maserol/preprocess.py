@@ -16,7 +16,7 @@ path_here = dirname(dirname(__file__))
 HIgGs = ("IgG1", "IgG2", "IgG3", "IgG4")
 HIgGFs = ("IgG1", "IgG1f", "IgG2", "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f")
 
-DEFAULT_AB_TYPES = HIgGs
+DEFAULT_AB_TYPES = HIgGFs
 
 def prepare_data(data: xr.DataArray, remove_rcp=None):
     """

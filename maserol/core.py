@@ -2,7 +2,7 @@
 Core function for serology mechanistic tensor factorization
 """ 
 # Base Python
-from typing import Iterable, List
+from typing import Iterable, List, Union
 
 # Extended Python
 import jax.numpy as jnp
@@ -19,25 +19,32 @@ from .preprocess import assembleKav, DEFAULT_AB_TYPES, prepare_data
 config.update("jax_enable_x64", True)
 
 INIT_SCALER = 100
+DEFAULT_FIT_KA_VAL = False
+DEFAULT_LRANK_VAL = False
 
-def initializeParams(cube, lrank=True, fitKa=True, ab_types: Iterable=DEFAULT_AB_TYPES) -> List:
+def initializeParams(cube: Union[xr.DataArray, np.ndarray], lrank=DEFAULT_LRANK_VAL, ab_types: Iterable=DEFAULT_AB_TYPES) -> List:
     """
-        Generate initial guesses for input parameters.
-        cube = Samples x Receptors x Ags
-        lrank: whether assume a low-rank structure.
-            Return separate Subj and Ag matrices if true, otherwise return just one abundance matrix
-        fitKa: if Ka is not fix, return a random Ka matrix too
+    Generate initial guesses for input parameters.
+
+    Args:
+        cube: Prepared data in DataArray or np array form.
+          Dims: Samples x Receptors x Ags
+        lrank: Determines whether we should assume a low-rank structure for the
+          abundance matrix. If true, return Sample and Ag matrices, else return
+          Abundance matrix
+    
+    Returns:
+        The list of parameters.
     """
     n_ab_types = len(ab_types)
-    if fitKa:     # when Ka matrix is not fixed
-        Ka = assembleKav(cube, ab_types).values
+    Ka = assembleKav(cube, ab_types).values
     if lrank:       # with low-rank assumption
         samp = np.random.uniform(1E5, 5E5, (cube.shape[0], n_ab_types))
         ag = np.random.uniform(1E5, 5E5, (cube.shape[2], n_ab_types))
-        return [samp, ag, Ka] if fitKa else [samp, ag]
+        return [samp, ag, Ka]
     else:           # without low-rank assumption
         abundance = np.random.uniform(1E10, 2E10, (cube.shape[0] * cube.shape[2], n_ab_types))
-        return [abundance, Ka] if fitKa else [abundance]
+        return [abundance, Ka]
 
 def phi(Phisum, Rtot, L0, KxStar, Ka):
     temp = jnp.einsum("jl,ijk->ilkj", Ka, 1.0 + Phisum)
@@ -46,7 +53,7 @@ def phi(Phisum, Rtot, L0, KxStar, Ka):
     assert Phisum_n.shape == Phisum.shape
     return Phisum_n
 
-def inferLbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
+def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12):
     """
         Pass the matrices generated above into polyc, run through each receptor
         and ant x sub pair and store in matrix same size as flatten.
@@ -69,14 +76,14 @@ def inferLbound(cube, *args, lrank=True, L0=1e-9, KxStar=1e-12):
 
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
-def reshapeParams(x, cube, lrank=True, fitKa=True):
+def reshapeParams(x, cube, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
     x = jnp.exp(x)
     n_subj, n_rec, n_ag = cube.shape
-    edge_size = np.sum(cube.shape) if fitKa else ((n_subj + n_ag) if lrank else (n_subj * n_ag))
+    edge_size = (n_subj + n_ag) if lrank else (n_subj * n_ag)
     n_ab = int(len(x) / edge_size)
     if not lrank:  # abundance as a whole big matrix
-        abundance = x.reshape((n_subj * n_ag, n_ab))
+        abundance = x[:n_subj * n_ag * n_ab].reshape((n_subj * n_ag, n_ab))
         retVal = [abundance]
     else:   # separate receptor and antigen matrices
         r_subj = x[0:(n_subj * n_ab)].reshape(n_subj, n_ab)
@@ -92,7 +99,7 @@ def flattenParams(*args):
     Order: (r_subj, r_ag) / abund, Ka """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
-def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e-12, *args):
+def modelLoss(x, cube, metric="mean", lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12, *args):
     """
         Loss function, comparing model output and actual values.
         args:
@@ -116,22 +123,20 @@ def modelLoss(x, cube, metric="mean", lrank=True, fitKa=True, L0=1e-9, KxStar=1e
         r_list = calcModalR(cube, Lbound, axis=(2 if metric == "rag" else 1), valid_idx=args[1])
         return -(sum(r_list)/len(r_list))
 
-def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
+def optimizeLoss(data: xr.DataArray, metric="mean", lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
                  ab_types: Iterable=DEFAULT_AB_TYPES, maxiter=500, verbose=False, retInit=False):
     """ Optimization method to minimize modelLoss() output """
     data = prepare_data(data)
-    KaFixed = assembleKav(data, ab_types=ab_types)   # if fitKa this value won't be used
-
-
-    assert np.all(KaFixed > 0)
-    params = initializeParams(data, lrank=lrank, fitKa=fitKa, ab_types=ab_types)
+    params = initializeParams(data, lrank=lrank, ab_types=ab_types)
+    Ka = params[-1]
+    if not fitKa:
+        params = params[:-1]
     x0 = flattenParams(*params)
     if metric == "mean":
         x0 = np.append(x0, INIT_SCALER)   # scaling factor
-
     arrgs = (data.values, metric, lrank, fitKa,
              1e-9, 1e-12,    # L0 and KxStar
-             np.log(KaFixed).values,   # if fitKa this value won't be used
+             np.log(Ka),   # if fitKa this value won't be used
              getNonnegIdx(data.values, metric=metric))
     func = jit(value_and_grad(modelLoss), static_argnums=[2, 3, 4])
     opts = {'maxiter': maxiter}
@@ -152,7 +157,7 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                 print("{:3} | {}".format(
                     saved_params["iteration_number"],
                     modelLoss(xk, data.values, metric, lrank, fitKa, 1e-9, 1e-12,
-                              jnp.log(KaFixed.values),
+                              jnp.log(Ka),
                               getNonnegIdx(data.values, metric=metric))
                 ))
             print("")
@@ -165,7 +170,7 @@ def optimizeLoss(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
         print(f"Exit status: {opt.status}")
     if retInit:
         if not fitKa:
-            params.append(KaFixed.values)
+            params.append(Ka)
         return opt.x, opt.fun, params
     return opt.x, opt.fun
 

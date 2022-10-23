@@ -1,52 +1,11 @@
 import numpy as np
-import xarray as xr
+import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
+from sklearn.metrics import (accuracy_score, confusion_matrix,
+                            classification_report, roc_curve, roc_auc_score)
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, cross_validate, train_test_split
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import MinMaxScaler
-
-from .core import reshapeParams, optimizeLoss
-
-def resample(cube : xr.DataArray):
-    '''
-    Returns a DataArray with resampled values from the given 'cube'.
-    '''
-    cube.name = 'cube'
-    df = cube.to_dataframe(dim_order=['Sample', 'Receptor', 'Antigen'])
-    df.reset_index(inplace=True)
-    resampled = df.groupby(['Antigen', 'Receptor'], group_keys=False).apply(lambda x: x.sample(frac=1.0, replace=True))
-    cube.values = np.reshape(list(resampled['cube']), (cube.shape[0], cube.shape[1], cube.shape[2]))
-    return cube
-
-def bootstrap(cube : xr.DataArray, numResample=10, **opt_kwargs):
-    '''
-    Runs bootstrapping algorithm on MTD 'numResample' times.
-
-    Args:
-        cube: DataArray object with processed data
-        num_resample: number of times to run bootstrapping
-        param_dict: kwargs that are passed into optimizeLoss
-    
-    Returns:
-        [[samples mean, samples std], [ag mean, ag std]] or [abundance mean, abundance std]
-    '''
-    if opt_kwargs['lrank']:
-        subjects_list, ag_list = [], []
-    else:
-        abundance_list = []
-
-    for _ in range(numResample):
-        data = resample(cube)
-        x, _ = optimizeLoss(data, **opt_kwargs)
-        x = reshapeParams(x, data, opt_kwargs['lrank'], opt_kwargs['fitKa'])
-
-        if (opt_kwargs['lrank']):
-            subjects_list.append(x[0])
-            ag_list.append(x[1])
-        else:
-            abundance_list.append(x[0])
-    mean_std = lambda l : (np.mean(np.array(l), axis=0), np.std(np.array(l), axis=0))
-    return mean_std(subjects_list), mean_std(ag_list) if opt_kwargs['lrank'] else mean_std(abundance_list)
 
 def prepare_lr_data(subjects_matrix, outcomes, absf, classes, norm=None):
     '''
@@ -64,6 +23,13 @@ def prepare_lr_data(subjects_matrix, outcomes, absf, classes, norm=None):
         norm_train_x = scaler.fit_transform(train_x)
         norm_test_x = scaler.transform(test_x)
     return norm_train_x, norm_test_x, train_y, test_y
+
+def get_crossval_info(model, train_x, train_y, splits=10, repeats=10):
+    '''
+    Crossvalidates regression using 'model'.
+    '''
+    cv = RepeatedStratifiedKFold(n_splits=splits, n_repeats=repeats, random_state=1)
+    return cross_validate(model, train_x, train_y, cv=cv, return_estimator=True, n_jobs=2)
 
 def print_score(clf, X_train, y_train, X_test, y_test, train=True):
     '''
@@ -89,6 +55,53 @@ def print_score(clf, X_train, y_train, X_test, y_test, train=True):
         print("_______________________________________________")
         print(f"Confusion Matrix: \n {confusion_matrix(y_test, pred)}\n")
 
+def plot_regression_roc_curve(models, test_x, test_y, colors):
+    '''
+    Plots ROC curve for each cross-validated model in 'models'. Number of elements in 'colors' must correspond to number
+    of different types of regression models validated.
+    '''
+    text_y = 0.2
+    for i in range(len(models)):
+        roc_probs = []
+        aucs = []
+        for model in models[i]['estimator']:
+            probs = model.predict_proba(test_x)[:, 1]
+            roc_probs.append(probs) # keep probabilities for positive outcome only
+            aucs.append(roc_auc_score(test_y, probs))
+
+        for prob in roc_probs:
+            lr_fpr, lr_tpr, _ = roc_curve(test_y, prob, pos_label='Severe')
+            sns.lineplot(lr_fpr, lr_tpr, color=colors[i], ci=None, alpha=0.1)
+
+        fpr, tpr, _ = roc_curve(test_y, np.mean(roc_probs, axis=0), pos_label='Severe') # average of all models 
+        sns.lineplot(fpr, tpr, color=colors[i], ci=None, linewidth=3)
+        plt.text(0.63, text_y,'AUC=%.3f' % (np.mean(aucs)) + ' \u00B1 %.2f' % np.std(aucs), color=colors[i])
+
+        text_y -= 0.05
+    
+    f = sns.lineplot([x for x in range(0, 2)], [y for y in range(0,2)], linestyle="--", color="k")
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+
+    sns.despine(left=False, bottom=False)
+    return f
+
+def plot_regression_weights(cv_model, absf):
+    '''
+    Plots regression weighs for each component when using logistic regression.
+    '''
+    coefs = []
+    for model in cv_model['estimator']:
+        coefs.append(model.coef_)
+    coefs = np.asarray(coefs)
+    f = sns.barplot(data=np.reshape(coefs, (coefs.shape[0], coefs.shape[2])), palette='colorblind')
+    f.set_xticklabels(absf)
+    plt.axhline(0, color='k', clip_on=False, linestyle='--')
+    plt.xlabel('Component')
+    plt.ylabel('Component Weight')
+    sns.despine(left=False, bottom=False)
+    return f
+
 def hyperparameter_tuning(model, grid, train_x, train_y, test_x, test_y, splits=10, repeats=10):
     '''
     Runs automatic hyperparameter tuning on classification models with 'model' and parameters specificed by 'grid'.
@@ -102,10 +115,3 @@ def hyperparameter_tuning(model, grid, train_x, train_y, test_x, test_y, splits=
     print_score(gridResult.best_estimator_, train_x, train_y, test_x, test_y, train=False)
 
     return gridResult.best_estimator_  
-
-def get_crossval_info(model, train_x, train_y, splits=10, repeats=10):
-    '''
-    Crossvalidates regression using 'model'.
-    '''
-    cv = RepeatedStratifiedKFold(n_splits=splits, n_repeats=repeats, random_state=1)
-    return cross_validate(model, train_x, train_y, cv=cv, return_estimator=True, n_jobs=2)

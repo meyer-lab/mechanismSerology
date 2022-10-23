@@ -11,10 +11,10 @@ def test_initialize(n_ab):
     cube = prepare_data(cube)
     n_samp, n_recp, n_ag = cube.shape
     ab_types = HIgGs[:n_ab]
-    ps = initializeParams(cube, lrank=True, fitKa=False, ab_types=ab_types)  # should return subj, ag
-    assert len(ps) == 2
+    ps = initializeParams(cube, lrank=True, ab_types=ab_types)  # should return subj, ag
+    assert len(ps) == 3
     assert ps[1].shape == (n_ag, n_ab)
-    ps = initializeParams(cube, lrank=False, fitKa=True, ab_types=ab_types)  # should return abund, Ka
+    ps = initializeParams(cube, lrank=False, ab_types=ab_types)  # should return abund, Ka
     assert len(ps) == 2
     assert ps[0].shape == (n_samp * n_ag, n_ab)
     assert ps[1].shape == (n_recp, n_ab)
@@ -26,8 +26,7 @@ def test_fit_mean(ab_types):
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.05] = np.nan    # introduce missing values
     nonneg_idx = getNonnegIdx(cube, "mean")
-    Ka = assembleKav(cube, ab_types=ab_types).values
-    R_subj_guess, R_Ag_guess = initializeParams(cube, lrank=True, fitKa=False, ab_types=ab_types)
+    R_subj_guess, R_Ag_guess, Ka = initializeParams(cube, lrank=True, ab_types=ab_types)
     x0 = flattenParams(R_subj_guess, R_Ag_guess)
 
     # test mean (MSE) method
@@ -45,9 +44,8 @@ def test_fit_rtot():
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
     Ka = assembleKav(cube).values
-    Abund_guess = initializeParams(cube, lrank=False, fitKa=False)
-    assert len(Abund_guess) == 1
-    x0 = flattenParams(Abund_guess[0])
+    Abund_guess, Ka = initializeParams(cube, lrank=False)
+    x0 = flattenParams(Abund_guess)
 
     # test Rtot method
     x0_R2 = modelLoss(x0, cube.values,
@@ -68,13 +66,13 @@ def test_fit_r(n_ab, metric):
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
     ab_types = HIgGs[:n_ab]
-    R_subj_guess, R_Ag_guess, Ka_guess = initializeParams(cube, lrank=True, fitKa=True, ab_types=ab_types)
-    x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka_guess)
+    R_subj_guess, R_Ag_guess, Ka = initializeParams(cube, lrank=True, ab_types=ab_types)
+    x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka)
 
     # test Rtot method
     x0_R2 = modelLoss(jnp.array(x0), jnp.array(cube.values),
                         metric, True, True, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
-                        jnp.ones_like(Ka_guess) * -1, getNonnegIdx(cube, metric=metric))
+                        jnp.ones_like(Ka) * -1, getNonnegIdx(cube, metric=metric))
                         # Ka after kwargs must not be used here
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3

@@ -1,9 +1,9 @@
 import numpy as np
-from .common import *
+from .figure_utils import *
 from matplotlib.tri import Triangulation
 import xarray as xr
-from ..preprocess import HIgGs, HIgGFs
-from ..core import *
+from .preprocess import HIgGs, HIgGFs
+from .core import *
 
 def plotOneHeatmap(data, title, color, abs, ax, annot=False):
     """
@@ -89,7 +89,6 @@ def plot_deviation_heatmap(mean_matrix, std_matrix, absf, ylabels):
     plt.ylim(y[0]-0.5, y[-1]-0.5)
     axes.set_xticks(range(0, len(absf)), absf)
     axes.set_yticks(range(0, len(ylabels)), ylabels)
-    plt.show()
     return fig
 
 def plot_3D_heatmap(cube : xr.DataArray):

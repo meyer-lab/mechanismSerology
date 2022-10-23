@@ -1,6 +1,6 @@
-from ..preprocess import prepare_data, makeRcpAgLabels
-from ..core import *
-from .common import *
+from .preprocess import prepare_data, makeRcpAgLabels
+from .core import *
+from .figure_utils import *
 import numpy as np
 import seaborn as sns
 import xarray as xr

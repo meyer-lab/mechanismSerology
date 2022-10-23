@@ -1,4 +1,4 @@
-from .common import getSetup, subplotLabel
+from ..figure_utils import getSetup, subplotLabel
 from ..core import *
 from matplotlib import pyplot as plt
 from tensordata.atyeo import data as atyeo
