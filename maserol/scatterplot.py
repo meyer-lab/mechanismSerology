@@ -1,9 +1,9 @@
-from .preprocess import prepare_data, makeRcpAgLabels
+import random
+from typing import Collection, Optional
+
+from .preprocess import makeRcpAgLabels, HIgGs
 from .core import *
 from .figures.common import *
-import numpy as np
-import seaborn as sns
-import xarray as xr
 
 def plotPrediction(data: xr.DataArray, lbound, ax=None):
     """ Create a basic figure of actual vs predict scatterplot. """
@@ -24,11 +24,11 @@ def plotPrediction(data: xr.DataArray, lbound, ax=None):
     return f
 
 def plotOptimize(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
-                 n_ab=1, maxiter=500, fucose=False):
+                 ab_types=HIgGs, maxiter=500):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
     x_opt, opt_f, init_p = optimizeLoss(cube, metric=metric, lrank=lrank, fitKa=fitKa,
-                                        n_ab=n_ab, maxiter=maxiter, fucose=fucose, retInit=True)
+                                        ab_types=ab_types, maxiter=maxiter, retInit=True)
 
     init_lbound = inferLbound(cube, *init_p, lrank=lrank, L0=1e-9, KxStar=1e-12)
 
@@ -73,3 +73,105 @@ def gen_R_labels(cube, lbound, axis=-1):
         for ii in range(len(r_labels)):
             retstr += '$r_{' + r_labels[ii] + '}$' + r'= {:.2f}'.format(r_s[ii]) + '\n'
     return retstr
+
+
+def plot_lbound_correlation(data: xr.DataArray, lbound: Union[xr.DataArray, np.ndarray],
+                            rec: Union[Collection[str], str], ax=None,
+                            palette: Optional[List[str]] = None) -> matplotlib.axes.Axes:
+    """
+    Plots the lbound predictions vs their actual values on a scatter plot.
+
+    Args:
+        data: Prepared data as DataArray
+        lbound: Predicted lbound as numpy array or DataArray
+        rec: Receptor(s) to plot
+        ax: Pre-existing axes for the plot
+
+    Returns:
+      matplotlib axes for the created plot
+    """
+    if isinstance(rec, str):
+        rec = [rec]
+    idx = np.where(np.isin(data.Receptor.values, rec))
+    data_filtered = data.isel(Receptor=idx[0])
+    data_filtered_flat = np.concatenate(
+        [np.ravel(t) for t in np.split(data_filtered.values, data_filtered.values.shape[1], axis=1)])
+    lbound_filtered = lbound[:, idx[0], :]
+    lbound_filtered_flat = np.concatenate(
+        [np.ravel(t) for t in np.split(lbound_filtered, lbound_filtered.shape[1], axis=1)])
+    assert lbound_filtered_flat.shape == data_filtered_flat.shape
+    n_points_per_rec = lbound_filtered_flat.shape[0] / len(rec)
+    assert n_points_per_rec.is_integer()
+    n_points_per_rec = int(n_points_per_rec)
+    labels = np.concatenate([np.full(n_points_per_rec, r) for r in data.Receptor.values[idx[0]]])
+    f = sns.scatterplot(x=np.log(data_filtered_flat), y=np.log(lbound_filtered_flat), hue=labels, alpha=0.8, ax=ax,
+                        palette=palette)
+    f.set_xlabel("Actual", fontsize=12)
+    f.set_ylabel("Predictions", fontsize=12)
+    f.legend(title="Receptor", bbox_to_anchor=(1, 1), borderaxespad=0)
+    return f
+
+
+def leave_out_rec(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
+    """
+    Trains the model, leaving out the receptors specified by rec.
+
+    Args:
+        data: prepared data in DataArray form
+        rec: collection or individual receptor as a string
+
+    Returns:
+        Inferred lbound for all receptors specified in data.
+    """
+    if isinstance(rec, str):
+        rec = [rec]
+    idx = np.where(np.logical_not(np.isin(data.Receptor.values, rec)))
+    data_no_rec = data.isel(Receptor=idx[0])
+    opt_x, _ = optimizeLoss(data_no_rec, **opt_kwargs)
+    infer_lbound_kwargs = {k: v for k, v in opt_kwargs.items() if k in ("lrank", "fitKa")}
+    params = reshapeParams(opt_x, data, **infer_lbound_kwargs)
+    if not opt_kwargs.get("fitKa", DEFAULT_FIT_KA_VAL):
+        params.append(assembleKav(data).values)
+    lbound = inferLbound(data, *params, lrank=opt_kwargs.get("lrank", DEFAULT_LRANK_VAL))
+    return lbound
+
+
+def plot_leave_out_rec_lbound_correlation(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str], str],
+                                          **opt_kwargs) -> matplotlib.axes.Axes:
+    """
+    Trains the model on data that excludes receptor(s) specified by rec. Plots
+    the correlation between predicted and actual data as a scatter plot as 3 plots:
+        1. All minus excluded receptors
+        2. Excluded receptors
+        3. All
+
+    Args:
+        data: Prepared data as DataArray or np array
+        rec: receptor(s) to leave out
+
+    Returns:
+        axes for plot
+    """
+    if isinstance(rec, str):
+        rec = [rec]
+    lbound = leave_out_rec(data, rec, **opt_kwargs)
+
+    palette = {r: (random.random(), random.random(), random.random()) for r in data.Receptor.values}
+
+    axes, plot = getSetup((20, 6), (1, 3))
+    all_minus_rec = [r for r in data.Receptor.values if r not in rec]
+
+    f = plot_lbound_correlation(data, lbound, all_minus_rec, ax=axes[0], palette=palette)
+    f.set_title(f"All - {', '.join(rec)}", fontsize=15)
+
+    f = plot_lbound_correlation(data, lbound, rec, ax=axes[1], palette=palette)
+    f.set_title(f"{', '.join(rec)}", fontsize=15)
+
+    f = plot_lbound_correlation(data, lbound, data.Receptor.values, ax=axes[2], palette=palette)
+    f.set_title(f"All", fontsize=15)
+
+    return plot
+
+
+
+

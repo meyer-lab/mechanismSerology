@@ -5,8 +5,8 @@ paper.
 from tensordata.zohar import data3D as zohar
 
 from maserol.core import prepare_data
-from maserol.scatterplot import plot_leave_out_rec_lbound_correlation
+from maserol.scatterplot import plotOptimize
 
 def makeFigure():
     data = prepare_data(zohar(xarray=True, logscale=False))
-    return plot_leave_out_rec_lbound_correlation(data, "FcR2B", metric="rtot")
+    return plotOptimize(data, metric="mean", lrank=True, fitKa=False, maxiter=500)

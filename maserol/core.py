@@ -110,7 +110,9 @@ def flattenParams(*args):
     Order: (r_subj, r_ag) / abund, Ka """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
-def modelLoss(x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonneg_idx, ab_types: Iterable=DEFAULT_AB_TYPES, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12):
+def modelLoss(x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonneg_idx,
+              ab_types: Iterable=DEFAULT_AB_TYPES, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL,
+              fitKa=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12):
     """
     Computes the loss function, comparing model output and actual measurements.
 
