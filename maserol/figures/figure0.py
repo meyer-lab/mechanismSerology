@@ -5,7 +5,7 @@ import numpy as np
 import tensorly as tl
 from scipy.optimize import least_squares
 from matplotlib import pyplot as plt
-from ..figure_utils import subplotLabel, getSetup
+from .common import subplotLabel, getSetup
 from tensordata.alter import data as alter
 
 def makeFigure():

@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 from sklearn.preprocessing import normalize
 
-from .core import reshapeParams, optimizeLoss
+from .core import reshapeParams, optimizeLoss, DEFAULT_AB_TYPES
 
 def resample(cube : xr.DataArray, replace=True):
     '''
@@ -22,7 +22,7 @@ def resample(cube : xr.DataArray, replace=True):
       Resampled data xarray with same shape as original array.
     '''
     sample_idx = np.random.choice(cube.sizes["Sample"], replace=replace, size=cube.sizes["Sample"])
-    return cube.sel(Sample=sample_idx)
+    return cube.isel(Sample=sample_idx)
 
 
 def bootstrap(cube : xr.DataArray, numResample=10, norm_cols=True, norm: Optional[Literal["l2", "max"]]=None, **opt_kwargs):
@@ -45,7 +45,7 @@ def bootstrap(cube : xr.DataArray, numResample=10, norm_cols=True, norm: Optiona
     for _ in range(numResample):
         data = resample(cube)
         x, _ = optimizeLoss(data, **opt_kwargs)
-        x = reshapeParams(x, data, opt_kwargs['lrank'], opt_kwargs['fitKa'])
+        x = reshapeParams(x, data, opt_kwargs['lrank'], opt_kwargs['fitKa'], ab_types=opt_kwargs.get("ab_types", DEFAULT_AB_TYPES))
 
         if (opt_kwargs['lrank']):
             subjects_list.append(x[0])

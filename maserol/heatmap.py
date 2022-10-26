@@ -1,5 +1,5 @@
 import numpy as np
-from .figure_utils import *
+from .figures.common import *
 from matplotlib.tri import Triangulation
 import xarray as xr
 from .preprocess import HIgGs, HIgGFs
@@ -15,7 +15,7 @@ def plotOneHeatmap(data, title, color, abs, ax, annot=False):
     f.set_title(title, fontsize=13)
     return f
 
-def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=False, lrank=True,
+def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=DEFAULT_FIT_KA_VAL, lrank=DEFAULT_LRANK_VAL,
                  outcomes=None, name="", normPerAg=False):
     """
     Creates three heatmaps in one plot (Samples, Antigens, Kav).

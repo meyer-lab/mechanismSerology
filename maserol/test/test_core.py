@@ -30,8 +30,7 @@ def test_fit_mean(ab_types):
     x0 = flattenParams(R_subj_guess, R_Ag_guess)
 
     # test mean (MSE) method
-    x0_loss = modelLoss(x0, cube,
-                             "mean", True, False, 1e-9, 1e-12, Ka, nonneg_idx)  # = metric, lrank, fitKa, L0, KxStar, Ka
+    x0_loss = modelLoss(x0, cube, Ka, nonneg_idx, ab_types, metric="mean", lrank=True)
     assert x0_loss > 0.0
     assert np.isfinite(x0_loss)
     x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
@@ -48,13 +47,13 @@ def test_fit_rtot():
     x0 = flattenParams(Abund_guess)
 
     # test Rtot method
-    x0_R2 = modelLoss(x0, cube.values,
-                        "rtot", False, False, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
-                        Ka, getNonnegIdx(cube, metric="rtot"))
+    x0_R2 = modelLoss(x0, cube.values, Ka, getNonnegIdx(cube, metric="rtot"), 
+                        metric="rtot")
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3
     x_opt, opt_R2 = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20)
     assert opt_R2 < -0.8
+    assert opt_R2 < x0_R2
     assert len(x0) == len(x_opt)
 
 
@@ -70,10 +69,9 @@ def test_fit_r(n_ab, metric):
     x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka)
 
     # test Rtot method
-    x0_R2 = modelLoss(jnp.array(x0), jnp.array(cube.values),
-                        metric, True, True, 1e-9, 1e-12,   # = metric, lrank, fitKa, L0, KxStar
-                        jnp.ones_like(Ka) * -1, getNonnegIdx(cube, metric=metric))
-                        # Ka after kwargs must not be used here
+    x0_R2 = modelLoss(jnp.array(x0), jnp.array(cube.values), jnp.ones_like(Ka) * -1, 
+                      getNonnegIdx(cube, metric=metric), ab_types=ab_types,
+                      metric=metric, lrank=True, fitKa=True)# Ka after kwargs must not be used here
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3
     x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, maxiter=20, ab_types=ab_types)

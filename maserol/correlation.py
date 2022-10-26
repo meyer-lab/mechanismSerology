@@ -6,7 +6,7 @@ import xarray as xr
 from typing import Collection, List, Optional, Union
 
 from maserol.core import DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL, inferLbound, optimizeLoss, reshapeParams
-from .figure_utils import *
+from .figures.common import *
 from .preprocess import assembleKav, makeRcpAgLabels
 
 def configure_scatterplot(original_flat, pred_flat, receptors=False, antigens=False, loc=None, palette=None): 
