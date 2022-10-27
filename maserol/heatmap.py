@@ -161,7 +161,7 @@ def removed_weights_subj_ag(cube, subjects, antigens, absf):
     # weights 
     spal = sns.color_palette("Oranges_r", len(np.asarray(comb_weights)))
     srank = np.asarray(comb_weights).argsort().argsort()
-    sb = sns.barplot(y=comb_weights, x=absf, ax=axes[0,0], palette=np.asarray(spal)[::-1][srank])
+    sb = sns.barplot(y=comb_weights, x=list(absf), ax=axes[0,0], palette=np.asarray(spal)[::-1][srank])
     sb.set_xticklabels([])
     sb.set_yticklabels([])
     for i in range(len(comb_weights)):

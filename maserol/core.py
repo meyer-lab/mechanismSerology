@@ -167,21 +167,19 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
 
     hvpj = jit(hvp, static_argnums=[5, 6, 7, 8])
 
-    loss_traj = np.array([])
-    saved_params = { "iteration_number" : 0, "loss_traj": loss_traj }
+    saved_params = { "iteration_number" : 0 }
 
     def callback(xk):
         a, b = func(xk, *arrgs)
         gNorm = np.linalg.norm(b)
         tq.set_postfix(val='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
         tq.update(1)
-        loss = modelLoss(xk, data.values, np.log(Ka), getNonnegIdx(data.values, metric=metric), 
-                        ab_types,
-                        metric, lrank, fitKa, 
-                        1e-9, 1e-12,  # L0 and Kx*
-                        )
-        saved_params["loss_traj"] = np.append(saved_params["loss_traj"], loss)
         if verbose:
+            loss = modelLoss(xk, data.values, np.log(Ka), getNonnegIdx(data.values, metric=metric), 
+                            ab_types,
+                            metric, lrank, fitKa, 
+                            1e-9, 1e-12,  # L0 and Kx*
+                            )
             if saved_params["iteration_number"] % 5 == 0:
                 print("{:3} | {}".format(
                     saved_params["iteration_number"],
@@ -199,7 +197,7 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
         if not fitKa:
             params.append(Ka)
         return opt.x, opt.fun, params
-    return opt.x, opt.fun, saved_params["loss_traj"]
+    return opt.x, opt.fun
 
 def calcModalR(cube, lbound, axis=-1, valid_idx=None):
     """ Calculate per Receptor or per Ag R """
