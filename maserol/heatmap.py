@@ -1,9 +1,9 @@
 import numpy as np
-from .common import *
+from .figures.common import *
 from matplotlib.tri import Triangulation
 import xarray as xr
-from ..preprocess import HIgGs, HIgGFs
-from ..core import *
+from .preprocess import HIgGs, HIgGFs
+from .core import *
 
 def plotOneHeatmap(data, title, color, abs, ax, annot=False):
     """
@@ -15,7 +15,7 @@ def plotOneHeatmap(data, title, color, abs, ax, annot=False):
     f.set_title(title, fontsize=13)
     return f
 
-def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=False, lrank=True,
+def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=DEFAULT_FIT_KA_VAL, lrank=DEFAULT_LRANK_VAL,
                  outcomes=None, name="", normPerAg=False):
     """
     Creates three heatmaps in one plot (Samples, Antigens, Kav).
@@ -62,7 +62,7 @@ def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=False, lrank=True,
     f.suptitle(f'{name.capitalize()}', fontsize=18)
     return f, subj_fig, ag_fig, af_fig
 
-def plot_split_heatmap(mean_matrix, std_matrix, absf, ylabels):
+def plot_deviation_heatmap(mean_matrix, std_matrix, absf, ylabels):
     '''
     Creates a split-triangle heatmap summarizing MTD bootstrapping results. 
     Inputs:
@@ -89,8 +89,7 @@ def plot_split_heatmap(mean_matrix, std_matrix, absf, ylabels):
     plt.ylim(y[0]-0.5, y[-1]-0.5)
     axes.set_xticks(range(0, len(absf)), absf)
     axes.set_yticks(range(0, len(ylabels)), ylabels)
-    plt.show()
-    return fig, axes
+    return fig
 
 def plot_3D_heatmap(cube : xr.DataArray):
     '''
@@ -162,7 +161,7 @@ def removed_weights_subj_ag(cube, subjects, antigens, absf):
     # weights 
     spal = sns.color_palette("Oranges_r", len(np.asarray(comb_weights)))
     srank = np.asarray(comb_weights).argsort().argsort()
-    sb = sns.barplot(y=comb_weights, x=absf, ax=axes[0,0], palette=np.asarray(spal)[::-1][srank])
+    sb = sns.barplot(y=comb_weights, x=list(absf), ax=axes[0,0], palette=np.asarray(spal)[::-1][srank])
     sb.set_xticklabels([])
     sb.set_yticklabels([])
     for i in range(len(comb_weights)):
