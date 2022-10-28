@@ -5,8 +5,8 @@ paper.
 from tensordata.zohar import data3D as zohar
 
 from maserol.core import prepare_data
-from maserol.scatterplot import plotOptimize
+from maserol.scatterplot import plotLORecO
 
 def makeFigure():
     data = prepare_data(zohar(xarray=True, logscale=False))
-    return plotOptimize(data, metric="mean", lrank=True, fitKa=False, maxiter=250)
+    return plotLORecO(data, "FcR2B", metric="rtot")

@@ -1,4 +1,3 @@
-import random
 from typing import Collection, Mapping, Optional
 
 from .preprocess import makeRcpAgLabels, HIgGs
@@ -75,9 +74,9 @@ def gen_R_labels(cube, lbound, axis=-1):
     return retstr
 
 
-def plot_lbound_correlation(data: xr.DataArray, lbound: Union[xr.DataArray, np.ndarray],
-                            rec: Union[Collection[str], str], ax=None,
-                            palette: Optional[Union[List, Mapping]] = None) -> matplotlib.axes.Axes:
+def plotLbound(data: xr.DataArray, lbound: Union[xr.DataArray, np.ndarray],
+               rec: Union[Collection[str], str], ax=None,
+               palette: Optional[Union[List, Mapping]] = None) -> matplotlib.axes.Axes:
     """
     Plots the lbound predictions vs their actual values on a scatter plot.
 
@@ -112,7 +111,7 @@ def plot_lbound_correlation(data: xr.DataArray, lbound: Union[xr.DataArray, np.n
     return f
 
 
-def leave_out_rec(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
+def LORecO(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
     """
     Trains the model, leaving out the receptors specified by rec.
 
@@ -136,8 +135,8 @@ def leave_out_rec(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kw
     return lbound
 
 
-def plot_leave_out_rec_lbound_correlation(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str], str],
-                                          **opt_kwargs) -> matplotlib.axes.Axes:
+def plotLORecO(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str], str],
+               **opt_kwargs) -> matplotlib.axes.Axes:
     """
     Trains the model on data that excludes receptor(s) specified by rec. Plots
     the correlation between predicted and actual data as a scatter plot as 3 plots:
@@ -154,7 +153,7 @@ def plot_leave_out_rec_lbound_correlation(data: Union[xr.DataArray, np.ndarray],
     """
     if isinstance(rec, str):
         rec = [rec]
-    lbound = leave_out_rec(data, rec, **opt_kwargs)
+    lbound = LORecO(data, rec, **opt_kwargs)
 
     palette_list = sns.color_palette("bright", data.Receptor.values.shape[0])
     palette = {r: color for r, color in zip(data.Receptor.values, palette_list)}
@@ -164,13 +163,13 @@ def plot_leave_out_rec_lbound_correlation(data: Union[xr.DataArray, np.ndarray],
     axes, plot = getSetup((20, 6), (1, 3))
     all_minus_rec = [r for r in data.Receptor.values if r not in rec]
 
-    f = plot_lbound_correlation(data, lbound, all_minus_rec, ax=axes[0], palette=palette)
+    f = plotLbound(data, lbound, all_minus_rec, ax=axes[0], palette=palette)
     f.set_title(f"All - {', '.join(rec)}", fontsize=15)
 
-    f = plot_lbound_correlation(data, lbound, rec, ax=axes[1], palette=palette)
+    f = plotLbound(data, lbound, rec, ax=axes[1], palette=palette)
     f.set_title(f"{', '.join(rec)}", fontsize=15)
 
-    f = plot_lbound_correlation(data, lbound, data.Receptor.values, ax=axes[2], palette=palette)
+    f = plotLbound(data, lbound, data.Receptor.values, ax=axes[2], palette=palette)
     f.set_title(f"All", fontsize=15)
 
     return plot
