@@ -20,4 +20,5 @@ def makeFigure():
     ax.set(title="Confusion Matrix for Multi-Class Prediction")
     fig.subplots_adjust(bottom=0.1)
     fig.text(0, 0, f"Balanced accuracy score {round(balanced_accuracy_score(y, y_pred), 2)}")
+    fig.text(0, 1, f"Zohar Data Multi-class Regression")
     return fig

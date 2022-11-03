@@ -49,7 +49,7 @@ def get_labels_zohar(multiclass=True):
         cons_mappings = {
             "Deceased": p,
             "Severe": p,
-            "Moderate": p,
+            "Moderate": c,
             "Mild": c,
             "Negative": c,
         }
@@ -79,6 +79,7 @@ def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
         tpr = np.append(tpr, tpr_c)
         labels = np.append(labels, np.full(fpr_c.shape, c))
     f = sns.lineplot(fpr, tpr, hue=labels, ci=None, ax=ax, palette="bright")
+    sns.lineplot([0, 1], [0, 1], linestyle="--", color="k", ax=ax)
     text = "AUC:\n" + "\n".join([f"{c}: {score.round(2)}" for c, score in zip(classes, scores)])
     f.text(0.6, 0.05, text)
     f.set(xlabel="False Positive Rate", ylabel="True Positive Rate")
@@ -86,9 +87,10 @@ def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
 
 def plot_confusion_matrix(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
     y_pred = model.predict(x)
-    cm = confusion_matrix(y, y_pred, normalize="pred")
+    cm = confusion_matrix(y, y_pred)
     labels = label_encoder.inverse_transform(np.arange(cm.shape[0]))
-    f = sns.heatmap(cm, xticklabels=labels, yticklabels=labels, ax=ax)
+    f = sns.heatmap(cm, xticklabels=labels, yticklabels=labels, ax=ax, annot=cm)
+    f.set(xlabel="Predicted Class", ylabel="Actual Class")
     return f
 
 def plot_regression_weights(model, ab_types, ax=None):

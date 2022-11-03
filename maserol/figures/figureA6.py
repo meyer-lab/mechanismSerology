@@ -22,4 +22,5 @@ def makeFigure():
     ax = plot_regression_weights(model, ab_types, axes[2])
     ax.set(title="Regression Weights for Progressor vs Controller Prediciton")
     fig.text(0, 0, f"Balanced accuracy score {round(balanced_accuracy_score(y, y_pred), 2)}")
+    fig.text(0, 1, f"Zohar Data Controller vs. Progressor Regression")
     return fig
