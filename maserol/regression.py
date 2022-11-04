@@ -1,28 +1,115 @@
+from typing import Optional
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
 import seaborn as sns
-from sklearn.metrics import (accuracy_score, confusion_matrix,
-                            classification_report, roc_curve, roc_auc_score)
-from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, cross_validate, train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.base import BaseEstimator
+from sklearn.linear_model import ElasticNet, ElasticNetCV, LogisticRegression, LogisticRegressionCV
+from sklearn.metrics import confusion_matrix, roc_curve, roc_auc_score
+from sklearn.model_selection import GridSearchCV, KFold, RepeatedStratifiedKFold, cross_val_predict, cross_validate
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, scale
 
-def prepare_lr_data(subjects_matrix, outcomes, absf, classes, norm=None):
-    '''
-    Prepares training and testing data for regression. Normalizes data using MinMaxScaler().
-    '''
-    y = outcomes
-    subj = pd.DataFrame(subjects_matrix, columns=absf)
-    subj['Outcomes'] = y
-    subj = subj[subj.Outcomes.isin(classes)]
-    subj = subj.sort_values('Outcomes')
-    x,y = subj[absf].to_numpy(copy=True), subj['Outcomes'].to_numpy(copy=True)
-    train_x, test_x, train_y, test_y = train_test_split(x, y, stratify=y, random_state=0, test_size=0.2)
-    if norm:
-        scaler = MinMaxScaler(feature_range=(0,1))
-        norm_train_x = scaler.fit_transform(train_x)
-        norm_test_x = scaler.transform(test_x)
-    return norm_train_x, norm_test_x, train_y, test_y
+from tensordata.zohar import pbsSubtractOriginal
+
+
+def regression(x, y, scale_x: Optional[int] = None, l1_ratio=0.7):
+    """ 
+    Runs regression with cross-validation.
+
+    Args:
+        x: array of shape (n_samples * n_features)
+        y: array of shape (n_samples, )
+        scale_x: if not None, will scale x along the 
+
+    Returns: model predictions, model, x, y
+    """
+    if scale_x is not None:
+        x = scale(x, axis=scale_x)
+    cv = KFold(n_splits=10, shuffle=True)
+    if y.dtype == int:
+        estCV = LogisticRegressionCV(penalty="elasticnet", solver="saga", cv=cv, l1_ratios=[l1_ratio], n_jobs=-1, max_iter=1000000)
+        estCV.fit(x, y)
+        model = LogisticRegression(C=estCV.C_[0], penalty="elasticnet", solver="saga", l1_ratio=l1_ratio, max_iter=1000000)
+    else:
+        assert y.dtype == float
+        y = scale(y)
+        estCV = ElasticNetCV(normalize=True, l1_ratio=l1_ratio, cv=cv, n_jobs=-1, max_iter=1000000)
+        estCV.fit(x, y)
+        model = ElasticNet(normalize=True, alpha=estCV.alpha_, l1_ratio=l1_ratio, max_iter=1000000)
+    model = model.fit(x, y)
+    y_pred = cross_val_predict(model, x, y, cv=cv, n_jobs=-1)
+    assert np.any(model.coef_) # check if high l1 ratio zeroed the coefficients
+    return y_pred, model, x, y
+
+def get_labels_zohar(multiclass=True):
+    data_full = pbsSubtractOriginal()
+    sample_class = data_full["group"].to_numpy()
+    if not multiclass:
+        p = "Progressor"
+        c = "Controller"
+        cons_mappings = {
+            "Deceased": p,
+            "Severe": p,
+            "Moderate": c,
+            "Mild": c,
+            "Negative": c,
+        }
+        sample_class = np.array(list(map(lambda c: cons_mappings[c], sample_class)))
+    label_encoder = LabelEncoder()
+    sample_class_enc = label_encoder.fit_transform(sample_class)
+    return sample_class_enc, label_encoder
+    
+def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None, label=None, palette=None, auc_label=True):
+    probs = model.predict_proba(x)
+    n_classes = probs.shape[1]
+    if n_classes != 2:
+        assert label is None, "If multiclass, labels must be set by function internally"
+    # onehot encode y
+    y_onehot = OneHotEncoder(sparse=False).fit_transform(y[:, np.newaxis])
+    # x and y for the ROC figure
+    fpr = np.array([])
+    tpr = np.array([])
+    labels = np.array([])
+    scores = []
+    classes = label_encoder.inverse_transform(np.arange(n_classes))
+    if len(classes) == 2:
+        # if there are two classes, show only one of them
+        classes = classes[1:2]
+    for c_idx, c in enumerate(classes):
+        scores.append(roc_auc_score(y_onehot[:, c_idx], probs[:, c_idx]))
+        fpr_c, tpr_c, _ = roc_curve(y_onehot[:, c_idx], probs[:, c_idx])
+        fpr = np.append(fpr, fpr_c)
+        tpr = np.append(tpr, tpr_c)
+        labels = np.append(labels, np.full(fpr_c.shape, label or c))
+    f = sns.lineplot(fpr, tpr, hue=labels, ci=None, ax=ax, palette=palette or "bright")
+    sns.lineplot([0, 1], [0, 1], linestyle="--", color="k", ax=ax)
+    if auc_label:
+        add_auc_label(scores, classes, f)
+    f.set(xlabel="False Positive Rate", ylabel="True Positive Rate")
+    return f
+
+def add_auc_label(scores, labels, ax):
+    text = "AUC:\n" + "\n".join([f"{c}: {score.round(2)}" for c, score in zip(labels, scores)])
+    ax.text(0.6, 0.05, text)
+
+def plot_confusion_matrix(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
+    y_pred = model.predict(x)
+    cm = confusion_matrix(y, y_pred)
+    cm_norm = confusion_matrix(y, y_pred, normalize="true")
+    labels = label_encoder.inverse_transform(np.arange(cm.shape[0]))
+    f = sns.heatmap(cm_norm, xticklabels=labels, yticklabels=labels, ax=ax, annot=cm, fmt="g", vmin=0, vmax=1)
+    f.set(xlabel="Predicted Class", ylabel="Actual Class")
+    return f
+
+def plot_regression_weights(model, ab_types, ax=None):
+    """
+    Plots regression weighs for each component when using logistic regression.
+    """
+    coefs = np.squeeze(model.coef_)
+    f = sns.barplot(list(ab_types), coefs, palette="bright", ax=ax)
+    f.axhline(0, color='k', clip_on=False, linestyle='--')
+    f.set(xlabel="Component", ylabel="Component Weight")
+    sns.despine(left=False, bottom=False)
+    return f
 
 def get_crossval_info(model, train_x, train_y, splits=10, repeats=10):
     '''
@@ -30,77 +117,6 @@ def get_crossval_info(model, train_x, train_y, splits=10, repeats=10):
     '''
     cv = RepeatedStratifiedKFold(n_splits=splits, n_repeats=repeats, random_state=1)
     return cross_validate(model, train_x, train_y, cv=cv, return_estimator=True, n_jobs=2)
-
-def print_score(clf, X_train, y_train, X_test, y_test, train=True):
-    '''
-    Helper function that prints out important regression results.
-    '''
-    if train:
-        pred = clf.predict(X_train)
-        clf_report = pd.DataFrame(classification_report(y_train, pred, output_dict=True))
-        print("Train Result:\n================================================")
-        print(f"Accuracy Score: {accuracy_score(y_train, pred) * 100:.2f}%")
-        print("_______________________________________________")
-        print(f"CLASSIFICATION REPORT:\n{clf_report}")
-        print("_______________________________________________")
-        print(f"Confusion Matrix: \n {confusion_matrix(y_train, pred)}\n")
-        
-    elif train==False:
-        pred = clf.predict(X_test)
-        clf_report = pd.DataFrame(classification_report(y_test, pred, output_dict=True))
-        print("Test Result:\n================================================")        
-        print(f"Accuracy Score: {accuracy_score(y_test, pred) * 100:.2f}%")
-        print("_______________________________________________")
-        print(f"CLASSIFICATION REPORT:\n{clf_report}")
-        print("_______________________________________________")
-        print(f"Confusion Matrix: \n {confusion_matrix(y_test, pred)}\n")
-
-def plot_regression_roc_curve(models, test_x, test_y, colors):
-    '''
-    Plots ROC curve for each cross-validated model in 'models'. Number of elements in 'colors' must correspond to number
-    of different types of regression models validated.
-    '''
-    text_y = 0.2
-    for i in range(len(models)):
-        roc_probs = []
-        aucs = []
-        for model in models[i]['estimator']:
-            probs = model.predict_proba(test_x)[:, 1]
-            roc_probs.append(probs) # keep probabilities for positive outcome only
-            aucs.append(roc_auc_score(test_y, probs))
-
-        for prob in roc_probs:
-            lr_fpr, lr_tpr, _ = roc_curve(test_y, prob, pos_label='Severe')
-            sns.lineplot(lr_fpr, lr_tpr, color=colors[i], ci=None, alpha=0.1)
-
-        fpr, tpr, _ = roc_curve(test_y, np.mean(roc_probs, axis=0), pos_label='Severe') # average of all models 
-        sns.lineplot(fpr, tpr, color=colors[i], ci=None, linewidth=3)
-        plt.text(0.63, text_y,'AUC=%.3f' % (np.mean(aucs)) + ' \u00B1 %.2f' % np.std(aucs), color=colors[i])
-
-        text_y -= 0.05
-    
-    f = sns.lineplot([x for x in range(0, 2)], [y for y in range(0,2)], linestyle="--", color="k")
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-
-    sns.despine(left=False, bottom=False)
-    return f
-
-def plot_regression_weights(cv_model, absf):
-    '''
-    Plots regression weighs for each component when using logistic regression.
-    '''
-    coefs = []
-    for model in cv_model['estimator']:
-        coefs.append(model.coef_)
-    coefs = np.asarray(coefs)
-    f = sns.barplot(data=np.reshape(coefs, (coefs.shape[0], coefs.shape[2])), palette='colorblind')
-    f.set_xticklabels(absf)
-    plt.axhline(0, color='k', clip_on=False, linestyle='--')
-    plt.xlabel('Component')
-    plt.ylabel('Component Weight')
-    sns.despine(left=False, bottom=False)
-    return f
 
 def hyperparameter_tuning(model, grid, train_x, train_y, test_x, test_y, splits=10, repeats=10):
     '''
@@ -112,6 +128,5 @@ def hyperparameter_tuning(model, grid, train_x, train_y, test_x, test_y, splits=
     gridResult = gridSearch.fit(train_x, train_y)
     
     print("Best: %f using %s" % (gridResult.best_score_, gridResult.best_params_))
-    print_score(gridResult.best_estimator_, train_x, train_y, test_x, test_y, train=False)
 
     return gridResult.best_estimator_  
