@@ -8,7 +8,7 @@ from sklearn.metrics import confusion_matrix, roc_curve, roc_auc_score
 from sklearn.model_selection import GridSearchCV, KFold, RepeatedStratifiedKFold, cross_val_predict, cross_validate
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, scale
 
-from tensordata.zohar import data3D, pbsSubtractOriginal
+from tensordata.zohar import pbsSubtractOriginal
 
 
 def regression(x, y, scale_x: Optional[int] = None, l1_ratio=0.7):
@@ -58,9 +58,11 @@ def get_labels_zohar(multiclass=True):
     sample_class_enc = label_encoder.fit_transform(sample_class)
     return sample_class_enc, label_encoder
     
-def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
+def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None, label=None, palette=None, auc_label=True):
     probs = model.predict_proba(x)
     n_classes = probs.shape[1]
+    if n_classes != 2:
+        assert label is None, "If multiclass, labels must be set by function internally"
     # onehot encode y
     y_onehot = OneHotEncoder(sparse=False).fit_transform(y[:, np.newaxis])
     # x and y for the ROC figure
@@ -77,13 +79,17 @@ def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
         fpr_c, tpr_c, _ = roc_curve(y_onehot[:, c_idx], probs[:, c_idx])
         fpr = np.append(fpr, fpr_c)
         tpr = np.append(tpr, tpr_c)
-        labels = np.append(labels, np.full(fpr_c.shape, c))
-    f = sns.lineplot(fpr, tpr, hue=labels, ci=None, ax=ax, palette="bright")
+        labels = np.append(labels, np.full(fpr_c.shape, label or c))
+    f = sns.lineplot(fpr, tpr, hue=labels, ci=None, ax=ax, palette=palette or "bright")
     sns.lineplot([0, 1], [0, 1], linestyle="--", color="k", ax=ax)
-    text = "AUC:\n" + "\n".join([f"{c}: {score.round(2)}" for c, score in zip(classes, scores)])
-    f.text(0.6, 0.05, text)
+    if auc_label:
+        add_auc_label(scores, classes, f)
     f.set(xlabel="False Positive Rate", ylabel="True Positive Rate")
     return f
+
+def add_auc_label(scores, labels, ax):
+    text = "AUC:\n" + "\n".join([f"{c}: {score.round(2)}" for c, score in zip(labels, scores)])
+    ax.text(0.6, 0.05, text)
 
 def plot_confusion_matrix(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
     y_pred = model.predict(x)
