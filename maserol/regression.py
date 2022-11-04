@@ -88,8 +88,9 @@ def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
 def plot_confusion_matrix(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
     y_pred = model.predict(x)
     cm = confusion_matrix(y, y_pred)
+    cm_norm = confusion_matrix(y, y_pred, normalize="true")
     labels = label_encoder.inverse_transform(np.arange(cm.shape[0]))
-    f = sns.heatmap(cm, xticklabels=labels, yticklabels=labels, ax=ax, annot=cm)
+    f = sns.heatmap(cm_norm, xticklabels=labels, yticklabels=labels, ax=ax, annot=cm, fmt="g", vmin=0, vmax=1)
     f.set(xlabel="Predicted Class", ylabel="Actual Class")
     return f
 
