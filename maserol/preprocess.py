@@ -23,7 +23,10 @@ def prepare_data(data: xr.DataArray, remove_rcp=None):
     Transposes data to be in ("Sample", "Receptor", "Antigen") order
     and omits any data not pertaining to IgG or FcgR.
     """
+    assert len(data.dims) == 3, "Data must be 3 dimensional"
     # Make the modes in the right order
+    if "Subject" in data.dims:
+        data = data.rename({"Subject": "Sample"})
     data = data.transpose("Sample", "Receptor", "Antigen")
 
     # Receptors: only keep those with "IgGx" or "FcgRx"
@@ -83,8 +86,8 @@ def assembleKav(data: xr.DataArray, ab_types: Optional[Iterable]=DEFAULT_AB_TYPE
         raise ValueError(f"Invalid receptors passed into assembleKav: {','.join(other)}. Receptors must be FCRs or IGGs.")
 
     # assemble matrix
-    Kav = xr.DataArray(np.full((len(igg+fc), len(ab_types)), 10),
-                       coords=[igg+fc, list(ab_types)],
+    Kav = xr.DataArray(np.full((len(receptors), len(ab_types)), 10),
+                       coords=[receptors, list(ab_types)],
                        dims=["Receptor", "Abs"])
 
     # fill in all IgG - IgG pair affinity values

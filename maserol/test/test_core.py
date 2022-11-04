@@ -2,12 +2,13 @@ import pytest
 from ..core import *
 from ..preprocess import HIgGs, HIgGFs
 from tensordata.atyeo import data as atyeo
-from tensordata.zohar import data3D as zohar
+from tensordata.zohar import data as zohar
+from tensordata.kaplonek import MGH4D, SpaceX4D
 
 @pytest.mark.parametrize("n_ab", [1, 2, 3])
 def test_initialize(n_ab):
     """ Test initializeParams() work correctly """
-    cube = atyeo(xarray=True)
+    cube = atyeo()
     cube = prepare_data(cube)
     n_samp, n_recp, n_ag = cube.shape
     ab_types = HIgGs[:n_ab]
@@ -22,7 +23,7 @@ def test_initialize(n_ab):
 @pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
 def test_fit_mean(ab_types):
     """ Test mean (MSE) mode, low rank assumption, not fitting Ka """
-    cube = zohar(xarray=True, logscale=False)
+    cube = zohar()
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.05] = np.nan    # introduce missing values
     nonneg_idx = getNonnegIdx(cube, "mean")
@@ -39,7 +40,7 @@ def test_fit_mean(ab_types):
 
 def test_fit_rtot():
     """ Test Rtot mode, without low rank assumption, not fitting Ka """
-    cube = zohar(xarray=True, logscale=False)
+    cube = zohar()
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
     Ka = assembleKav(cube).values
@@ -61,7 +62,7 @@ def test_fit_rtot():
 @pytest.mark.parametrize("metric", ["rrcp", "rag"])
 def test_fit_r(n_ab, metric):
     """ Test R per Receptor/Ag mode, low rank assumption, fit Ka """
-    cube = zohar(xarray=True, logscale=False)
+    cube = zohar()
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
     ab_types = HIgGs[:n_ab]
@@ -77,3 +78,27 @@ def test_fit_r(n_ab, metric):
     x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, maxiter=20, ab_types=ab_types)
     assert opt_R2 < -0.7
     assert len(x0) == len(x_opt)
+
+@pytest.mark.parametrize("lrank", [False, True])
+@pytest.mark.parametrize("data", [zohar(),
+                                  atyeo(),
+                                  MGH4D()["Serology"].stack(Sample = ("Subject", "Time")),
+                                  SpaceX4D().stack(Sample = ("Subject", "Time"))])
+def test_reshape_params(lrank, data):
+    ab_types = list(HIgGs)
+    cube = prepare_data(data)
+    if lrank:
+        sample, ag, Ka = initializeParams(cube, lrank=lrank, ab_types=ab_types)
+        x = flattenParams(sample, ag, Ka)
+        sample, ag, Ka = reshapeParams(x, cube, lrank=lrank, fitKa=True, as_xarray=True, ab_types=ab_types)
+        assert (sample.Sample.values == cube.Sample.values).all()
+        assert (sample.Antibody.values == ab_types).all()
+        assert (ag.Antigen.values == cube.Antigen.values).all()
+        assert (ag.Antibody.values == ab_types).all()
+    else:
+        abundance, Ka = initializeParams(cube, lrank=lrank, ab_types=ab_types)
+        x = flattenParams(abundance, Ka)
+        abundance, Ka = reshapeParams(x, cube, lrank=lrank, fitKa=True, as_xarray=True, ab_types=ab_types)
+        assert (abundance.Sample.values == cube.Sample.values).all()
+        assert (abundance.Antigen.values == cube.Antigen.values).all()
+        assert (abundance.Antibody.values == ab_types).all()

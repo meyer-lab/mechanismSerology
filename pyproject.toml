@@ -8,17 +8,17 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.9,<3.11"
 pandas = "^1.4"
-jaxlib = "^0.3.15"
 scipy = "^1.7"
 numpy = "^1.22"
-jax = "^0.3.15"
-tensorly = "^0.7"
-matplotlib = "3.5.2"
+tensorly = {git = "https://github.com/tensorly/tensorly.git", branch = "main"}
+matplotlib = "^3.5.2"
 seaborn = "^0.11"
 tensorpack = {git = "https://github.com/meyer-lab/tensorpack.git", branch = "main"}
 tensordata = {git = "https://github.com/meyer-lab/tensordata.git", branch = "main"}
 tqdm = "^4.64.0"
 scikit-learn = "^1.1.2"
+jax = "^0.3.24"
+jaxlib = "^0.3.24"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

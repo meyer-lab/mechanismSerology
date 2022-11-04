@@ -1,7 +1,7 @@
 import seaborn as sns
 from sklearn.metrics import roc_auc_score
 
-from tensordata.zohar import data3D as zohar
+from tensordata.zohar import data as zohar
 
 from maserol.core import optimizeLoss, reshapeParams
 from maserol.figures.common import getSetup
@@ -9,7 +9,7 @@ from maserol.preprocess import HIgGFs, HIgGs, prepare_data
 from maserol.regression import regression, get_labels_zohar, plot_roc, plot_confusion_matrix, plot_regression_weights, add_auc_label
 
 def makeFigure():
-    cube = prepare_data(zohar(xarray=True, logscale=False))
+    cube = prepare_data(zohar())
 
     ab_types = HIgGFs
     x_opt_lrank, _ = optimizeLoss(cube, lrank=True, ab_types=ab_types)

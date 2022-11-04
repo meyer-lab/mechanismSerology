@@ -77,15 +77,29 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12):
 
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
-def reshapeParams(x, cube, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL, ab_types: Iterable=DEFAULT_AB_TYPES):
+def reshapeParams(x, cube, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL, ab_types: Iterable=DEFAULT_AB_TYPES, as_xarray=False):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
     x = jnp.exp(x)
     n_subj, n_rec, n_ag = cube.shape
     n_ab = len(ab_types)
 
+    if as_xarray:
+        assert isinstance(cube, xr.DataArray), "When returning xarray instances reshapeParams, the `cube` parameter must be a xarray.DataArray instance to provide the axis labels"
+
     if not lrank:  # abundance as a whole big matrix
         non_ka_params_len = abundance_len = n_subj * n_ag * n_ab 
         abundance = x[:abundance_len].reshape((n_subj * n_ag, n_ab))
+        if as_xarray:
+            abundance = abundance.reshape((n_subj, n_ab, n_ag))
+            abundance = xr.DataArray(
+                abundance, 
+                dims=("Sample", "Antibody", "Antigen"),
+                coords={
+                    "Sample": cube.Sample.values,
+                    "Antibody": list(ab_types),
+                    "Antigen": cube.Antigen.values,
+                }
+            )
         retVal = [abundance]
     else:   # separate receptor and antigen matrices
         sample_matrix_len = n_subj * n_ab
@@ -93,10 +107,40 @@ def reshapeParams(x, cube, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL, ab
         non_ka_params_len = sample_matrix_len + ag_matrix_len
         r_subj = x[0:sample_matrix_len].reshape(n_subj, n_ab)
         r_ag = x[sample_matrix_len:sample_matrix_len + ag_matrix_len].reshape(n_ag, n_ab)
+        if as_xarray:
+            r_subj = xr.DataArray(
+                r_subj,
+                dims=("Sample", "Antibody"),
+                coords={
+                    "Sample": cube.Sample.values,
+                    "Antibody": list(ab_types)
+                }
+            )
+            r_ag = xr.DataArray(
+                r_ag, 
+                dims=("Antigen", "Antibody"),
+                coords={
+                    "Antigen": cube.Antigen.values,
+                    "Antibody": list(ab_types)
+                }
+            )
         retVal = [r_subj, r_ag]
     if fitKa:   # retrieve Ka from x as well
         ka_len = n_rec * n_ab
         Ka = x[non_ka_params_len:non_ka_params_len+ka_len].reshape(n_rec, n_ab)
+        if as_xarray:
+            # get the labels by calling assembleKav. we can't just set the
+            # labels to be the receptors of cube because those receptors are
+            # reordered in assembleKav
+            Ka_schema = assembleKav(cube, ab_types)
+            Ka = xr.DataArray(
+                Ka,
+                dims=("Receptor", "Antibody"),
+                coords={
+                    "Receptor": Ka_schema.Receptor.values,
+                    "Antibody": Ka_schema.Abs.values,
+                }
+            )
         retVal.append(Ka)
     else:
         ka_len = 0

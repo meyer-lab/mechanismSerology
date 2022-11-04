@@ -1,13 +1,13 @@
 import pytest
 from ..preprocess import *
 from tensordata.atyeo import data as atyeo
-from tensordata.zohar import data3D as zohar
-from tensordata.kaplonek import MGH, SpaceX
+from tensordata.zohar import data as zohar
+from tensordata.kaplonek import MGH4D, SpaceX4D
 
-@pytest.mark.parametrize("data", [atyeo(xarray=True),
-                                  zohar(xarray=True),
-                                  MGH(xarray = True),
-                                  SpaceX(xarray = True)])
+@pytest.mark.parametrize("data", [atyeo(),
+                                  zohar(),
+                                  MGH4D()["Serology"].stack(Sample = ("Subject", "Time")),
+                                  SpaceX4D().stack(Sample = ("Subject", "Time"))])
 def test_prepare_data(data):
     """ Test prepare_data() can rotate dims and remove irrelevant receptors """
     cube = prepare_data(data)
@@ -15,9 +15,9 @@ def test_prepare_data(data):
     assert all([x in cube.Receptor for x in ["IgG1"]])
     assert all([x not in cube.Receptor for x in ["IgA", "IgA1", "FcRalpha", "IgM", "C1q", "SNA", "ADCC"]])
 
-@pytest.mark.parametrize("data", [zohar(xarray=True),
-                                  MGH(xarray = True),
-                                  SpaceX(xarray = True)])
+@pytest.mark.parametrize("data", [zohar(),
+                                  MGH4D()["Serology"].stack(Sample = ("Subject", "Time")),
+                                  SpaceX4D().stack(Sample = ("Subject", "Time"))])
 def test_assembleKav(data):
     data = prepare_data(data)
     Ka = assembleKav(data, ab_types=HIgGFs)
