@@ -77,3 +77,23 @@ def test_fit_r(n_ab, metric):
     x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, maxiter=20, ab_types=ab_types)
     assert opt_R2 < -0.7
     assert len(x0) == len(x_opt)
+
+@pytest.mark.parametrize("lrank", [False, True])
+def test_reshape_params(lrank):
+    ab_types = list(HIgGs)
+    cube = prepare_data(zohar(xarray=True, logscale=False))
+    if lrank:
+        sample, ag, Ka = initializeParams(cube, lrank=lrank, ab_types=ab_types)
+        x = flattenParams(sample, ag, Ka)
+        sample, ag, Ka = reshapeParams(x, cube, lrank=lrank, fitKa=True, as_xarray=True, ab_types=ab_types)
+        assert (sample.Sample.values == cube.Sample.values).all()
+        assert (sample.Antibody.values == ab_types).all()
+        assert (ag.Antigen.values == cube.Antigen.values).all()
+        assert (ag.Antibody.values == ab_types).all()
+    else:
+        abundance, Ka = initializeParams(cube, lrank=lrank, ab_types=ab_types)
+        x = flattenParams(abundance, Ka)
+        abundance, Ka = reshapeParams(x, cube, lrank=lrank, fitKa=True, as_xarray=True, ab_types=ab_types)
+        assert (abundance.Sample.values == cube.Sample.values).all()
+        assert (abundance.Antigen.values == cube.Antigen.values).all()
+        assert (abundance.Antibody.values == ab_types).all()
