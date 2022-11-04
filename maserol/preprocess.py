@@ -23,7 +23,10 @@ def prepare_data(data: xr.DataArray, remove_rcp=None):
     Transposes data to be in ("Sample", "Receptor", "Antigen") order
     and omits any data not pertaining to IgG or FcgR.
     """
+    assert len(data.dims) == 3, "Data must be 3 dimensional"
     # Make the modes in the right order
+    if "Subject" in data.dims:
+        data = data.rename({"Subject": "Sample"})
     data = data.transpose("Sample", "Receptor", "Antigen")
 
     # Receptors: only keep those with "IgGx" or "FcgRx"
