@@ -102,3 +102,23 @@ def test_reshape_params(lrank, data):
         assert (abundance.Sample.values == cube.Sample.values).all()
         assert (abundance.Antigen.values == cube.Antigen.values).all()
         assert (abundance.Antibody.values == ab_types).all()
+
+@pytest.mark.parametrize("n_comps", list(range(1, 5)))
+def test_factor_abundance(n_comps):
+    # assemble abundance from predetermined factors and check whether the
+    # factors generated from factorAbundance are close to the factors we used
+    NORM_THRESHOLD = 100
+    n_sample = 400
+    n_ag = 6
+    n_ab = 8
+    sample_facs = np.random.rand(n_sample, n_ab, n_comps)
+    ag_facs = np.random.rand(n_ag, n_ab, n_comps)
+    abundance = reconstructAbundance(sample_facs, ag_facs)
+    abundance_xr = xr.DataArray(
+        abundance,
+        dims=("Sample", "Antibody", "Antigen"),
+        coords=(np.arange(n_sample), np.arange(n_ab), np.arange(n_ag))
+    )
+    got_sample_facs, got_ag_facs = factorAbundance(abundance_xr, n_comps)
+    assert np.linalg.norm(got_sample_facs - sample_facs) < NORM_THRESHOLD
+    assert np.linalg.norm(got_ag_facs - ag_facs) < NORM_THRESHOLD
