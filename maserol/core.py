@@ -2,6 +2,7 @@
 Core function for serology mechanistic tensor factorization
 """ 
 # Base Python
+from sklearn.decomposition import NMF as non_neg_matrix_factor
 from typing import Iterable, List, Union
 
 # Extended Python
@@ -274,3 +275,44 @@ def getNonnegIdx(cube, metric=DEFAULT_METRIC_VAL):
         for i in range(cube.shape[0]):
             i_list.append(jnp.where(jnp.ravel(cube[i, :]) > 0))
         return i_list
+
+def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
+    assert isinstance(abundance, xr.DataArray), "Abundance must be passed as DataArray for factorization"
+    n_abs = len(abundance.Antibody)
+    sample_facs = np.zeros((len(abundance.Sample), n_abs, n_comps))
+    ag_facs = np.zeros((len(abundance.Antigen), n_abs, n_comps))
+    for ab_idx in range(n_abs):
+        mat = abundance.isel(Antibody=ab_idx).values
+        model = non_neg_matrix_factor(n_comps, max_iter=1_000)
+        sample_slice = model.fit_transform(mat)
+        ag_slice = model.components_
+        # move the weight from ag_slice to sample_slice
+        ag_weight = np.max(ag_slice)
+        ag_slice = ag_slice / ag_weight
+        sample_slice = sample_slice * ag_weight
+        sample_facs[:, ab_idx, :] = sample_slice
+        ag_facs[:, ab_idx, :] = ag_slice.T
+    if as_xarray:
+        # component names will be 1-indexed
+        comp_names = np.arange(1, n_comps+1) 
+        sample_facs = xr.DataArray(
+            sample_facs, 
+            dims=("Sample", "Antibody", "Component"),
+            coords=(abundance.Sample.values, abundance.Antibody.values, comp_names)
+        )
+        ag_facs = xr.DataArray(
+            ag_facs,
+            dims=("Antigen", "Antibody", "Component"),
+            coords=(abundance.Antigen.values, abundance.Antibody.values, comp_names)
+        )
+    return sample_facs, ag_facs
+
+def reconstructAbundance(sample_facs, ag_facs):
+    """
+    Reconstructs abundance from factors
+    """
+    if isinstance(sample_facs, xr.DataArray):
+        sample_facs = sample_facs.values
+    if isinstance(ag_facs, xr.DataArray):
+        ag_facs = ag_facs.values
+    return np.einsum("ijl,kjl->ijk", sample_facs, ag_facs)
