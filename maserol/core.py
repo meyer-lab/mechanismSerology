@@ -284,10 +284,14 @@ def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
     for ab_idx in range(n_abs):
         mat = abundance.isel(Antibody=ab_idx).values
         model = non_neg_matrix_factor(n_comps, max_iter=1_000)
-        W = model.fit_transform(mat)
-        H = model.components_
-        sample_facs[:, ab_idx, :] = W
-        ag_facs[:, ab_idx, :] = H.T
+        sample_slice = model.fit_transform(mat)
+        ag_slice = model.components_
+        # move the weight from ag_slice to sample_slice
+        ag_weight = np.max(ag_slice)
+        ag_slice = ag_slice / ag_weight
+        sample_slice = sample_slice * ag_weight
+        sample_facs[:, ab_idx, :] = sample_slice
+        ag_facs[:, ab_idx, :] = ag_slice.T
     if as_xarray:
         # component names will be 1-indexed
         comp_names = np.arange(1, n_comps+1) 
