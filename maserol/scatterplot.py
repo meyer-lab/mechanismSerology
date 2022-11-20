@@ -4,16 +4,23 @@ from .preprocess import makeRcpAgLabels, HIgGs
 from .core import *
 from .figures.common import *
 
-def plotPrediction(data: xr.DataArray, lbound, ax=None):
+def plotPrediction(data: xr.DataArray, lbound, ax=None, logscale=True):
     """ Create a basic figure of actual vs predict scatterplot. """
     assert data.shape == lbound.shape
     cube_flat = data.values.flatten()
-    valid = cube_flat > 0
+
+    valid = getNonnegIdx(data)
     receptor_labels, antigen_labels = makeRcpAgLabels(data)
 
+    x = cube_flat[valid]
+    y = lbound.flatten()[valid]
+    if logscale:
+        x = np.log(x)
+        y = np.log(y)
+
     # plot
-    f = sns.scatterplot(x=np.log(cube_flat[valid]),
-                        y=np.log(lbound.flatten()[valid]),
+    f = sns.scatterplot(x=x,
+                        y=y, 
                         hue=receptor_labels[valid],
                         style=antigen_labels[valid],
                         ax=ax, s=70, alpha=0.5)
@@ -26,26 +33,46 @@ def plotOptimize(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                  ab_types=HIgGs, maxiter=500):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
-    x_opt, opt_f, init_p = optimizeLoss(cube, metric=metric, lrank=lrank, fitKa=fitKa,
+    x_opt, f_opt, init_p = optimizeLoss(cube, metric=metric, lrank=lrank, fitKa=fitKa,
                                         ab_types=ab_types, maxiter=maxiter, retInit=True)
 
-    init_lbound = inferLbound(cube, *init_p, lrank=lrank, L0=1e-9, KxStar=1e-12)
+    init_lbound = inferLbound(cube, *init_p, lrank=lrank)
 
     new_p = reshapeParams(x_opt, cube, lrank=lrank, fitKa=fitKa, ab_types=ab_types)
     if not fitKa:
         new_p.append(init_p[-1])
-    new_lbound = inferLbound(cube, *new_p, lrank=lrank, L0=1e-9, KxStar=1e-12)
+    final_lbound = inferLbound(cube, *new_p, lrank=lrank)
 
-    if metric == "mean":
-        init_lbound *= INIT_SCALER
-        new_lbound *= x_opt[-1]
-        print("Scalar", x_opt[-1])
+    if metric.startswith("mean"):
+        if metric.endswith("autoscale"):
+            if metric.startswith("mean_rcp"):
+                log_diffs = np.nan_to_num(np.log(cube.values) - np.log(final_lbound))
+                final_scaler = np.mean(np.mean(log_diffs, axis=2), axis=0)[:, np.newaxis]
+            else:
+                log_diffs = np.nan_to_num(np.log(cube.values) - np.log(final_lbound))
+                final_scaler = np.mean(log_diffs)
+            init_scaler = 1 # we want to see the true initial Lbound distribution
+        elif metric.startswith("mean_rcp"):
+            init_scaler = np.full(data.Receptor.size, INIT_SCALER)[:, np.newaxis]
+            final_scaler = x_opt[x_opt.size - cube.shape[1]:, np.newaxis]
+        elif metric == "mean_direct":
+            init_scaler = 0
+            final_scaler = 0
+        else:
+            init_scaler = INIT_SCALER
+            final_scaler = x_opt[-1]
+        print("Init Scaling factors", init_scaler)
+        print("Scaling factors:", final_scaler)
+        init_lbound = np.log(init_lbound) + init_scaler
+        final_lbound = np.log(final_lbound) + final_scaler
+        if not metric.endswith("no_log"):
+            cube = np.log(cube)
 
     axs, f = getSetup((13, 5), (1, 2))
     sns.set(style="darkgrid", font_scale=1)
-    initial_f = plotPrediction(cube, init_lbound, axs[0])
+    initial_f = plotPrediction(cube, init_lbound, axs[0], logscale=not metric.startswith("mean"))
     initial_f.set_title("Initial", fontsize=13)
-    new_f = plotPrediction(cube, new_lbound, axs[1])
+    new_f = plotPrediction(cube, final_lbound, axs[1], logscale=not metric.startswith("mean"))
     new_f.set_title("After Abundance Fit", fontsize=13)
 
     # Add R numbers onto plot
@@ -55,7 +82,7 @@ def plotOptimize(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
     if metric == "rag":
         Raxis = 2
     f.text(0.05, 0.1, gen_R_labels(cube, init_lbound, Raxis), fontsize=12)
-    f.text(0.55, 0.1, gen_R_labels(cube, new_lbound, Raxis), fontsize=12)
+    f.text(0.55, 0.1, gen_R_labels(cube, final_lbound, Raxis), fontsize=12)
     return f
 
 
@@ -111,7 +138,7 @@ def plotLbound(data: xr.DataArray, lbound: Union[xr.DataArray, np.ndarray],
     return f
 
 
-def LORecO(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
+def LRcpO(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
     """
     Trains the model, leaving out the receptors specified by rec.
 
@@ -135,7 +162,7 @@ def LORecO(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -
     return lbound
 
 
-def plotLORecO(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str], str],
+def plotLRcpO(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str], str],
                **opt_kwargs) -> matplotlib.axes.Axes:
     """
     Trains the model on data that excludes receptor(s) specified by rec. Plots
@@ -153,7 +180,7 @@ def plotLORecO(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str]
     """
     if isinstance(rec, str):
         rec = [rec]
-    lbound = LORecO(data, rec, **opt_kwargs)
+    lbound = LRcpO(data, rec, **opt_kwargs)
 
     palette_list = sns.color_palette("bright", data.Receptor.values.shape[0])
     palette = {r: color for r, color in zip(data.Receptor.values, palette_list)}
