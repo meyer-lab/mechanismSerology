@@ -2,6 +2,8 @@
 This is an internal figure which does not necessarily have a place in final
 paper.
 """
+import matplotlib.pyplot as plt
+
 from tensordata.zohar import data as zohar
 
 from maserol.core import prepare_data
@@ -23,4 +25,8 @@ def makeFigure():
         "post_opt_factor": post_opt_factor,
     }
     samp_dist, ag_dist = bootstrap(cube, numResample=3, norm="max", **opt_kwargs)
-    return plot_deviation_heatmap(ag_dist[0], ag_dist[1], ab_types, cube.Antigen.values)
+    f = plot_deviation_heatmap(ag_dist[0], ag_dist[1], ab_types, cube.Antigen.values)
+    plt.title("Zohar Bootstrap With Post-opt Factorization. Metric: mean_rcp.")
+    return f
+
+
