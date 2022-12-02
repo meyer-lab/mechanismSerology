@@ -19,7 +19,6 @@ from .preprocess import assembleKav, DEFAULT_AB_TYPES, prepare_data
 
 config.update("jax_enable_x64", True)
 
-INIT_SCALER = 0
 DEFAULT_FIT_KA_VAL = False
 DEFAULT_LRANK_VAL = False
 DEFAULT_METRIC_VAL = "rtot"
@@ -162,20 +161,19 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonn
         return -(sum(r_list)/len(r_list))
 
 def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
-                 ab_types: Iterable=DEFAULT_AB_TYPES, maxiter=500, retInit=False, L0=1e-9, KxStar=1e-12):
+                 ab_types: Iterable=DEFAULT_AB_TYPES, maxiter=500, retInit=False, L0=1e-9, KxStar=1e-12, data_id=None):
     """ Optimization method to minimize modelLoss() output """
-    data = prepare_data(data)
+    data = prepare_data(data, data_id=data_id)
     params = initializeParams(data, lrank=lrank, ab_types=ab_types)
     Ka = params[-1]
     if not fitKa:
         params = params[:-1]
     log_x0 = flattenParams(*params)
-    prescale = None
     if not metric.endswith("autoscale"):
         if metric.startswith("mean_rcp"):
-            log_x0 = np.append(log_x0, np.full(data.Receptor.size, INIT_SCALER)) # scaling factor per receptor
+            log_x0 = np.append(log_x0, np.random.rand(data.Receptor.size) * 2) # scaling factor per receptor
         elif metric.startswith("mean"):
-            log_x0 = np.append(log_x0, INIT_SCALER) # scaling factor
+            log_x0 = np.append(log_x0, np.random.rand(1) * 2) # scaling factor
     arrgs = (data.values, 
              Ka, # if fitKa this value won't be used
              getNonnegIdx(data.values, metric=metric),

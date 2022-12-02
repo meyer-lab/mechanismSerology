@@ -32,9 +32,9 @@ def regression(x, y, scale_x: Optional[int] = None, l1_ratio=0.7):
     else:
         assert y.dtype == float
         y = scale(y)
-        estCV = ElasticNetCV(normalize=True, l1_ratio=l1_ratio, cv=cv, n_jobs=-1, max_iter=1000000)
+        estCV = ElasticNetCV(l1_ratio=l1_ratio, cv=cv, n_jobs=-1, max_iter=1000000)
         estCV.fit(x, y)
-        model = ElasticNet(normalize=True, alpha=estCV.alpha_, l1_ratio=l1_ratio, max_iter=1000000)
+        model = ElasticNet(alpha=estCV.alpha_, l1_ratio=l1_ratio, max_iter=1000000)
     model = model.fit(x, y)
     y_pred = cross_val_predict(model, x, y, cv=cv, n_jobs=-1)
     assert np.any(model.coef_) # check if high l1 ratio zeroed the coefficients

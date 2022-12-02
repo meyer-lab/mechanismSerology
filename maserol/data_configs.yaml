@@ -1,0 +1,22 @@
+alter:
+  include:
+    rcp: ["IgG1", "IgG2", "IgG3", "IgG4", "FcgRI", 
+          "FcgRIIa.H131", "FcgRIIa.R131", 
+          "FcgRIIb", "FcgRIIIa.F158", "FcgRIIIa.V158", 
+          "FcgRIIIb", "C1q"]
+  translations:
+    rcp:
+      FcgRIIa.H131: FcgRIIA-131H
+      FcgRIIa.R131: FcgRIIA-131R
+      FcgRIIb: FcgRIIB-232I
+      FcgRIIIa.F158: FcgRIIIA-158F
+      FcgRIIIa.V158: FcgRIIIA-158V
+      FcgRIIIb: FcgRIIIB
+chung:
+  translations:
+    rcp:
+      FcgR2aH: FcgRIIA-131H
+      FcgR2aR: FcgRIIA-131R
+      FcgR2b: FcgRIIB-232I
+      FcgR3aF: FcgRIIIA-158F
+      FcgR3aV: FcgRIIIA-158V
