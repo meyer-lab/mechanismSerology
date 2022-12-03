@@ -19,7 +19,7 @@ def makeFigure():
     measured_fucose_ratio = gp120["F.total"]
     fucose_abs = [ab for ab in abs if ab.endswith("f")]
     get_aggs = lambda abs: np.sum(np.sum(np.mean(np.array([abund.sel(Antibody=abs) for abund in abundance_list]), axis=0), axis=2), axis=1)
-    inferred_fucose_ratio = get_aggs(fucose_abs) / get_aggs(abs) * 100
+    inferred_fucose_ratio = get_aggs(fucose_abs) / get_aggs(list(abs)) * 100
     f = sns.scatterplot(x=inferred_fucose_ratio, y=measured_fucose_ratio, ax=axes[1])
     f.set_xlabel("Inferred Fucose Ratio (%)")
     f.set_ylabel("Measured Fucose Ratio (%)")
