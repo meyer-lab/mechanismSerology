@@ -80,8 +80,8 @@ def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None, l
         fpr = np.append(fpr, fpr_c)
         tpr = np.append(tpr, tpr_c)
         labels = np.append(labels, np.full(fpr_c.shape, label or c))
-    f = sns.lineplot(fpr, tpr, hue=labels, ci=None, ax=ax, palette=palette or "bright")
-    sns.lineplot([0, 1], [0, 1], linestyle="--", color="k", ax=ax)
+    f = sns.lineplot(x=fpr, y=tpr, hue=labels, ci=None, ax=ax, palette=palette or "bright")
+    sns.lineplot(x=[0, 1], y=[0, 1], linestyle="--", color="k", ax=ax)
     if auc_label:
         add_auc_label(scores, classes, f)
     f.set(xlabel="False Positive Rate", ylabel="True Positive Rate")
@@ -105,7 +105,7 @@ def plot_regression_weights(model, ab_types, ax=None):
     Plots regression weighs for each component when using logistic regression.
     """
     coefs = np.squeeze(model.coef_)
-    f = sns.barplot(list(ab_types), coefs, palette="bright", ax=ax)
+    f = sns.barplot(x=list(ab_types), y=coefs, palette="bright", ax=ax)
     f.axhline(0, color='k', clip_on=False, linestyle='--')
     f.set(xlabel="Component", ylabel="Component Weight")
     sns.despine(left=False, bottom=False)
