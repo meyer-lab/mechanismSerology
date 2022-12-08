@@ -45,6 +45,12 @@ def prepare_data(data: xr.DataArray, remove_rcp=None, data_id=None):
             configs = yaml.load(f, yaml.Loader)
         config = configs.get(data_id)
         if config is not None:
+            trans = config.get("translations")
+            if trans is not None:
+                rcp_trans = trans.get("rcp", {})
+                ag_trans = trans.get("ag", {})
+                data["Receptor"] = [rcp_trans.get(rcp, rcp) for rcp in data["Receptor"].values]
+                data["Antigen"] = [ag_trans.get(ag, ag) for ag in data["Antigen"].values]
             include = config.get("include")
             if include is not None:
                 rcp_include = include.get("rcp")
@@ -53,13 +59,6 @@ def prepare_data(data: xr.DataArray, remove_rcp=None, data_id=None):
                     data = data.sel(Receptor=rcp_include)
                 if ag_include is not None:
                     data = data.sel(Antigen=ag_include)
-            trans = config.get("translations")
-            if trans is not None:
-                rcp_trans = trans.get("rcp", {})
-                ag_trans = trans.get("ag", {})
-                data["Receptor"] = [rcp_trans.get(rcp, rcp) for rcp in data["Receptor"].values]
-                data["Antigen"] = [ag_trans.get(ag, ag) for ag in data["Antigen"].values]
-
 
     # Antigens: remove those with all missing values
     missing_ag = []
@@ -93,7 +92,10 @@ def get_affinity(rcp: str, ab_type: str) -> float:
             r_regex = "fc[gr]*" + num + rcp[x.end()::]
             if re.match(r_regex, r, flags=re.IGNORECASE):
                 return df.at[r,ab_type]
-    return df.at[rcp,ab_type]
+    try:
+        return df.at[rcp,ab_type]
+    except KeyError:
+        raise AffinityNotFoundException(rcp, ab_type)
 
 
 def assembleKav(data: xr.DataArray, ab_types: Optional[Iterable]=DEFAULT_AB_TYPES) -> xr.DataArray:

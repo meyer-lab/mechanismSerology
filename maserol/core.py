@@ -21,7 +21,7 @@ config.update("jax_enable_x64", True)
 
 DEFAULT_FIT_KA_VAL = False
 DEFAULT_LRANK_VAL = False
-DEFAULT_METRIC_VAL = "rtot"
+DEFAULT_METRIC_VAL = "mean_rcp"
 
 def initializeParams(cube: Union[xr.DataArray, np.ndarray], lrank=DEFAULT_LRANK_VAL, ab_types: Iterable=DEFAULT_AB_TYPES) -> List:
     """

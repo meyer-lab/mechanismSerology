@@ -6,7 +6,7 @@ from tensordata.alter import load_file, data as alter
 
 from maserol.figures.common import getSetup
 from maserol.preprocess import HIgGFs, prepare_data
-from maserol.relative import plot_ab_aggs
+from maserol.subclass_amount import plot_ab_aggs
 
 def makeFigure():
     axes, fig = getSetup((9, 4.5), (1, 2))
@@ -19,6 +19,8 @@ def makeFigure():
     measured_fucose_ratio = gp120["F.total"]
     fucose_abs = [ab for ab in abs if ab.endswith("f")]
     get_aggs = lambda abs: np.sum(np.sum(np.mean(np.array([abund.sel(Antibody=abs) for abund in abundance_list]), axis=0), axis=2), axis=1)
+    # compute inferred fucose ratio by taking the amount of fucosylated gp120
+    # antibodies over the total amount of gp120 antibodies
     inferred_fucose_ratio = get_aggs(fucose_abs) / get_aggs(list(abs)) * 100
     f = sns.scatterplot(x=inferred_fucose_ratio, y=measured_fucose_ratio, ax=axes[1])
     f.set_xlabel("Inferred Fucose Ratio (%)")

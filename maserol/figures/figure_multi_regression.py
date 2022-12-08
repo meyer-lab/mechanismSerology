@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 from sklearn.metrics import balanced_accuracy_score
 
 from tensordata.zohar import data as zohar
@@ -8,6 +9,8 @@ from maserol.preprocess import prepare_data
 from maserol.regression import regression, get_labels_zohar, plot_roc, plot_confusion_matrix
 
 def makeFigure():
+    # skip
+    return plt.figure()
     cube = prepare_data(zohar())
     x_opt_lrank, _ = optimizeLoss(cube, lrank=True)
     sample, ag = reshapeParams(x_opt_lrank, cube, lrank=True)
