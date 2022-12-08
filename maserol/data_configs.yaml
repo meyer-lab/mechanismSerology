@@ -1,3 +1,5 @@
+# configuration for importing common datasets into this project. translations
+# will be applied before include
 alter:
   translations:
     rcp:

@@ -24,6 +24,10 @@ def prepare_data(data: xr.DataArray, remove_rcp=None, data_id=None):
     """
     Transposes data to be in ("Sample", "Receptor", "Antigen") order
     and omits any data not pertaining to IgG or FcgR.
+
+    data_id is declared in data_configs.yaml. Pass the data_id into this
+    function to have the operations for this data_id in data_configs.yaml be
+    applied to the dataset 
     """
     assert len(data.dims) == 3, "Data must be 3 dimensional"
     # Make the modes in the right order
