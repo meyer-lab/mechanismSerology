@@ -53,13 +53,13 @@ def plotOptimize(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
                 final_scaler = np.mean(log_diffs)
             init_scaler = 1 # we want to see the true initial Lbound distribution
         elif metric.startswith("mean_rcp"):
-            init_scaler = np.full(data.Receptor.size, INIT_SCALER)[:, np.newaxis]
+            init_scaler = (np.random.rand(data.Receptor.size) * 2)[:, np.newaxis]
             final_scaler = x_opt[x_opt.size - cube.shape[1]:, np.newaxis]
         elif metric == "mean_direct":
             init_scaler = 0
             final_scaler = 0
         else:
-            init_scaler = INIT_SCALER
+            init_scaler = np.random.rand(1) * 2
             final_scaler = x_opt[-1]
         print("Init Scaling factors", init_scaler)
         print("Scaling factors:", final_scaler)

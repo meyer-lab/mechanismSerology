@@ -12,13 +12,14 @@ scipy = "^1.7"
 numpy = "^1.22"
 tensorly = {git = "https://github.com/tensorly/tensorly.git", branch = "main"}
 matplotlib = "^3.5.2"
-seaborn = "^0.11"
+seaborn = ">=0.11.2"
 tensorpack = {git = "https://github.com/meyer-lab/tensorpack.git", branch = "main"}
 tensordata = {git = "https://github.com/meyer-lab/tensordata.git", branch = "main"}
 tqdm = "^4.64.0"
 scikit-learn = "^1.1.2"
 jax = "^0.3.24"
 jaxlib = "^0.3.24"
+PyYAML = ">=6.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

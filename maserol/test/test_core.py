@@ -17,7 +17,7 @@ def test_initialize(n_ab):
     assert ps[1].shape == (n_ag, n_ab)
     ps = initializeParams(cube, lrank=False, ab_types=ab_types)  # should return abund, Ka
     assert len(ps) == 2
-    assert ps[0].shape == (n_samp * n_ag, n_ab)
+    assert ps[0].shape == (n_samp, n_ab, n_ag)
     assert ps[1].shape == (n_recp, n_ab)
 
 @pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
@@ -29,6 +29,7 @@ def test_fit_mean(ab_types):
     nonneg_idx = getNonnegIdx(cube, "mean")
     R_subj_guess, R_Ag_guess, Ka = initializeParams(cube, lrank=True, ab_types=ab_types)
     x0 = flattenParams(R_subj_guess, R_Ag_guess)
+    x0 = np.append(x0, 0)
 
     # test mean (MSE) method
     x0_loss = modelLoss(x0, cube, Ka, nonneg_idx, ab_types, metric="mean", lrank=True)
@@ -36,7 +37,7 @@ def test_fit_mean(ab_types):
     assert np.isfinite(x0_loss)
     x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
     assert opt_f < x0_loss
-    assert len(x0) == len(x_opt) - 1  # subtract the scaling factor
+    assert len(x0) == len(x_opt)
 
 def test_fit_rtot():
     """ Test Rtot mode, without low rank assumption, not fitting Ka """

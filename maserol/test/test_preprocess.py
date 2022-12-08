@@ -22,8 +22,8 @@ def test_assembleKav(data):
     data = prepare_data(data)
     Ka = assembleKav(data, ab_types=HIgGFs)
     assert Ka.sel(Receptor="IgG1", Abs="IgG2") == 10
-    assert Ka.sel(Receptor="IgG3", Abs="IgG3f") == 1e8
-    assert Ka.sel(Receptor="FcR3A", Abs="IgG2f") == 10
+    assert Ka.sel(Receptor="IgG3", Abs="IgG3f") == 1e7
     assert Ka.sel(Receptor="FcR3A", Abs="IgG2") == 7e4
     assert Ka.sel(Receptor="FcR2A", Abs="IgG4") == 2e5
     assert all([~np.all(Ka.sel(Receptor=r) <= 10) for r in Ka.Receptor])
+
