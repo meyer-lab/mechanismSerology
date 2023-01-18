@@ -4,8 +4,10 @@ This creates Figure 0.
 import numpy as np
 from scipy.optimize import least_squares
 from matplotlib import pyplot as plt
-from .common import subplotLabel, getSetup
 from tensordata.alter import data as alter
+
+from .common import subplotLabel, getSetup
+
 
 def makeFigure():
     return plt.figure()

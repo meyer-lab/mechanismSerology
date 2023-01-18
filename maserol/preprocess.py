@@ -1,12 +1,13 @@
 """ Import binding affinities. """
+import re
 from pathlib import Path
 from typing import Optional, Iterable
 
+import yaml
 import numpy as np
 import pandas as pd
-import re
 import xarray as xr
-import yaml
+
 
 class AffinityNotFoundException(Exception):
     def __init__(self, receptor: str, ab_type: str):

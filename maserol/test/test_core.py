@@ -1,9 +1,11 @@
 import pytest
-from ..core import *
-from ..preprocess import HIgGs, HIgGFs
 from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data as zohar
 from tensordata.kaplonek import MGH4D, SpaceX4D
+
+from ..core import *
+from ..preprocess import HIgGs, HIgGFs
+
 
 @pytest.mark.parametrize("n_ab", [1, 2, 3])
 def test_initialize(n_ab):

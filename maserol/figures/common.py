@@ -4,9 +4,10 @@ This file contains functions that are used in multiple figures.
 import sys
 import time
 import logging
-import seaborn as sns
 from string import ascii_lowercase
+
 import matplotlib
+import seaborn as sns
 from matplotlib import gridspec, pyplot as plt
 
 

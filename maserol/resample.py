@@ -1,7 +1,7 @@
-import numpy as np
-import xarray as xr
 from typing import Literal, Optional
 
+import numpy as np
+import xarray as xr
 from sklearn.preprocessing import normalize
 
 from .core import reshapeParams, optimizeLoss, DEFAULT_AB_TYPES, factorAbundance
