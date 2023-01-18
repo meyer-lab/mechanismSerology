@@ -1,8 +1,10 @@
 import pytest
-from ..preprocess import *
+import numpy as np
 from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data as zohar
 from tensordata.kaplonek import MGH4D, SpaceX4D
+from ..preprocess import prepare_data, assembleKav, HIgGFs
+
 
 @pytest.mark.parametrize("data", [atyeo(),
                                   zohar(),

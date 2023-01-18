@@ -1,8 +1,10 @@
+import numpy as np
 from .common import getSetup, subplotLabel
-from ..core import *
+from ..core import reshapeParams, inferLbound
 from matplotlib import pyplot as plt
 from tensordata.atyeo import data as atyeo
 from scipy.stats import pearsonr
+
 
 def makeFigure():
     return plt.figure()

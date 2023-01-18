@@ -1,10 +1,15 @@
-from typing import Collection, Mapping, Optional
+from typing import Collection, Mapping, Optional, Union, List
 
-from .preprocess import makeRcpAgLabels, HIgGs
-from .core import *
-from .figures.common import *
+import xarray
+import numpy as np
+import matplotlib
+import seaborn as sns
+from .preprocess import makeRcpAgLabels, HIgGs, assembleKav, prepare_data
+from .core import getNonnegIdx, inferLbound, reshapeParams, optimizeLoss, calcModalR, DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL
+from .figures.common import getSetup
 
-def plotPrediction(data: xr.DataArray, lbound, ax=None, logscale=True):
+
+def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
     """ Create a basic figure of actual vs predict scatterplot. """
     assert data.shape == lbound.shape
     cube_flat = data.values.flatten()
@@ -29,7 +34,8 @@ def plotPrediction(data: xr.DataArray, lbound, ax=None, logscale=True):
     f.set_ylabel("Predictions", fontsize=12)
     return f
 
-def plotOptimize(data: xr.DataArray, metric="mean", lrank=True, fitKa=False,
+
+def plotOptimize(data: xarray.DataArray, metric="mean", lrank=True, fitKa=False,
                  ab_types=HIgGs, maxiter=500):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
@@ -101,7 +107,7 @@ def gen_R_labels(cube, lbound, axis=-1):
     return retstr
 
 
-def plotLbound(data: xr.DataArray, lbound: Union[xr.DataArray, np.ndarray],
+def plotLbound(data: xarray.DataArray, lbound: Union[xarray.DataArray, np.ndarray],
                rec: Union[Collection[str], str], ax=None,
                palette: Optional[Union[List, Mapping]] = None) -> matplotlib.axes.Axes:
     """
@@ -138,7 +144,7 @@ def plotLbound(data: xr.DataArray, lbound: Union[xr.DataArray, np.ndarray],
     return f
 
 
-def LRcpO(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
+def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
     """
     Trains the model, leaving out the receptors specified by rec.
 
@@ -162,7 +168,7 @@ def LRcpO(data: xr.DataArray, rec: Union[Collection[str], str], **opt_kwargs) ->
     return lbound
 
 
-def plotLRcpO(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str], str],
+def plotLRcpO(data: Union[xarray.DataArray, np.ndarray], rec: Union[Collection[str], str],
                **opt_kwargs) -> matplotlib.axes.Axes:
     """
     Trains the model on data that excludes receptor(s) specified by rec. Plots
@@ -185,8 +191,6 @@ def plotLRcpO(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str],
     palette_list = sns.color_palette("bright", data.Receptor.values.shape[0])
     palette = {r: color for r, color in zip(data.Receptor.values, palette_list)}
 
-
-
     axes, plot = getSetup((20, 6), (1, 3))
     all_minus_rec = [r for r in data.Receptor.values if r not in rec]
 
@@ -200,7 +204,3 @@ def plotLRcpO(data: Union[xr.DataArray, np.ndarray], rec: Union[Collection[str],
     f.set_title(f"All", fontsize=15)
 
     return plot
-
-
-
-
