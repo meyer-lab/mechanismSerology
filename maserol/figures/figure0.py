@@ -2,7 +2,6 @@
 This creates Figure 0.
 """
 import numpy as np
-import tensorly as tl
 from scipy.optimize import least_squares
 from matplotlib import pyplot as plt
 from .common import subplotLabel, getSetup
@@ -16,7 +15,11 @@ def makeFigure():
     cube = data.tensor
     _, detections, _, _ = data.axes
 
-    cube = tl.unfold(cube[:, 1:11, :], 1)
+
+    # unfold
+    cubesub = cube[:, 1:11, :]
+    cube = np.reshape(np.moveaxis(cubesub, 1, 0), (cubesub.shape[1], -1))
+
     cube = np.delete(cube, 3, axis=1)
     detections = detections[1:11]
     detections = [x[:2] + "γ" + x[3:] if x[:2] == "Fc" else x for x in detections]
