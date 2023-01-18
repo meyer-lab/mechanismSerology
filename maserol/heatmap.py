@@ -1,9 +1,12 @@
 import numpy as np
-from .figures.common import *
+import xarray
+import seaborn as sns
+from matplotlib import pyplot as plt
 from matplotlib.tri import Triangulation
-import xarray as xr
+from .figures.common import getSetup
 from .preprocess import HIgGs, HIgGFs
-from .core import *
+from .core import prepare_data, reshapeParams, assembleKav, DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL
+
 
 def plotOneHeatmap(data, title, color, abs, ax, annot=False):
     """
@@ -15,7 +18,8 @@ def plotOneHeatmap(data, title, color, abs, ax, annot=False):
     f.set_title(title, fontsize=13)
     return f
 
-def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=DEFAULT_FIT_KA_VAL, lrank=DEFAULT_LRANK_VAL,
+
+def plotHeatmaps(cube: xarray.DataArray, x_opt, fitKa=DEFAULT_FIT_KA_VAL, lrank=DEFAULT_LRANK_VAL,
                  outcomes=None, name="", normPerAg=False):
     """
     Creates three heatmaps in one plot (Samples, Antigens, Kav).
@@ -62,6 +66,7 @@ def plotHeatmaps(cube: xr.DataArray, x_opt, fitKa=DEFAULT_FIT_KA_VAL, lrank=DEFA
     f.suptitle(f'{name.capitalize()}', fontsize=18)
     return f, subj_fig, ag_fig, af_fig
 
+
 def plot_deviation_heatmap(mean_matrix, std_matrix, absf, ylabels):
     '''
     Creates a split-triangle heatmap summarizing MTD bootstrapping results. 
@@ -93,19 +98,18 @@ def plot_deviation_heatmap(mean_matrix, std_matrix, absf, ylabels):
     axes.set_yticks(range(0, len(ylabels)), ylabels)
     return fig
 
-def plot_3D_heatmap(cube : xr.DataArray):
+
+def plot_3D_heatmap(cube : xarray.DataArray):
     '''
     Creates 3D heatmap visualization for data in 'cube'.
     '''
-
-    sub = []
     z = cube.values.transpose((2,0,1)).ravel()
-    for i in range(len(cube.Antigen)):
-        sub.append(cube[:,:,i])
+    sub = [cube[:, :, i] for i in range(len(cube.Antigen))]
+
     f = plt.figure(figsize=(10,10))
     a,b,c = np.asarray(sub).nonzero()
     ax = f.add_subplot(111, projection='3d')
-    img = ax.scatter3D(b,a,c, c=z, marker='s', s=400, cmap='PuBuGn')
+    ax.scatter3D(b,a,c, c=z, marker='s', s=400, cmap='PuBuGn')
     
     ax.set_xlabel("Subjects", fontsize=20)
     
@@ -121,6 +125,7 @@ def plot_3D_heatmap(cube : xr.DataArray):
 
     return f
 
+
 def separate_weights(matrix, r):
     '''
     Normalizes 'matrix' by dividing each column by its highest value and returns normalized matrix and weights.
@@ -135,6 +140,7 @@ def separate_weights(matrix, r):
     norm_matrix = np.asarray(norm_matrix)
     norm_matrix = norm_matrix.reshape(matrix.shape) 
     return norm_matrix, weights
+
 
 def removed_weights_subj_ag(cube, subjects, antigens, absf):
     '''
