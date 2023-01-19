@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import roc_auc_score
 
@@ -10,8 +9,6 @@ from maserol.preprocess import HIgGFs, HIgGs, prepare_data
 from maserol.regression import regression, get_labels_zohar, plot_roc, plot_confusion_matrix, plot_regression_weights, add_auc_label
 
 def makeFigure():
-    # skip
-    return plt.figure()
     cube = prepare_data(zohar())
 
     ab_types = HIgGFs
@@ -20,7 +17,7 @@ def makeFigure():
 
     ab_types = HIgGs
     x_opt_lrank_no_fucose, _ = optimizeLoss(cube, lrank=True, ab_types=ab_types)
-    sample_no_fucose, ag_no_fucose = reshapeParams(x_opt_lrank_no_fucose, cube, lrank=True, ab_types=ab_types)
+    sample_no_fucose, _ = reshapeParams(x_opt_lrank_no_fucose, cube, lrank=True, ab_types=ab_types)
 
     labels, label_encoder = get_labels_zohar(multiclass=False)
     y_pred, model, x, y = regression(sample, labels, scale_x=0, l1_ratio=0)

@@ -1,6 +1,5 @@
 from typing import Optional
 import numpy as np
-import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import ElasticNet, ElasticNetCV, LogisticRegression, LogisticRegressionCV
@@ -111,21 +110,21 @@ def plot_regression_weights(model, ab_types, ax=None):
     sns.despine(left=False, bottom=False)
     return f
 
-def get_crossval_info(model, train_x, train_y, splits=10, repeats=10):
+def get_crossval_info(model, X, y, splits=10, repeats=10):
     '''
     Crossvalidates regression using 'model'.
     '''
     cv = RepeatedStratifiedKFold(n_splits=splits, n_repeats=repeats, random_state=1)
-    return cross_validate(model, train_x, train_y, cv=cv, return_estimator=True, n_jobs=2)
+    return cross_validate(model, X, y, cv=cv, return_estimator=True, n_jobs=2)
 
-def hyperparameter_tuning(model, grid, train_x, train_y, test_x, test_y, splits=10, repeats=10):
+def hyperparameter_tuning(model, grid, X, y, splits=10, repeats=10):
     '''
     Runs automatic hyperparameter tuning on classification models with 'model' and parameters specificed by 'grid'.
     Returns model with best results.
     '''
     cv = RepeatedStratifiedKFold(n_splits=splits, n_repeats=repeats, random_state=1)
     gridSearch = GridSearchCV(estimator=model, param_grid=grid, n_jobs=-1, cv =cv, scoring="accuracy")
-    gridResult = gridSearch.fit(train_x, train_y)
+    gridResult = gridSearch.fit(X, y)
     
     print("Best: %f using %s" % (gridResult.best_score_, gridResult.best_params_))
 

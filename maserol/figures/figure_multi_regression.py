@@ -9,8 +9,6 @@ from maserol.preprocess import prepare_data
 from maserol.regression import regression, get_labels_zohar, plot_roc, plot_confusion_matrix
 
 def makeFigure():
-    # skip
-    return plt.figure()
     cube = prepare_data(zohar())
     x_opt_lrank, _ = optimizeLoss(cube, lrank=True)
     sample, ag = reshapeParams(x_opt_lrank, cube, lrank=True)
