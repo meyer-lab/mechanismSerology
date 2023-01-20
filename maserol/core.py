@@ -2,7 +2,7 @@
 Core function for serology mechanistic tensor factorization
 """ 
 # Base Python
-from typing import Iterable, List, Union
+from typing import List, Union, Collection
 
 # Extended Python
 import jax.numpy as jnp
@@ -23,7 +23,7 @@ DEFAULT_FIT_KA_VAL = False
 DEFAULT_LRANK_VAL = False
 DEFAULT_METRIC_VAL = "mean_rcp"
 
-def initializeParams(cube: Union[xr.DataArray, np.ndarray], lrank=DEFAULT_LRANK_VAL, ab_types: Iterable=DEFAULT_AB_TYPES) -> List:
+def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types: Collection=DEFAULT_AB_TYPES) -> List:
     """
     Generate initial guesses for input parameters.
 
@@ -77,7 +77,7 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12):
 
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
-def reshapeParams(log_x, cube, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL, ab_types: Iterable=DEFAULT_AB_TYPES, as_xarray=False):
+def reshapeParams(log_x: np.ndarray, cube, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
     x = jnp.exp(log_x)
     n_subj, n_rec, n_ag = cube.shape
@@ -119,8 +119,8 @@ def flattenParams(*args):
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
 def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonneg_idx, 
-              ab_types: Iterable=DEFAULT_AB_TYPES, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL,
-              fitKa=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12):
+              ab_types: Collection=DEFAULT_AB_TYPES, metric: str=DEFAULT_METRIC_VAL, lrank: bool=DEFAULT_LRANK_VAL,
+              fitKa: bool=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12) -> jnp.ndarray:
     """
     Computes the loss, comparing model output and actual measurements.
 
@@ -161,7 +161,7 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonn
         return -(sum(r_list)/len(r_list))
 
 def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
-                 ab_types: Iterable=DEFAULT_AB_TYPES, maxiter=500, retInit=False, L0=1e-9, KxStar=1e-12, data_id=None):
+                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=500, retInit: bool=False, L0=1e-9, KxStar=1e-12, data_id=None):
     """ Optimization method to minimize modelLoss() output """
     data = prepare_data(data, data_id=data_id)
     params = initializeParams(data, lrank=lrank, ab_types=ab_types)

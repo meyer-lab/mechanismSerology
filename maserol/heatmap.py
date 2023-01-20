@@ -39,9 +39,9 @@ def plotHeatmaps(cube: xarray.DataArray, x_opt, fitKa=DEFAULT_FIT_KA_VAL, lrank=
     n_ab = samp.shape[1]
     abs = ["Ab"+str(i) for i in range(1, n_ab+1)]   # default Ag label as "Abx"
     if n_ab == 4:
-        abs = HIgGs
+        abs = list(HIgGs)
     if n_ab == 8:
-        abs = HIgGFs
+        abs = list(HIgGFs)
     # normalize Ag matrix and shift weights to samp matrix, may do by each Ag
     agmax = np.max(ag, axis=(0 if normPerAg else None))
     ag /= agmax

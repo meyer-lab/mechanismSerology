@@ -168,7 +168,7 @@ def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], **opt_kwargs
     return lbound
 
 
-def plotLRcpO(data: Union[xarray.DataArray, np.ndarray], rec: Union[Collection[str], str],
+def plotLRcpO(data: xarray.DataArray, rec: Union[Collection[str], str],
                **opt_kwargs) -> matplotlib.axes.Axes:
     """
     Trains the model on data that excludes receptor(s) specified by rec. Plots

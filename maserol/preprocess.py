@@ -1,7 +1,7 @@
 """ Import binding affinities. """
 import re
 from pathlib import Path
-from typing import Optional, Iterable
+from typing import Collection
 
 import yaml
 import numpy as np
@@ -103,13 +103,13 @@ def get_affinity(rcp: str, ab_type: str) -> float:
         raise AffinityNotFoundException(rcp, ab_type)
 
 
-def assembleKav(data: xr.DataArray, ab_types: Optional[Iterable]=DEFAULT_AB_TYPES) -> xr.DataArray:
+def assembleKav(data: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) -> xr.DataArray:
     """ Assemble affinity matrix for a given dataset. """
     receptors = data.Receptor.values    # work even when data did not go thru prepare_data()
     igg = [x for x in receptors if (re.match("^igg", x, flags=re.IGNORECASE))]
 
     # assemble matrix
-    Kav = xr.DataArray(np.full((len(receptors), len(ab_types)), 10),
+    Kav = xr.DataArray(np.full((receptors.size, len(ab_types)), 10),
                        coords=[receptors, list(ab_types)],
                        dims=["Receptor", "Abs"])
 
