@@ -13,7 +13,7 @@ def pfunc(x, p):
 
 
 def makeFigure():
-    """ Compare genotype vs non-genotype specific readings. """
+    """Compare genotype vs non-genotype specific readings."""
     data = alter().Fc
     data = data.stack(SAg=("Sample", "Antigen"))
     receptors = data.coords["Receptor"].values
@@ -29,7 +29,7 @@ def makeFigure():
 
         ax.scatter(xx, yy, s=0.3)
 
-        popt = least_squares(lambda x: np.nan_to_num(pfunc(xx, x) - yy), x0=[1.0, 1.0], jac="3-point")
+        popt = least_squares(lambda x: np.nan_to_num(pfunc(xx, x) - yy), x0=[1.0, 1.0])
         linx = np.linspace(0.0, np.amax(xx), num=100)
         liny = pfunc(linx, popt.x)
         ax.plot(linx, liny, "r-")
