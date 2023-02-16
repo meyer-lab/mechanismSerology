@@ -3,6 +3,7 @@ Core function for serology mechanistic tensor factorization
 """ 
 # Base Python
 from typing import List, Union, Collection
+from collections.abc import Iterable
 
 # Extended Python
 import jax.numpy as jnp
@@ -47,14 +48,14 @@ def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types
         abundance = np.einsum("ij,kj->ijk", samp, ag)
         return [abundance, Ka]
 
-def psi(Psi, Rtot, L0, KxStar, Ka, theta=2):
+def psi(Psi, Rtot, L0, KxStar, Ka, theta):
     temp = jnp.einsum("jl,ijk->ilkj", Ka, (1.0 + Psi) ** (theta - 1))
     Req = Rtot[:, :, :, np.newaxis] / (1.0 + theta * L0 * temp)
     Psi_temp = jnp.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
     assert Psi_temp.shape == Psi.shape
     return Psi_temp
 
-def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, theta=2):
+def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcIdx=4):
     """
         Pass the matrices generated above into polyc, run through each receptor
         and ant x sub pair and store in matrix same size as flatten.
@@ -71,11 +72,21 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, the
         Rtot = args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
     Psi = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
 
-    for ii in range(5):
-        Psi_temp = psi(Psi, Rtot, L0, KxStar, Ka, theta=theta)
-        Psi = Psi_temp
+    if isinstance(KxStar, Iterable):
+        KxStarAb, KxStarRcp = KxStar[0], KxStar[1]
+    else:
+        KxStarAb, KxStarRcp = KxStar, KxStar
 
-    return L0 / KxStar * ((1.0 + Psi) ** theta - 1.0)
+    # anti-subclass Abs have valency 2, Fc receptors have valency 4
+    for ii in range(5):
+        Psi_Ab = psi(Psi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka, 2)
+        Psi_Rcp = psi(Psi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka, 4)
+        Psi[:, :FcIdx, :] = Psi_Ab
+        Psi[:, FcIdx:, :] = Psi_Rcp
+
+    Lbound_Ab = L0 / KxStarAb * ((1.0 + Psi_Ab) ** 2 - 1.0)
+    Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Psi_Rcp) ** 4 - 1.0)
+    return jnp.concatenate((Lbound_Ab, Lbound_Rcp), axis=1)
 
 def reshapeParams(log_x: np.ndarray, cube, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
