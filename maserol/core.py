@@ -47,14 +47,14 @@ def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types
         abundance = np.einsum("ij,kj->ijk", samp, ag)
         return [abundance, Ka]
 
-def phi(Phisum, Rtot, L0, KxStar, Ka):
-    temp = jnp.einsum("jl,ijk->ilkj", Ka, 1.0 + Phisum)
-    Req = Rtot[:, :, :, np.newaxis] / (1.0 + 2.0 * L0 * temp)
-    Phisum_n = jnp.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
-    assert Phisum_n.shape == Phisum.shape
-    return Phisum_n
+def psi(Psi, Rtot, L0, KxStar, Ka, theta=2):
+    temp = jnp.einsum("jl,ijk->ilkj", Ka, (1.0 + Psi) ** (theta - 1))
+    Req = Rtot[:, :, :, np.newaxis] / (1.0 + theta * L0 * temp)
+    Psi_temp = jnp.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
+    assert Psi_temp.shape == Psi.shape
+    return Psi_temp
 
-def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12):
+def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, theta=2):
     """
         Pass the matrices generated above into polyc, run through each receptor
         and ant x sub pair and store in matrix same size as flatten.
@@ -69,13 +69,13 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12):
         assert len(args) == 2, "args take 1) abundance, 2) kav [when lrank is False]"
         Ka = args[1]
         Rtot = args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
-    Phisum = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
+    Psi = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
 
     for ii in range(5):
-        Phisum_n = phi(Phisum, Rtot, L0, KxStar, Ka)
-        Phisum = Phisum_n
+        Psi_temp = psi(Psi, Rtot, L0, KxStar, Ka, theta=theta)
+        Psi = Psi_temp
 
-    return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
+    return L0 / KxStar * ((1.0 + Psi) ** theta - 1.0)
 
 def reshapeParams(log_x: np.ndarray, cube, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
