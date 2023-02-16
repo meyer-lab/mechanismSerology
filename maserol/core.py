@@ -15,7 +15,7 @@ from sklearn.decomposition import NMF as non_neg_matrix_factor
 from tqdm import tqdm
 
 # Current Package
-from .preprocess import assembleKav, DEFAULT_AB_TYPES, prepare_data
+from .preprocess import assembleKav, DEFAULT_AB_TYPES, HDataArray, prepare_data
 
 config.update("jax_enable_x64", True)
 
@@ -37,10 +37,10 @@ def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types
     Returns:
         The list of parameters.
     """
-    n_ab_types = len(ab_types)
+    n_abs = len(ab_types)
     Ka = assembleKav(cube, ab_types).values
-    samp = np.random.uniform(1E-1, 1E3, (cube.shape[0], n_ab_types))
-    ag = np.random.uniform(0, 1, (cube.shape[2], n_ab_types))
+    samp = np.random.uniform(1E-1, 1E3, (cube.sizes["Sample"], n_abs))
+    ag = np.random.uniform(0, 1, (cube.sizes["Antigen"], n_abs))
     if lrank:       # with low-rank assumption
         return [samp, ag, Ka]
     else:           # without low-rank assumption
@@ -54,7 +54,7 @@ def phi(Phisum, Rtot, L0, KxStar, Ka):
     assert Phisum_n.shape == Phisum.shape
     return Phisum_n
 
-def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12):
+def inferLbound(cube: xr.DataArray, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12):
     """
         Pass the matrices generated above into polyc, run through each receptor
         and ant x sub pair and store in matrix same size as flatten.
@@ -68,36 +68,33 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12):
     else:
         assert len(args) == 2, "args take 1) abundance, 2) kav [when lrank is False]"
         Ka = args[1]
-        Rtot = args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
-    Phisum = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
+        Rtot = args[0].reshape((cube.sizes["Sample"], args[0].shape[1], cube.sizes["Antigen"]))
+    Phisum = jnp.zeros((cube.sizes["Sample"], cube.sizes["Receptor"], cube.sizes["Antigen"]))
 
-    for ii in range(5):
+    for _ in range(5):
         Phisum_n = phi(Phisum, Rtot, L0, KxStar, Ka)
         Phisum = Phisum_n
 
     return L0 / KxStar * ((1.0 + Phisum) ** 2 - 1.0)
 
-def reshapeParams(log_x: np.ndarray, cube, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
+def reshapeParams(log_x: np.ndarray, cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
     x = jnp.exp(log_x)
-    n_subj, n_rec, n_ag = cube.shape
+    n_samp, n_rec, n_ag = cube.sizes["Sample"], cube.sizes["Receptor"], cube.sizes["Antigen"]
     n_ab = len(ab_types)
 
-    if as_xarray:
-        assert isinstance(cube, xr.DataArray), "When returning xarray instances reshapeParams, the `cube` parameter must be a xarray.DataArray instance to provide the axis labels"
-
     if not lrank:  # abundance as a whole big matrix
-        non_ka_params_len = abundance_len = n_subj * n_ag * n_ab 
-        abundance = x[:abundance_len].reshape((n_subj * n_ag, n_ab))
+        non_ka_params_len = abundance_len = n_samp * n_ag * n_ab 
+        abundance = x[:abundance_len].reshape((n_samp * n_ag, n_ab))
         if as_xarray:
-            abundance = abundance.reshape((n_subj, n_ab, n_ag))
+            abundance = abundance.reshape((n_samp, n_ab, n_ag))
             abundance = xr.DataArray(abundance, (cube.Sample.values, list(ab_types), cube.Antigen.values), ("Sample", "Antibody", "Antigen"))
         retVal = [abundance]
     else:   # separate receptor and antigen matrices
-        sample_matrix_len = n_subj * n_ab
+        sample_matrix_len = n_samp * n_ab
         ag_matrix_len = n_ag * n_ab
         non_ka_params_len = sample_matrix_len + ag_matrix_len
-        r_subj = x[0:sample_matrix_len].reshape(n_subj, n_ab)
+        r_subj = x[0:sample_matrix_len].reshape(n_samp, n_ab)
         r_ag = x[sample_matrix_len:sample_matrix_len + ag_matrix_len].reshape(n_ag, n_ab)
         if as_xarray:
             r_subj = xr.DataArray(r_subj, (cube.Sample.values, list(ab_types)), ("Sample", "Antibody"))
@@ -118,7 +115,7 @@ def flattenParams(*args):
     Order: (r_subj, r_ag) / abund, Ka """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
-def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonneg_idx, 
+def modelLoss(log_x: np.ndarray, cube: xr.DataArray, Ka, nonneg_idx, 
               ab_types: Collection=DEFAULT_AB_TYPES, metric: str=DEFAULT_METRIC_VAL, lrank: bool=DEFAULT_LRANK_VAL,
               fitKa: bool=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12) -> jnp.ndarray:
     """
@@ -134,33 +131,22 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonn
         The loss
     """
     params = reshapeParams(log_x, cube, ab_types=ab_types, lrank=lrank, fitKa=fitKa)   # one more item there as scale is fine
-    if isinstance(cube, xr.DataArray):
-        cube = jnp.array(cube)
     Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), lrank=lrank, L0=L0, KxStar=KxStar)
     if metric.startswith("mean"):
-        if metric.endswith("autoscale"):
-            scaling_factor = jnp.nan_to_num(jnp.log(cube) - jnp.log(Lbound))
-            if metric.startswith("mean_rcp"):
-                scaling_factor = np.mean(np.mean(scaling_factor, axis=2), axis=0) # per receptor scaling factor
-                assert scaling_factor.size == cube.shape[1]
-                scaling_factor = scaling_factor[:, np.newaxis]
-            else:
-                scaling_factor = np.mean(scaling_factor)
-        elif metric.startswith("mean_rcp") and len(log_x) - np.sum([p.size for p in params]) == cube.shape[1]:
-            scaling_factor = log_x[log_x.size - cube.shape[1]:, np.newaxis]
-        elif metric == "mean_direct": scaling_factor = 0
+        if metric.startswith("mean_rcp") and len(log_x) - np.sum([p.size for p in params]) == cube.sizes["Receptor"]:
+            scaling_factor = log_x[log_x.size - cube.sizes["Receptor"]:, np.newaxis]
         elif metric.startswith("mean") and len(log_x) - np.sum([p.size for p in params]) == 1:
             scaling_factor = log_x[-1]
         else: raise ValueError("invalid metric")
-        diff = jnp.ravel((jnp.log(cube) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx]
+        diff = jnp.ravel((jnp.log(cube.values) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx]
         return jnp.linalg.norm(diff)
     elif metric == "rtot":
-        return -calcModalR(jnp.log(cube), jnp.log(Lbound), valid_idx=nonneg_idx)
+        return -calcModalR(cube, Lbound, valid_idx=nonneg_idx)
     else:   # per Receptor or per Ag ("rag")
         r_list = calcModalR(cube, Lbound, axis=(2 if metric == "rag" else 1), valid_idx=nonneg_idx)
         return -(sum(r_list)/len(r_list))
 
-def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
+def optimizeLoss(data: HDataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
                  ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=500, retInit: bool=False, L0=1e-9, KxStar=1e-12, data_id=None):
     """ Optimization method to minimize modelLoss() output """
     data = prepare_data(data, data_id=data_id)
@@ -174,19 +160,19 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
             log_x0 = np.append(log_x0, np.random.rand(data.Receptor.size) * 2) # scaling factor per receptor
         elif metric.startswith("mean"):
             log_x0 = np.append(log_x0, np.random.rand(1) * 2) # scaling factor
-    arrgs = (data.values, 
+    arrgs = (data, 
              Ka, # if fitKa this value won't be used
-             getNonnegIdx(data.values, metric=metric),
+             getNonnegIdx(data, metric=metric),
              ab_types, metric, lrank, fitKa,
              L0, KxStar, # L0 and Kx*
              )
-    func = jit(value_and_grad(modelLoss), static_argnums=[4, 5, 6, 7])
+    func = jit(value_and_grad(modelLoss), static_argnums=[1, 4, 5, 6, 7])
     opts = {'maxiter': maxiter}
 
     def hvp(x, v, *argss):
         return grad(lambda x: jnp.vdot(func(x, *argss)[1], v))(x)
 
-    hvpj = jit(hvp, static_argnums=[5, 6, 7, 8])
+    hvpj = jit(hvp, static_argnums=[2, 5, 6, 7, 8])
 
     def callback(xk):
         a, b = func(xk, *arrgs)
@@ -206,17 +192,16 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
         ret.append(params)
     return ret
 
-def calcModalR(cube, lbound, axis=-1, valid_idx=None):
+def calcModalR(cube: xr.DataArray, lbound, axis=-1, valid_idx=None):
     """ Calculate per Receptor or per Ag R """
-    if isinstance(cube, xr.DataArray):
-        cube = cube.values
+    cube = cube.values
     if axis == -1:  # find overall R
-        return jnp.corrcoef(jnp.ravel(cube)[valid_idx], jnp.ravel(lbound)[valid_idx])[0, 1]
+        return jnp.corrcoef(jnp.ravel(jnp.log(cube))[valid_idx], jnp.ravel(jnp.log(lbound))[valid_idx])[0, 1]
     # find modal R
     cube = jnp.swapaxes(cube, 0, axis)
     lbound = jnp.swapaxes(lbound, 0, axis)
     r_list = []
-    for i in range(cube.shape[0]):
+    for i in range(cube.sizes["Sample"]):
         cube_val = jnp.ravel(cube[i, :])
         lbound_val = jnp.ravel(lbound[i, :])
         cube_idx = jnp.arange(len(cube_val)) if valid_idx is None else valid_idx[i]
@@ -224,12 +209,10 @@ def calcModalR(cube, lbound, axis=-1, valid_idx=None):
                                    jnp.log(lbound_val[cube_idx]))[0, 1])
     return r_list
 
-def getNonnegIdx(cube, metric=DEFAULT_METRIC_VAL):
+def getNonnegIdx(cube: xr.DataArray, metric=DEFAULT_METRIC_VAL):
     """ Generate/save nonnegative indices for cube so index operations seem static for JAX """
-    if isinstance(cube, xr.DataArray):
-        cube = cube.values
     if metric == "rtot" or metric.startswith("mean"):
-        return jnp.where(jnp.ravel(cube) > 0)
+        return jnp.where(jnp.ravel(cube.values) > 0)
     else: # per receptor or per Ag
         i_list = []
         # assume cube has shape Samples x Receptors x Ags

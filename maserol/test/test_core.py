@@ -37,7 +37,7 @@ def test_fit_mean(ab_types):
     x0_loss = modelLoss(x0, cube, Ka, nonneg_idx, ab_types, metric="mean", lrank=True)
     assert x0_loss > 0.0
     assert np.isfinite(x0_loss)
-    x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
+    x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=10, ab_types=ab_types)
     assert opt_f < x0_loss
     assert len(x0) == len(x_opt)
 
@@ -51,7 +51,7 @@ def test_fit_rtot():
     x0 = flattenParams(Abund_guess)
 
     # test Rtot method
-    x0_R2 = modelLoss(x0, cube.values, Ka, getNonnegIdx(cube, metric="rtot"), 
+    x0_R2 = modelLoss(x0, cube, Ka, getNonnegIdx(cube, metric="rtot"), 
                         metric="rtot")
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3

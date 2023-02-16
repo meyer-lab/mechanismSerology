@@ -8,10 +8,20 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-
 class AffinityNotFoundException(Exception):
     def __init__(self, receptor: str, ab_type: str):
         super().__init__(f"Receptor: {receptor}, Antibody Type: {ab_type}")
+
+class HDataArray(xr.DataArray):
+    """
+    Hashable data array
+
+    For allowing DataArray to be passed as a static argument to jax.jit
+    """
+    def __hash__(self):
+        return hash(str(self.values))
+    
+    __slots__ =  () # avoid future warning from xarray
 
 PROJ_DIR = Path(__file__).parent
 CONFIGS_PATH = PROJ_DIR / "data_configs.yaml"
@@ -71,7 +81,7 @@ def prepare_data(data: xr.DataArray, remove_rcp=None, data_id=None):
         if not np.any(np.isfinite(data.sel(Antigen=antigen))):  # only nan values for antigen
             missing_ag.append(antigen.values)
     data = data.drop_sel(Antigen=missing_ag)
-    return data
+    return HDataArray(data)
 
 
 def get_affinity(rcp: str, ab_type: str) -> float:
