@@ -22,6 +22,11 @@ def test_initialize(n_ab):
     assert ps[0].shape == (n_samp, n_ab, n_ag)
     assert ps[1].shape == (n_recp, n_ab)
 
+def test_inferLbound():
+    """ Test that our model here provides the same outcome as expected """
+
+    pass
+
 @pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
 def test_fit_mean(ab_types):
     """ Test mean (MSE) mode, low rank assumption, not fitting Ka """
