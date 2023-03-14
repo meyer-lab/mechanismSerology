@@ -2,13 +2,13 @@
 Core function for serology mechanistic tensor factorization
 """ 
 # Base Python
-from typing import List, Union, Collection
-from collections.abc import Iterable
+from typing import Collection, Iterable, List, Union
 
 # Extended Python
 import jax.numpy as jnp
 import numpy as np
 import xarray as xr
+import jax
 from jax import value_and_grad, jit, grad
 from jax.config import config
 from scipy.optimize import minimize
@@ -23,6 +23,8 @@ config.update("jax_enable_x64", True)
 DEFAULT_FIT_KA_VAL = False
 DEFAULT_LRANK_VAL = False
 DEFAULT_METRIC_VAL = "mean_rcp"
+AB_VALENCY = 2
+FC_VALENCY = 4 
 
 def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types: Collection=DEFAULT_AB_TYPES) -> List:
     """
@@ -48,12 +50,12 @@ def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types
         abundance = np.einsum("ij,kj->ijk", samp, ag)
         return [abundance, Ka]
 
-def psi(Psi, Rtot, L0, KxStar, Ka, theta):
-    temp = jnp.einsum("jl,ijk->ilkj", Ka, (1.0 + Psi) ** (theta - 1))
-    Req = Rtot[:, :, :, np.newaxis] / (1.0 + theta * L0 * temp)
-    Psi_temp = jnp.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
-    assert Psi_temp.shape == Psi.shape
-    return Psi_temp
+def phi(Phi, Rtot, L0, KxStar, Ka, f):
+    temp = jnp.einsum("jl,ijk->ilkj", Ka, (1.0 + Phi) ** (f - 1))
+    Req = Rtot[:, :, :, np.newaxis] / (1.0 + f * L0 * temp)
+    Phi_temp = jnp.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
+    assert Phi_temp.shape == Phi.shape
+    return Phi_temp
 
 def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcIdx=4):
     """
@@ -70,7 +72,7 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
         assert len(args) == 2, "args take 1) abundance, 2) kav [when lrank is False]"
         Ka = args[1]
         Rtot = args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
-    Psi = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
+    Phi = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
 
     if isinstance(KxStar, Iterable):
         KxStarAb, KxStarRcp = KxStar[0], KxStar[1]
@@ -79,13 +81,13 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
 
     # anti-subclass Abs have valency 2, Fc receptors have valency 4
     for ii in range(5):
-        Psi_Ab = psi(Psi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka, 2)
-        Psi_Rcp = psi(Psi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka, 4)
-        Psi[:, :FcIdx, :] = Psi_Ab
-        Psi[:, FcIdx:, :] = Psi_Rcp
+        Phi_Ab = phi(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
+        Phi_Rcp = phi(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
+        Phi = Phi.at[:, :FcIdx, :].set(Phi_Ab)
+        Phi = Phi.at[:, FcIdx:, :].set(Phi_Rcp)
 
-    Lbound_Ab = L0 / KxStarAb * ((1.0 + Psi_Ab) ** 2 - 1.0)
-    Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Psi_Rcp) ** 4 - 1.0)
+    Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi_Ab) ** AB_VALENCY - 1.0)
+    Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi_Rcp) ** FC_VALENCY - 1.0)
     return jnp.concatenate((Lbound_Ab, Lbound_Rcp), axis=1)
 
 def reshapeParams(log_x: np.ndarray, cube, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
@@ -191,13 +193,13 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
              ab_types, metric, lrank, fitKa,
              L0, KxStar, # L0 and Kx*
              )
-    func = jit(value_and_grad(modelLoss), static_argnums=[4, 5, 6, 7])
+    func = jit(value_and_grad(modelLoss), static_argnums=[4, 5, 6, 7, 8, 9])
     opts = {'maxiter': maxiter}
 
     def hvp(x, v, *argss):
         return grad(lambda x: jnp.vdot(func(x, *argss)[1], v))(x)
 
-    hvpj = jit(hvp, static_argnums=[5, 6, 7, 8])
+    hvpj = jit(hvp, static_argnums=[5, 6, 7, 8, 9, 10])
 
     def callback(xk):
         a, b = func(xk, *arrgs)

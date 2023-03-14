@@ -2,6 +2,7 @@ import pytest
 from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data as zohar
 from tensordata.kaplonek import MGH4D, SpaceX4D
+from valentbind.model import polyc
 
 from ..core import *
 from ..preprocess import HIgGs, HIgGFs
@@ -24,8 +25,32 @@ def test_initialize(n_ab):
 
 def test_inferLbound():
     """ Test that our model here provides the same outcome as expected """
+    L0 = 1e-9
+    KxStar = 1e-12
+    Rtot = np.array([1e3])
+    Ka = np.array([[1e7], [6e7]])
 
-    pass
+    # maserol implementation of binding model
+    cube = np.zeros((1, 2, 1))
+    Rtot_test = np.array([[Rtot]])
+    Lbound_test = inferLbound(cube, Rtot_test, Ka, lrank=False, L0=L0, KxStar=KxStar, FcIdx=1)
+
+    # valentbind implementation of binding model
+    Cplx_Fc = np.array([[4]])
+    Ctheta = np.array([1])
+    Ka_Fc = Ka[1:2]
+    Lbound_want_Fc, _, _ = polyc(L0, KxStar, Rtot, Cplx_Fc, Ctheta, Ka_Fc)
+
+    Cplx_Ab = np.array([[2]])
+    Ka_Ab = Ka[0:1]
+    Lbound_want_Ab, _, _ = polyc(L0, KxStar, Rtot, Cplx_Ab, Ctheta, Ka_Ab)
+
+    # compare
+    def within_x_percent(num1, num2, x=0.01):
+        return abs(num1 - num2) / ((num1 + num2) / 2) <= x
+
+    assert within_x_percent(Lbound_test[0][0][0], Lbound_want_Ab)
+    assert within_x_percent(Lbound_test[0][1][0], Lbound_want_Fc)
 
 @pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
 def test_fit_mean(ab_types):
