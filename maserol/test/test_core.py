@@ -25,32 +25,30 @@ def test_initialize(n_ab):
 
 def test_inferLbound():
     """ Test that our model here provides the same outcome as expected """
+    n_subj, n_rcp, n_ag, n_ab = 6, 5, 4, 3
+    FcIdx = 2
     L0 = 1e-9
-    KxStar = 1e-12
-    Rtot = np.array([1e3])
-    Ka = np.array([[1e7], [6e7]])
+    KxStar = np.random.rand() * 1e-12
+    Rtot = np.random.rand(n_subj, n_ab, n_ag) * np.power(10, np.random.randint(1, 5, size=(n_subj, n_ab, n_ag)))
+    Ka = np.random.rand(n_rcp, n_ab) * np.power(10, np.random.randint(5, 8, size=(n_rcp, n_ab)))
 
     # maserol implementation of binding model
-    cube = np.zeros((1, 2, 1))
-    Rtot_test = np.array([[Rtot]])
-    Lbound_test = inferLbound(cube, Rtot_test, Ka, lrank=False, L0=L0, KxStar=KxStar, FcIdx=1)
+    cube = np.zeros((n_subj, n_rcp, n_ag))
+    msRes = inferLbound(cube, Rtot, Ka, lrank=False, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
 
     # valentbind implementation of binding model
-    Cplx_Fc = np.array([[4]])
-    Ctheta = np.array([1])
-    Ka_Fc = Ka[1:2]
-    Lbound_want_Fc, _, _ = polyc(L0, KxStar, Rtot, Cplx_Fc, Ctheta, Ka_Fc)
-
-    Cplx_Ab = np.array([[2]])
-    Ka_Ab = Ka[0:1]
-    Lbound_want_Ab, _, _ = polyc(L0, KxStar, Rtot, Cplx_Ab, Ctheta, Ka_Ab)
+    vbRes = np.zeros((n_subj, n_rcp, n_ag))
+    for i_subj in range(n_subj):
+        for i_rcp in range(n_rcp):
+            for i_ag in range(n_ag):
+                vbRes[i_subj, i_rcp, i_ag] = polyc(
+                    L0, KxStar, Rtot[i_subj, : , i_ag],
+                    np.array([[4]]) if i_rcp >= FcIdx else np.array([[2]]), # f
+                    np.array([1]), # Ctheta
+                    Ka[[i_rcp], :])[0]
 
     # compare
-    def within_x_percent(num1, num2, x=0.01):
-        return abs(num1 - num2) / ((num1 + num2) / 2) <= x
-
-    assert within_x_percent(Lbound_test[0][0][0], Lbound_want_Ab)
-    assert within_x_percent(Lbound_test[0][1][0], Lbound_want_Fc)
+    assert np.allclose(msRes, vbRes, rtol = 1e-4)
 
 @pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
 def test_fit_mean(ab_types):

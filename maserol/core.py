@@ -8,7 +8,6 @@ from typing import Collection, Iterable, List, Union
 import jax.numpy as jnp
 import numpy as np
 import xarray as xr
-import jax
 from jax import value_and_grad, jit, grad
 from jax.config import config
 from scipy.optimize import minimize
@@ -23,8 +22,6 @@ config.update("jax_enable_x64", True)
 DEFAULT_FIT_KA_VAL = False
 DEFAULT_LRANK_VAL = False
 DEFAULT_METRIC_VAL = "mean_rcp"
-AB_VALENCY = 2
-FC_VALENCY = 4 
 
 def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types: Collection=DEFAULT_AB_TYPES) -> List:
     """
@@ -64,6 +61,7 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
         *args = r_subj, r_ag, kav (when lrank = True) OR abundance, kav (when lrank = False)
         Numbers in args should NOT be log scaled.
     """
+    AB_VALENCY, FC_VALENCY = 2, 4
     if lrank:
         assert len(args) == 3, "args take 1) r_subj, 2) r_ag, 3) kav [when lrank is True]"
         Ka = args[2]
@@ -80,7 +78,7 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
         KxStarAb, KxStarRcp = KxStar, KxStar
 
     # anti-subclass Abs have valency 2, Fc receptors have valency 4
-    for ii in range(5):
+    for ii in range(6):
         Phi_Ab = phi(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
         Phi_Rcp = phi(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
         Phi = Phi.at[:, :FcIdx, :].set(Phi_Ab)
