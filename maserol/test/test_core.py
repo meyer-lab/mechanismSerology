@@ -2,6 +2,7 @@ import pytest
 from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data as zohar
 from tensordata.kaplonek import MGH4D, SpaceX4D
+from valentbind.model import polyc
 
 from ..core import *
 from ..preprocess import HIgGs, HIgGFs
@@ -21,6 +22,33 @@ def test_initialize(n_ab):
     assert len(ps) == 2
     assert ps[0].shape == (n_samp, n_ab, n_ag)
     assert ps[1].shape == (n_recp, n_ab)
+
+def test_inferLbound():
+    """ Test that our model here provides the same outcome as expected """
+    n_subj, n_rcp, n_ag, n_ab = 6, 5, 4, 3
+    FcIdx = 2
+    L0 = 1e-9
+    KxStar = np.random.rand() * 1e-12
+    Rtot = np.random.rand(n_subj, n_ab, n_ag) * np.power(10, np.random.randint(1, 5, size=(n_subj, n_ab, n_ag)))
+    Ka = np.random.rand(n_rcp, n_ab) * np.power(10, np.random.randint(5, 8, size=(n_rcp, n_ab)))
+
+    # maserol implementation of binding model
+    cube = np.zeros((n_subj, n_rcp, n_ag))
+    msRes = inferLbound(cube, Rtot, Ka, lrank=False, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
+
+    # valentbind implementation of binding model
+    vbRes = np.zeros((n_subj, n_rcp, n_ag))
+    for i_subj in range(n_subj):
+        for i_rcp in range(n_rcp):
+            for i_ag in range(n_ag):
+                vbRes[i_subj, i_rcp, i_ag] = polyc(
+                    L0, KxStar, Rtot[i_subj, : , i_ag],
+                    np.array([[4]]) if i_rcp >= FcIdx else np.array([[2]]), # f
+                    np.array([1]), # Ctheta
+                    Ka[[i_rcp], :])[0]
+
+    # compare
+    assert np.allclose(msRes, vbRes, rtol = 1e-4)
 
 @pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
 def test_fit_mean(ab_types):
