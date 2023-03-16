@@ -174,7 +174,7 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonn
 def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
                  ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=500, retInit: bool=False, L0=1e-9, KxStar=1e-12, data_id=None):
     """ Optimization method to minimize modelLoss() output """
-    data = prepare_data(data, data_id=data_id)
+    # data = prepare_data(data, data_id=data_id)
     params = initializeParams(data, lrank=lrank, ab_types=ab_types)
     Ka = params[-1]
     if not fitKa:
@@ -183,7 +183,7 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
     if not metric.endswith("autoscale"):
         if metric.startswith("mean_rcp"):
             log_x0 = np.append(log_x0, np.random.rand(data.Receptor.size) * 2) # scaling factor per receptor
-        elif metric.startswith("mean"):
+        elif metric.startswith("mean") and metric != "mean_direct":
             log_x0 = np.append(log_x0, np.random.rand(1) * 2) # scaling factor
     arrgs = (data.values, 
              Ka, # if fitKa this value won't be used
