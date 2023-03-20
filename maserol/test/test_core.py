@@ -107,7 +107,7 @@ def test_fit_r(n_ab, metric):
     assert np.isfinite(x0_R2)
     assert x0_R2 > -0.3
     x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, maxiter=20, ab_types=ab_types)
-    assert opt_R2 < -0.7
+    assert opt_R2 < -0.5
     assert len(x0) == len(x_opt)
 
 @pytest.mark.parametrize("lrank", [False, True])

@@ -10,6 +10,7 @@ import numpy as np
 import xarray as xr
 from jax import value_and_grad, jit, grad
 from jax.config import config
+from jaxopt import GaussNewton
 from scipy.optimize import minimize
 from sklearn.decomposition import NMF as non_neg_matrix_factor
 from tqdm import tqdm
@@ -54,6 +55,9 @@ def phi(Phi, Rtot, L0, KxStar, Ka, f):
     assert Phi_temp.shape == Phi.shape
     return Phi_temp
 
+def phi_res(*args):
+    return phi(*args) - args[0]
+
 def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcIdx=4):
     """
         Pass the matrices generated above into polyc, run through each receptor
@@ -63,11 +67,11 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
     """
     AB_VALENCY, FC_VALENCY = 2, 4
     if lrank:
-        assert len(args) == 3, "args take 1) r_subj, 2) r_ag, 3) kav [when lrank is True]"
+        assert len(args) == 3, "args == [0] r_subj, [1] r_ag, [2] kav"
         Ka = args[2]
         Rtot = jnp.einsum("ij,kj->ijk", args[0], args[1])
     else:
-        assert len(args) == 2, "args take 1) abundance, 2) kav [when lrank is False]"
+        assert len(args) == 2, "args == [0] abundance, [1] kav"
         Ka = args[1]
         Rtot = args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
     Phi = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
@@ -77,15 +81,16 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
     else:
         KxStarAb, KxStarRcp = KxStar, KxStar
 
-    # anti-subclass Abs have valency 2, Fc receptors have valency 4
-    for ii in range(6):
-        Phi_Ab = phi(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
-        Phi_Rcp = phi(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
-        Phi = Phi.at[:, :FcIdx, :].set(Phi_Ab)
-        Phi = Phi.at[:, FcIdx:, :].set(Phi_Rcp)
+    gn = GaussNewton(residual_fun=phi_res)
+    Phi = Phi.at[:, :FcIdx, :].set(
+        gn.run(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY).params
+    )
+    Phi = Phi.at[:, FcIdx:, :].set(
+        gn.run(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY).params
+    )
 
-    Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi_Ab) ** AB_VALENCY - 1.0)
-    Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi_Rcp) ** FC_VALENCY - 1.0)
+    Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi[:, :FcIdx, :]) ** AB_VALENCY - 1.0)
+    Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi[:, FcIdx:, :]) ** FC_VALENCY - 1.0)
     return jnp.concatenate((Lbound_Ab, Lbound_Rcp), axis=1)
 
 def reshapeParams(log_x: np.ndarray, cube, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
