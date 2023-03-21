@@ -81,7 +81,7 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
     else:
         KxStarAb, KxStarRcp = KxStar, KxStar
 
-    gn = GaussNewton(residual_fun=phi_res)
+    gn = GaussNewton(residual_fun=phi_res, maxiter=50)
     Phi = Phi.at[:, :FcIdx, :].set(
         gn.run(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY).params
     )

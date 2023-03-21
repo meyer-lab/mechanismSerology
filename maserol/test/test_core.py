@@ -23,7 +23,7 @@ def test_initialize(n_ab):
     assert ps[0].shape == (n_samp, n_ab, n_ag)
     assert ps[1].shape == (n_recp, n_ab)
 
-def test_inferLbound():
+def test_inferLbound_matches_valentbind():
     """ Test that our model here provides the same outcome as expected """
     n_subj, n_rcp, n_ag, n_ab = 6, 5, 4, 3
     FcIdx = 2
@@ -46,9 +46,38 @@ def test_inferLbound():
                     np.array([[4]]) if i_rcp >= FcIdx else np.array([[2]]), # f
                     np.array([1]), # Ctheta
                     Ka[[i_rcp], :])[0]
-
+    
     # compare
     assert np.allclose(msRes, vbRes, rtol = 1e-4)
+
+def test_inferLbound_monotonicity():
+    # if root finding doesn't converge, the most obvious indicator is commonly a
+    # change in the derivative of Lbound as a function of Rtot
+    L0 = 1e-10
+    KxStar = 1e-12
+    ab_types = ("IgG1",)
+
+    Rtot_np = np.random.rand(3000, 1, 1)
+    log_steps = 15
+    idx_stepsize = int(Rtot_np.shape[0] / log_steps)
+    for i in range(log_steps):
+        Rtot_np[i * idx_stepsize:(i+1) * idx_stepsize, :, :] *= 10**i
+    Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)
+    rcp = ["IgG1", "FcgRI"]
+    cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
+    Ka = assembleKav(cube, ab_types)
+    Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar, FcIdx=1)
+
+    # Check if the function f is monotonically increasing
+    def is_monotonically_increasing(x, y):
+        # Sort x and y based on x values
+        sorted_indices = np.argsort(x)
+        y_sorted = y[sorted_indices]
+        y_diff = np.diff(y_sorted)
+        return np.all(y_diff >= 0)
+
+    assert is_monotonically_increasing(np.log10(Rtot_np.flatten()), np.log10(Lbound[:, 0, :]))
+    assert is_monotonically_increasing(np.log10(Rtot_np.flatten()), np.log10(Lbound[:, 1, :]))
 
 @pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
 def test_fit_mean(ab_types):
