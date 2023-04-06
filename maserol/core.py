@@ -82,7 +82,7 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
     else:
         KxStarAb, KxStarRcp = KxStar, KxStar
 
-    gn = GaussNewton(residual_fun=phi_res, maxiter=100)
+    gn = GaussNewton(residual_fun=phi_res, maxiter=100, tol=1e-12)
     Phi = Phi.at[:, :FcIdx, :].set(
         gn.run(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY).params
     )
@@ -204,14 +204,10 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
     def hvp(x, v, *argss):
         return grad(lambda x: jnp.vdot(func(x, *argss)[1], v))(x)
     hvpj = jit(hvp, static_argnums=static_argnums+1)
-    
-    def hess(x, *args):
-        return jacobian(lambda x: func(x, *args)[1])(x)
-    hessj = jit(hess, static_argnums=static_argnums)
 
     loss_traj = []
     gnorm_traj = []
-    def callback(xk):
+    def callback(xk, state):
         a, b = func(xk, *arrgs)
         gNorm = np.linalg.norm(b)
         tq.set_postfix(loss='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
@@ -220,7 +216,7 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
         tq.update(1)
 
     with tqdm(total=maxiter, delay=0.1) as tq:
-        opt = minimize(func, log_x0, method="trust-exact", args=arrgs, hessp=hvpj, hess=hessj,
+        opt = minimize(func, log_x0, method="trust-constr", args=arrgs, hessp=hvpj,
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")

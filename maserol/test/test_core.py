@@ -226,5 +226,5 @@ def test_convergence(ab_types, rcp):
     cube.values = Lbound
     _, ctx = optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
                     KxStar=KxStar, maxiter=700)
-    assert ctx["opt"].status == 0
+    assert ctx["opt"].status > 0
     
