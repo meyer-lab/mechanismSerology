@@ -216,7 +216,7 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
-    ret = [opt.x, opt.fun]
+    ret = [opt.x, opt]
     if retInit:
         if not fitKa:
             params.append(Ka)
