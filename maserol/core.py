@@ -8,7 +8,7 @@ from typing import Collection, Iterable, List, Union
 import jax.numpy as jnp
 import numpy as np
 import xarray as xr
-from jax import value_and_grad, jit, grad
+from jax import value_and_grad, jit, grad, jacobian
 from jax.config import config
 from jaxopt import GaussNewton
 from scipy.optimize import minimize
@@ -135,7 +135,7 @@ def flattenParams(*args):
     Order: (r_subj, r_ag) / abund, Ka """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
-def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonneg_idx, 
+def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.ndarray, nonneg_idx, 
               ab_types: Collection=DEFAULT_AB_TYPES, metric: str=DEFAULT_METRIC_VAL, lrank: bool=DEFAULT_LRANK_VAL,
               fitKa: bool=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL) -> jnp.ndarray:
     """
@@ -178,9 +178,10 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonn
         return -(sum(r_list)/len(r_list))
 
 def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
-                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=500, retInit: bool=False, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL):
+                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=500, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL, params: List=None):
     """ Optimization method to minimize modelLoss() output """
-    params = initializeParams(data, lrank=lrank, ab_types=ab_types)
+    if params is None:
+        params = initializeParams(data, lrank=lrank, ab_types=ab_types)
     Ka = params[-1]
     if not fitKa:
         params = params[:-1]
@@ -196,31 +197,42 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
              ab_types, metric, lrank, fitKa,
              L0, KxStar, FcIdx, # L0 and Kx*
              )
-    func = jit(value_and_grad(modelLoss), static_argnums=[4, 5, 6, 7, 8, 9, 10])
+    static_argnums = np.arange(4, 11)
+    func = jit(value_and_grad(modelLoss), static_argnums=static_argnums)
     opts = { 'maxiter': maxiter }
 
     def hvp(x, v, *argss):
         return grad(lambda x: jnp.vdot(func(x, *argss)[1], v))(x)
+    hvpj = jit(hvp, static_argnums=static_argnums+1)
+    
+    def hess(x, *args):
+        return jacobian(lambda x: func(x, *args)[1])(x)
+    hessj = jit(hess, static_argnums=static_argnums)
 
-    hvpj = jit(hvp, static_argnums=[5, 6, 7, 8, 9, 10, 11])
-
-
+    loss_traj = []
+    gnorm_traj = []
     def callback(xk):
         a, b = func(xk, *arrgs)
         gNorm = np.linalg.norm(b)
         tq.set_postfix(loss='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
+        loss_traj.append(a.item())
+        gnorm_traj.append(gNorm)
         tq.update(1)
 
     with tqdm(total=maxiter, delay=0.1) as tq:
-        opt = minimize(func, log_x0, method="trust-ncg", args=arrgs, hessp=hvpj,
+        opt = minimize(func, log_x0, method="trust-exact", args=arrgs, hessp=hvpj, hess=hessj,
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
-    ret = [opt.x, opt]
-    if retInit:
-        if not fitKa:
-            params.append(Ka)
-        ret.append(params)
+    if not fitKa:
+        params.append(Ka)
+    ctx = {
+        "opt": opt,
+        "loss_traj": np.array(loss_traj),
+        "gnorm_traj": np.array(gnorm_traj),
+        "init_params": params
+    }
+    ret = [opt.x, ctx]
     return ret
 
 def calcModalR(cube, lbound, axis=-1, valid_idx=None):

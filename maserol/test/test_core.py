@@ -224,7 +224,7 @@ def test_convergence(ab_types, rcp):
     Ka.values = Ka.values.astype('float')
     Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
     cube.values = Lbound
-    _, opt = optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
+    _, ctx = optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
                     KxStar=KxStar, maxiter=700)
-    assert opt.status == 0
+    assert ctx["opt"].status == 0
     
