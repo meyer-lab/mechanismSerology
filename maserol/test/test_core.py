@@ -202,16 +202,18 @@ def test_factor_abundance():
     # assert that the reconstruction error is small
     assert normalized_error(got_abundance, abundance) < 0.01 * normalized_error(baseline, abundance)
 
+def generate_random_numbers(n, m):
+    # generate n random numbers that sum to m
+    random_numbers = np.random.rand(n - 1) * m
+    random_numbers.sort()
+    random_numbers = np.concatenate(([0], random_numbers, [m]))
+    return np.diff(random_numbers)
+
+
 @pytest.mark.parametrize("ab_types", [("IgG1", "IgG3")])
 @pytest.mark.parametrize("rcp", [["IgG1", "IgG3"]])
 def test_convergence(ab_types, rcp):
     # assert that fitting with simple synthetic dataset results in convergence 
-    def generate_random_numbers(n, m):
-        # generate n random numbers that sum to m
-        random_numbers = np.random.rand(n - 1) * m
-        random_numbers.sort()
-        random_numbers = np.concatenate(([0], random_numbers, [m]))
-        return np.diff(random_numbers)
     L0 = 1e-5
     KxStar = 1e-12
     Rtot_np = np.full((1000, len(ab_types), 1), 1)
@@ -228,3 +230,27 @@ def test_convergence(ab_types, rcp):
                     KxStar=KxStar, maxiter=700)
     assert ctx["opt"].status > 0
     
+def test_profiling():
+    # * test with no assertions
+    # * meant for profiling
+    # * this will take a long time
+
+    # disable this test by default so we don't hog github jobs
+    return
+    ab_types = HIgGFs
+    rcp = ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
+        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
+    L0 = 1e-5
+    KxStar = 1e-12
+    Rtot_np = np.full((1000, len(ab_types), 1), 1)
+    tot_ab = 1e7
+    for i in range(Rtot_np.shape[0]):
+        Rtot_np[i, :, 0] = generate_random_numbers(len(ab_types), tot_ab)
+    Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)
+    cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
+    Ka = assembleKav(cube, ab_types)
+    Ka.values = Ka.values.astype('float')
+    Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
+    cube.values = Lbound
+    optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
+                KxStar=KxStar, maxiter=3000)
