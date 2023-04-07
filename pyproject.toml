@@ -15,8 +15,8 @@ seaborn = ">=0.11.2"
 tensordata = {git = "https://github.com/meyer-lab/tensordata.git", branch = "main"}
 tqdm = "^4.64.0"
 scikit-learn = "^1.1.2"
-jax = "^0.3.24"
-jaxlib = "^0.3.24"
+jax = "^0.3.25"
+jaxlib = "^0.3.25"
 PyYAML = ">=6.0"
 
 [tool.poetry.group.dev.dependencies]

@@ -8,7 +8,7 @@ from typing import Collection, Iterable, List, Union
 import jax.numpy as jnp
 import numpy as np
 import xarray as xr
-from jax import value_and_grad, jit, grad
+from jax import value_and_grad, jit, grad, jacobian
 from jax.config import config
 from jaxopt import GaussNewton
 from scipy.optimize import minimize
@@ -23,6 +23,7 @@ config.update("jax_enable_x64", True)
 DEFAULT_FIT_KA_VAL = False
 DEFAULT_LRANK_VAL = False
 DEFAULT_METRIC_VAL = "mean_rcp"
+DEFAULT_FC_IDX_VAL = 4
 
 def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types: Collection=DEFAULT_AB_TYPES) -> List:
     """
@@ -58,7 +59,7 @@ def phi(Phi, Rtot, L0, KxStar, Ka, f):
 def phi_res(*args):
     return phi(*args) - args[0]
 
-def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcIdx=4):
+def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL):
     """
         Pass the matrices generated above into polyc, run through each receptor
         and ant x sub pair and store in matrix same size as flatten.
@@ -81,7 +82,7 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
     else:
         KxStarAb, KxStarRcp = KxStar, KxStar
 
-    gn = GaussNewton(residual_fun=phi_res, maxiter=50)
+    gn = GaussNewton(residual_fun=phi_res, maxiter=100, tol=1e-12)
     Phi = Phi.at[:, :FcIdx, :].set(
         gn.run(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY).params
     )
@@ -134,9 +135,9 @@ def flattenParams(*args):
     Order: (r_subj, r_ag) / abund, Ka """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
-def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonneg_idx, 
+def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.ndarray, nonneg_idx, 
               ab_types: Collection=DEFAULT_AB_TYPES, metric: str=DEFAULT_METRIC_VAL, lrank: bool=DEFAULT_LRANK_VAL,
-              fitKa: bool=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12) -> jnp.ndarray:
+              fitKa: bool=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL) -> jnp.ndarray:
     """
     Computes the loss, comparing model output and actual measurements.
 
@@ -152,7 +153,7 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonn
     params = reshapeParams(log_x, cube, ab_types=ab_types, lrank=lrank, fitKa=fitKa)   # one more item there as scale is fine
     if isinstance(cube, xr.DataArray):
         cube = jnp.array(cube)
-    Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), lrank=lrank, L0=L0, KxStar=KxStar)
+    Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), lrank=lrank, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
     if metric.startswith("mean"):
         if metric.endswith("autoscale"):
             scaling_factor = jnp.nan_to_num(jnp.log(cube) - jnp.log(Lbound))
@@ -177,10 +178,10 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka, nonn
         return -(sum(r_list)/len(r_list))
 
 def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
-                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=500, retInit: bool=False, L0=1e-9, KxStar=1e-12, data_id=None):
+                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=500, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL, params: List=None):
     """ Optimization method to minimize modelLoss() output """
-    # data = prepare_data(data, data_id=data_id)
-    params = initializeParams(data, lrank=lrank, ab_types=ab_types)
+    if params is None:
+        params = initializeParams(data, lrank=lrank, ab_types=ab_types)
     Ka = params[-1]
     if not fitKa:
         params = params[:-1]
@@ -194,32 +195,40 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
              Ka, # if fitKa this value won't be used
              getNonnegIdx(data.values, metric=metric),
              ab_types, metric, lrank, fitKa,
-             L0, KxStar, # L0 and Kx*
+             L0, KxStar, FcIdx, # L0 and Kx*
              )
-    func = jit(value_and_grad(modelLoss), static_argnums=[4, 5, 6, 7, 8, 9])
-    opts = {'maxiter': maxiter}
+    static_argnums = np.arange(4, 11)
+    func = jit(value_and_grad(modelLoss), static_argnums=static_argnums)
+    opts = { 'maxiter': maxiter }
 
     def hvp(x, v, *argss):
         return grad(lambda x: jnp.vdot(func(x, *argss)[1], v))(x)
+    hvpj = jit(hvp, static_argnums=static_argnums+1)
 
-    hvpj = jit(hvp, static_argnums=[5, 6, 7, 8, 9, 10])
-
-    def callback(xk):
+    loss_traj = []
+    gnorm_traj = []
+    def callback(xk, state):
         a, b = func(xk, *arrgs)
         gNorm = np.linalg.norm(b)
         tq.set_postfix(loss='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
+        loss_traj.append(a.item())
+        gnorm_traj.append(gNorm)
         tq.update(1)
 
     with tqdm(total=maxiter, delay=0.1) as tq:
-        opt = minimize(func, log_x0, method="trust-ncg", args=arrgs, hessp=hvpj,
+        opt = minimize(func, log_x0, method="trust-constr", args=arrgs, hessp=hvpj,
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
-    ret = [opt.x, opt.fun]
-    if retInit:
-        if not fitKa:
-            params.append(Ka)
-        ret.append(params)
+    if not fitKa:
+        params.append(Ka)
+    ctx = {
+        "opt": opt,
+        "loss_traj": np.array(loss_traj),
+        "gnorm_traj": np.array(gnorm_traj),
+        "init_params": params
+    }
+    ret = [opt.x, ctx]
     return ret
 
 def calcModalR(cube, lbound, axis=-1, valid_idx=None):
