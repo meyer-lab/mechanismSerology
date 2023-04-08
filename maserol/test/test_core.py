@@ -236,7 +236,6 @@ def test_profiling():
     # * this will take a long time
 
     # disable this test by default so we don't hog github jobs
-    return
     ab_types = HIgGFs
     rcp = ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
         'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
@@ -252,5 +251,4 @@ def test_profiling():
     Ka.values = Ka.values.astype('float')
     Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
     cube.values = Lbound
-    optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
-                KxStar=KxStar, maxiter=3000)
+    optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0, KxStar=KxStar)
