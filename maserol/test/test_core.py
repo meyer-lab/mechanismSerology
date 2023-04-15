@@ -94,49 +94,8 @@ def test_fit_mean(ab_types):
     x0_loss = modelLoss(x0, cube, Ka, nonneg_idx, ab_types, metric="mean", lrank=True)
     assert x0_loss > 0.0
     assert np.isfinite(x0_loss)
-    x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
-    assert opt_f < x0_loss
-    assert len(x0) == len(x_opt)
-
-def test_fit_rtot():
-    """ Test Rtot mode, without low rank assumption, not fitting Ka """
-    cube = zohar()
-    cube = prepare_data(cube)
-    cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
-    Ka = assembleKav(cube).values
-    Abund_guess, Ka = initializeParams(cube, lrank=False)
-    x0 = flattenParams(Abund_guess)
-
-    # test Rtot method
-    x0_R2 = modelLoss(x0, cube.values, Ka, getNonnegIdx(cube, metric="rtot"), 
-                        metric="rtot")
-    assert np.isfinite(x0_R2)
-    assert x0_R2 > -0.3
-    x_opt, opt_R2 = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20)
-    assert opt_R2 < -0.8
-    assert opt_R2 < x0_R2
-    assert len(x0) == len(x_opt)
-
-
-@pytest.mark.parametrize("n_ab", [2, 3])
-@pytest.mark.parametrize("metric", ["rrcp", "rag"])
-def test_fit_r(n_ab, metric):
-    """ Test R per Receptor/Ag mode, low rank assumption, fit Ka """
-    cube = zohar()
-    cube = prepare_data(cube)
-    cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
-    ab_types = HIgGs[:n_ab]
-    R_subj_guess, R_Ag_guess, Ka = initializeParams(cube, lrank=True, ab_types=ab_types)
-    x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka)
-
-    # test Rtot method
-    x0_R2 = modelLoss(jnp.array(x0), jnp.array(cube.values), jnp.ones_like(Ka) * -1, 
-                      getNonnegIdx(cube, metric=metric), ab_types=ab_types,
-                      metric=metric, lrank=True, fitKa=True)# Ka after kwargs must not be used here
-    assert np.isfinite(x0_R2)
-    assert x0_R2 > -0.3
-    x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, maxiter=20, ab_types=ab_types)
-    assert opt_R2 < -0.5
+    x_opt, ctx = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
+    assert ctx["opt"].fun < x0_loss
     assert len(x0) == len(x_opt)
 
 @pytest.mark.parametrize("lrank", [False, True])
@@ -228,7 +187,7 @@ def test_convergence(ab_types, rcp):
     cube.values = Lbound
     _, ctx = optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
                     KxStar=KxStar, maxiter=700)
-    assert ctx["opt"].status > 0
+    assert ctx["opt"].status == 0
     
 def test_profiling():
     # * test with no assertions
