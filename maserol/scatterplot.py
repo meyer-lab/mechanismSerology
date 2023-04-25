@@ -39,8 +39,9 @@ def plotOptimize(data: xarray.DataArray, metric="mean", lrank=True, fitKa=False,
                  ab_types=HIgGs, maxiter=500):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
-    x_opt, f_opt, init_p = optimizeLoss(cube, metric=metric, lrank=lrank, fitKa=fitKa,
-                                        ab_types=ab_types, maxiter=maxiter, retInit=True)
+    x_opt, ctx = optimizeLoss(cube, metric=metric, lrank=lrank, fitKa=fitKa,
+                                        ab_types=ab_types, maxiter=maxiter)
+    init_p = ctx["init_params"]
 
     init_lbound = inferLbound(cube, *init_p, lrank=lrank)
 

@@ -22,3 +22,13 @@ chung:
       FcgR2b: FcgRIIB-232I
       FcgR3aF: FcgRIIIA-158F
       FcgR3aV: FcgRIIIA-158V
+
+atyeo:
+  translations:
+    rcp: 
+      FcRg2A: FcgRIIA
+      FcRg2b: FcgRIIB
+      FcRg3A: FcgRIIIA
+  include:
+    rcp: ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRIIA',
+       'FcgRIIB', 'FcgRIIIA']
