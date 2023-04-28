@@ -94,49 +94,8 @@ def test_fit_mean(ab_types):
     x0_loss = modelLoss(x0, cube, Ka, nonneg_idx, ab_types, metric="mean", lrank=True)
     assert x0_loss > 0.0
     assert np.isfinite(x0_loss)
-    x_opt, opt_f = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
-    assert opt_f < x0_loss
-    assert len(x0) == len(x_opt)
-
-def test_fit_rtot():
-    """ Test Rtot mode, without low rank assumption, not fitting Ka """
-    cube = zohar()
-    cube = prepare_data(cube)
-    cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
-    Ka = assembleKav(cube).values
-    Abund_guess, Ka = initializeParams(cube, lrank=False)
-    x0 = flattenParams(Abund_guess)
-
-    # test Rtot method
-    x0_R2 = modelLoss(x0, cube.values, Ka, getNonnegIdx(cube, metric="rtot"), 
-                        metric="rtot")
-    assert np.isfinite(x0_R2)
-    assert x0_R2 > -0.3
-    x_opt, opt_R2 = optimizeLoss(cube, metric="rtot", lrank=False, fitKa=False, maxiter=20)
-    assert opt_R2 < -0.8
-    assert opt_R2 < x0_R2
-    assert len(x0) == len(x_opt)
-
-
-@pytest.mark.parametrize("n_ab", [2, 3])
-@pytest.mark.parametrize("metric", ["rrcp", "rag"])
-def test_fit_r(n_ab, metric):
-    """ Test R per Receptor/Ag mode, low rank assumption, fit Ka """
-    cube = zohar()
-    cube = prepare_data(cube)
-    cube.values[np.random.rand(*cube.shape) < 0.1] = np.nan  # introduce missing values
-    ab_types = HIgGs[:n_ab]
-    R_subj_guess, R_Ag_guess, Ka = initializeParams(cube, lrank=True, ab_types=ab_types)
-    x0 = flattenParams(R_subj_guess, R_Ag_guess, Ka)
-
-    # test Rtot method
-    x0_R2 = modelLoss(jnp.array(x0), jnp.array(cube.values), jnp.ones_like(Ka) * -1, 
-                      getNonnegIdx(cube, metric=metric), ab_types=ab_types,
-                      metric=metric, lrank=True, fitKa=True)# Ka after kwargs must not be used here
-    assert np.isfinite(x0_R2)
-    assert x0_R2 > -0.3
-    x_opt, opt_R2 = optimizeLoss(cube, metric=metric, lrank=True, fitKa=True, maxiter=20, ab_types=ab_types)
-    assert opt_R2 < -0.5
+    x_opt, ctx = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
+    assert ctx["opt"].fun < x0_loss
     assert len(x0) == len(x_opt)
 
 @pytest.mark.parametrize("lrank", [False, True])
@@ -202,16 +161,18 @@ def test_factor_abundance():
     # assert that the reconstruction error is small
     assert normalized_error(got_abundance, abundance) < 0.01 * normalized_error(baseline, abundance)
 
+def generate_random_numbers(n, m):
+    # generate n random numbers that sum to m
+    random_numbers = np.random.rand(n - 1) * m
+    random_numbers.sort()
+    random_numbers = np.concatenate(([0], random_numbers, [m]))
+    return np.diff(random_numbers)
+
+
 @pytest.mark.parametrize("ab_types", [("IgG1", "IgG3")])
 @pytest.mark.parametrize("rcp", [["IgG1", "IgG3"]])
 def test_convergence(ab_types, rcp):
     # assert that fitting with simple synthetic dataset results in convergence 
-    def generate_random_numbers(n, m):
-        # generate n random numbers that sum to m
-        random_numbers = np.random.rand(n - 1) * m
-        random_numbers.sort()
-        random_numbers = np.concatenate(([0], random_numbers, [m]))
-        return np.diff(random_numbers)
     L0 = 1e-5
     KxStar = 1e-12
     Rtot_np = np.full((1000, len(ab_types), 1), 1)
@@ -226,5 +187,27 @@ def test_convergence(ab_types, rcp):
     cube.values = Lbound
     _, ctx = optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
                     KxStar=KxStar, maxiter=700)
-    assert ctx["opt"].status > 0
+    assert ctx["opt"].status == 0
     
+def test_profiling():
+    # * test with no assertions
+    # * meant for profiling
+    # * this will take a long time
+
+    # disable this test by default so we don't hog github jobs
+    ab_types = HIgGFs
+    rcp = ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
+        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
+    L0 = 1e-5
+    KxStar = 1e-12
+    Rtot_np = np.full((1000, len(ab_types), 1), 1)
+    tot_ab = 1e7
+    for i in range(Rtot_np.shape[0]):
+        Rtot_np[i, :, 0] = generate_random_numbers(len(ab_types), tot_ab)
+    Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)
+    cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
+    Ka = assembleKav(cube, ab_types)
+    Ka.values = Ka.values.astype('float')
+    Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
+    cube.values = Lbound
+    optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0, KxStar=KxStar)

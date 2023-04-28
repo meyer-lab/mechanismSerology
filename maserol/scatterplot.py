@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib
 import seaborn as sns
 from .preprocess import makeRcpAgLabels, HIgGs, assembleKav, prepare_data
-from .core import getNonnegIdx, inferLbound, reshapeParams, optimizeLoss, calcModalR, DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL
+from .core import getNonnegIdx, inferLbound, reshapeParams, optimizeLoss, DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL
 from .figures.common import getSetup
 
 
@@ -39,8 +39,9 @@ def plotOptimize(data: xarray.DataArray, metric="mean", lrank=True, fitKa=False,
                  ab_types=HIgGs, maxiter=500):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
-    x_opt, f_opt, init_p = optimizeLoss(cube, metric=metric, lrank=lrank, fitKa=fitKa,
-                                        ab_types=ab_types, maxiter=maxiter, retInit=True)
+    x_opt, ctx = optimizeLoss(cube, metric=metric, lrank=lrank, fitKa=fitKa,
+                                        ab_types=ab_types, maxiter=maxiter)
+    init_p = ctx["init_params"]
 
     init_lbound = inferLbound(cube, *init_p, lrank=lrank)
 
@@ -87,24 +88,8 @@ def plotOptimize(data: xarray.DataArray, metric="mean", lrank=True, fitKa=False,
         Raxis = 1
     if metric == "rag":
         Raxis = 2
-    f.text(0.05, 0.1, gen_R_labels(cube, init_lbound, Raxis), fontsize=12)
-    f.text(0.55, 0.1, gen_R_labels(cube, final_lbound, Raxis), fontsize=12)
+
     return f
-
-
-def gen_R_labels(cube, lbound, axis=-1):
-    """ Make a long string on the R breakdowns for plotting purpose """
-    retstr = ""
-    r_tot = calcModalR(cube, lbound, axis=-1, valid_idx=getNonnegIdx(cube, metric="rtot"))
-    retstr += '$r_{total}$' + r'= {:.2f}'.format(r_tot) + '\n'
-    if axis > 0:
-        r_labels = cube.Receptor.values if axis == 1 else cube.Antigen.values
-        r_s = calcModalR(cube, lbound, axis=axis,
-                         valid_idx=getNonnegIdx(cube, metric=("rrcp" if axis==1 else "rag")))
-        retstr += '$r_{avg}$' + r'= {:.2f}'.format(sum(r_s)/len(r_s)) + '\n'
-        for ii in range(len(r_labels)):
-            retstr += '$r_{' + r_labels[ii] + '}$' + r'= {:.2f}'.format(r_s[ii]) + '\n'
-    return retstr
 
 
 def plotLbound(data: xarray.DataArray, lbound: Union[xarray.DataArray, np.ndarray],

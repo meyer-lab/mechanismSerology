@@ -4,12 +4,14 @@ from scipy.stats import pearsonr
 
 from .common import getSetup, subplotLabel
 from ..core import reshapeParams, inferLbound, optimizeLoss
+from ..preprocess import prepare_data
 
 
 def makeFigure():
+    # this test is still a bit rundown.
     axs, f = getSetup((8, 4), (1, 2))
 
-    data = atyeo()
+    data = prepare_data(atyeo(), data_id="atyeo")
 
     RKa_opt, _ = optimizeLoss(data, lrank=1, maxiter=1000)
 

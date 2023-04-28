@@ -8,7 +8,7 @@ from typing import Collection, Iterable, List, Union
 import jax.numpy as jnp
 import numpy as np
 import xarray as xr
-from jax import value_and_grad, jit, grad, jacobian
+from jax import value_and_grad, jit
 from jax.config import config
 from jaxopt import GaussNewton
 from scipy.optimize import minimize
@@ -83,15 +83,11 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
         KxStarAb, KxStarRcp = KxStar, KxStar
 
     gn = GaussNewton(residual_fun=phi_res, maxiter=100, tol=1e-12)
-    Phi = Phi.at[:, :FcIdx, :].set(
-        gn.run(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY).params
-    )
-    Phi = Phi.at[:, FcIdx:, :].set(
-        gn.run(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY).params
-    )
+    Phi_Ab = gn.run(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY).params
+    Phi_Fc = gn.run(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY).params
 
-    Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi[:, :FcIdx, :]) ** AB_VALENCY - 1.0)
-    Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi[:, FcIdx:, :]) ** FC_VALENCY - 1.0)
+    Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi_Ab) ** AB_VALENCY - 1.0)
+    Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi_Fc) ** FC_VALENCY - 1.0)
     return jnp.concatenate((Lbound_Ab, Lbound_Rcp), axis=1)
 
 def reshapeParams(log_x: np.ndarray, cube, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
@@ -154,31 +150,27 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
     if isinstance(cube, xr.DataArray):
         cube = jnp.array(cube)
     Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), lrank=lrank, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
-    if metric.startswith("mean"):
-        if metric.endswith("autoscale"):
-            scaling_factor = jnp.nan_to_num(jnp.log(cube) - jnp.log(Lbound))
-            if metric.startswith("mean_rcp"):
-                scaling_factor = np.mean(np.mean(scaling_factor, axis=2), axis=0) # per receptor scaling factor
-                assert scaling_factor.size == cube.shape[1]
-                scaling_factor = scaling_factor[:, np.newaxis]
-            else:
-                scaling_factor = np.mean(scaling_factor)
-        elif metric.startswith("mean_rcp") and len(log_x) - np.sum([p.size for p in params]) == cube.shape[1]:
-            scaling_factor = log_x[log_x.size - cube.shape[1]:, np.newaxis]
-        elif metric == "mean_direct": scaling_factor = 0
-        elif metric.startswith("mean") and len(log_x) - np.sum([p.size for p in params]) == 1:
-            scaling_factor = log_x[-1]
-        else: raise ValueError("invalid metric")
-        diff = jnp.ravel((jnp.log(cube) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx]
-        return jnp.linalg.norm(diff)
-    elif metric == "rtot":
-        return -calcModalR(jnp.log(cube), jnp.log(Lbound), valid_idx=nonneg_idx)
-    else:   # per Receptor or per Ag ("rag")
-        r_list = calcModalR(cube, Lbound, axis=(2 if metric == "rag" else 1), valid_idx=nonneg_idx)
-        return -(sum(r_list)/len(r_list))
+
+    if metric.endswith("autoscale"):
+        scaling_factor = jnp.nan_to_num(jnp.log(cube) - jnp.log(Lbound))
+        if metric.startswith("mean_rcp"):
+            scaling_factor = np.mean(np.mean(scaling_factor, axis=2), axis=0) # per receptor scaling factor
+            assert scaling_factor.size == cube.shape[1]
+            scaling_factor = scaling_factor[:, np.newaxis]
+        else:
+            scaling_factor = np.mean(scaling_factor)
+    elif metric.startswith("mean_rcp") and len(log_x) - np.sum([p.size for p in params]) == cube.shape[1]:
+        scaling_factor = log_x[log_x.size - cube.shape[1]:, np.newaxis]
+    elif metric == "mean_direct": scaling_factor = 0
+    elif metric.startswith("mean") and len(log_x) - np.sum([p.size for p in params]) == 1:
+        scaling_factor = log_x[-1]
+    else: raise ValueError("invalid metric")
+    diff = jnp.ravel((jnp.log(cube) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx]
+    return jnp.linalg.norm(diff)
+
 
 def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
-                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=500, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL, params: List=None):
+                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=50000, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL, params: List=None):
     """ Optimization method to minimize modelLoss() output """
     if params is None:
         params = initializeParams(data, lrank=lrank, ab_types=ab_types)
@@ -201,13 +193,9 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
     func = jit(value_and_grad(modelLoss), static_argnums=static_argnums)
     opts = { 'maxiter': maxiter }
 
-    def hvp(x, v, *argss):
-        return grad(lambda x: jnp.vdot(func(x, *argss)[1], v))(x)
-    hvpj = jit(hvp, static_argnums=static_argnums+1)
-
     loss_traj = []
     gnorm_traj = []
-    def callback(xk, state):
+    def callback(xk, *args):
         a, b = func(xk, *arrgs)
         gNorm = np.linalg.norm(b)
         tq.set_postfix(loss='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
@@ -216,7 +204,7 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
         tq.update(1)
 
     with tqdm(total=maxiter, delay=0.1) as tq:
-        opt = minimize(func, log_x0, method="trust-constr", args=arrgs, hessp=hvpj,
+        opt = minimize(func, log_x0, method="L-BFGS-B", args=arrgs,
                        callback=callback, jac=True, options=opts)
         print(f"Exit message: {opt.message}")
         print(f"Exit status: {opt.status}")
@@ -231,23 +219,6 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
     ret = [opt.x, ctx]
     return ret
 
-def calcModalR(cube, lbound, axis=-1, valid_idx=None):
-    """ Calculate per Receptor or per Ag R """
-    if isinstance(cube, xr.DataArray):
-        cube = cube.values
-    if axis == -1:  # find overall R
-        return jnp.corrcoef(jnp.ravel(cube)[valid_idx], jnp.ravel(lbound)[valid_idx])[0, 1]
-    # find modal R
-    cube = jnp.swapaxes(cube, 0, axis)
-    lbound = jnp.swapaxes(lbound, 0, axis)
-    r_list = []
-    for i in range(cube.shape[0]):
-        cube_val = jnp.ravel(cube[i, :])
-        lbound_val = jnp.ravel(lbound[i, :])
-        cube_idx = jnp.arange(len(cube_val)) if valid_idx is None else valid_idx[i]
-        r_list.append(jnp.corrcoef(jnp.log(cube_val[cube_idx]),
-                                   jnp.log(lbound_val[cube_idx]))[0, 1])
-    return r_list
 
 def getNonnegIdx(cube, metric=DEFAULT_METRIC_VAL):
     """ Generate/save nonnegative indices for cube so index operations seem static for JAX """
