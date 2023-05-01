@@ -5,7 +5,7 @@ from tensordata.kaplonek import MGH4D, SpaceX4D
 from valentbind.model import polyc
 
 from ..core import *
-from ..preprocess import HIgGs, HIgGFs
+from ..preprocess import HIgGs, HIgGFs, prepare_data
 
 
 @pytest.mark.parametrize("n_ab", [1, 2, 3])
@@ -80,23 +80,23 @@ def test_inferLbound_monotonicity():
     assert is_monotonically_increasing(np.log10(Rtot_np.flatten()), np.log10(Lbound[:, 1, :]))
 
 @pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
-def test_fit_mean(ab_types):
+def test_fit(ab_types):
     """ Test mean (MSE) mode, low rank assumption, not fitting Ka """
     cube = zohar()
     cube = prepare_data(cube)
     cube.values[np.random.rand(*cube.shape) < 0.05] = np.nan    # introduce missing values
-    nonneg_idx = getNonnegIdx(cube, "mean")
     R_subj_guess, R_Ag_guess, Ka = initializeParams(cube, lrank=True, ab_types=ab_types)
     x0 = flattenParams(R_subj_guess, R_Ag_guess)
     x0 = np.append(x0, 0)
 
     # test mean (MSE) method
-    x0_loss = modelLoss(x0, cube, Ka, nonneg_idx, ab_types, metric="mean", lrank=True)
+    x0_loss = modelLoss(x0, cube, Ka, getNonnegIdx(cube), ab_types, lrank=True)
     assert x0_loss > 0.0
     assert np.isfinite(x0_loss)
-    x_opt, ctx = optimizeLoss(cube, metric="mean", lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
+    x_opt, ctx = optimizeLoss(cube, lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
     assert ctx["opt"].fun < x0_loss
     assert len(x0) == len(x_opt)
+
 
 @pytest.mark.parametrize("lrank", [False, True])
 @pytest.mark.parametrize("data", [zohar(),
@@ -185,7 +185,7 @@ def test_convergence(ab_types, rcp):
     Ka.values = Ka.values.astype('float')
     Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
     cube.values = Lbound
-    _, ctx = optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
+    _, ctx = optimizeLoss(cube, lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
                     KxStar=KxStar, maxiter=700)
     assert ctx["opt"].status == 0
     
@@ -210,4 +210,5 @@ def test_profiling():
     Ka.values = Ka.values.astype('float')
     Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
     cube.values = Lbound
-    optimizeLoss(cube, metric="mean", lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0, KxStar=KxStar)
+    optimizeLoss(cube, lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
+                KxStar=KxStar)

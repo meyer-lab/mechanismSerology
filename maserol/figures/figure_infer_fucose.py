@@ -14,7 +14,7 @@ def makeFigure():
     abs = HIgGFs
     cube_alter = prepare_data(alter()["Fc"], data_id="alter")
     gp120_ag = [ag for ag in cube_alter.Antigen.values if "gp120" in ag]
-    abundance_list = plot_ab_aggs(cube_alter.sel(Antigen=gp120_ag, Sample=gp120["subject"].values), abs, 3, 650, metric="mean_rcp", ax=axes[0])
+    abundance_list = plot_ab_aggs(cube_alter.sel(Antigen=gp120_ag, Sample=gp120["subject"].values), abs, 3, ax=axes[0])
 
     measured_fucose_ratio = gp120["F.total"]
     fucose_abs = [ab for ab in abs if ab.endswith("f")]

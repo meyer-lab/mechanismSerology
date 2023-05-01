@@ -13,22 +13,19 @@ from maserol.resample import bootstrap
 
 def makeFigure():
     # skip
-    return plt.figure()
     cube = prepare_data(zohar())
     ab_types = HIgGs
     post_opt_factor = True
 
     opt_kwargs = {
-        "metric": "mean_rcp",
         "lrank": not post_opt_factor,
         "fitKa": False,
         "ab_types": ab_types,
-        "maxiter": 1000,
         "post_opt_factor": post_opt_factor,
     }
     samp_dist, ag_dist = bootstrap(cube, numResample=3, norm="max", **opt_kwargs)
     f = plot_deviation_heatmap(ag_dist[0], ag_dist[1], ab_types, cube.Antigen.values)
-    plt.title("Zohar Bootstrap With Post-opt Factorization. Metric: mean_rcp.")
+    plt.title("Zohar Bootstrap With Post-opt Factorization")
     return f
 
 

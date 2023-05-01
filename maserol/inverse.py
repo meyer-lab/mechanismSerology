@@ -38,19 +38,16 @@ def plotInverse():
     ab_types = Rtot.Antibody.values
     L0, KxStar = 1e-9, 1e-12
 
-    ax, f = getSetup((12, 4), (1, 3))
-    metrics = ["mean_direct", "mean", "mean_rcp"]
-    captions = ["no scaling factors", "single scaling factor", "per-receptor scaling factor"]
+    ax, f = getSetup((12, 4), (1, 1))
 
-    for i in range(len(metrics)):
-        x, _ = optimizeLoss(cube, metric=metrics[i], lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
-                            KxStar=KxStar)
-        x = x[:np.prod(Rtot.shape)]
+    x, _ = optimizeLoss(cube, lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
+                        KxStar=KxStar)
+    x = x[:np.prod(Rtot.shape)]
 
-        Rtot_df = Rtot.to_dataframe("Abundance").reset_index()
-        sns.scatterplot(ax=ax[i], x=np.log10(Rtot.values.flatten()), y=np.log10(np.exp(x)),
-                             hue=Rtot_df["Antibody"], style=Rtot_df["Antigen"])
-        ax[i].set_title(f"Rtot: Truth vs Forward-Backward (Log10) ({captions[i]})")
-        ax[i].set_xlabel("Log(True Rtot)")
-        ax[i].set_ylabel("Log(Forward-Backward Rtot)")
+    Rtot_df = Rtot.to_dataframe("Abundance").reset_index()
+    sns.scatterplot(ax=ax[0], x=np.log10(Rtot.values.flatten()), y=np.log10(np.exp(x)),
+                            hue=Rtot_df["Antibody"], style=Rtot_df["Antigen"])
+    ax[0].set_title(f"Rtot: Truth vs Forward-Backward (Log10)")
+    ax[0].set_xlabel("Log(True Rtot)")
+    ax[0].set_ylabel("Log(Forward-Backward Rtot)")
     return f

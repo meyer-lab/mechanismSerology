@@ -10,6 +10,6 @@ from maserol.scatterplot import plotOptimize
 
 def makeFigure():
     cube_zohar = prepare_data(zohar())
-    f = plotOptimize(cube_zohar, "mean_autoscale", lrank=False, fitKa=False, maxiter=500, ab_types=HIgGs)
-    f.text(0.35, 1, "RMSE Optimization with Single Autoscale Term (Zohar)")
+    f = plotOptimize(cube_zohar, lrank=False, fitKa=False, ab_types=HIgGs)
+    f.text(0.35, 1, "RMSE Optimization with Single Scaling Factor (Zohar)")
     return f
