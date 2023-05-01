@@ -6,9 +6,8 @@ import matplotlib.pyplot as plt
 
 from tensordata.zohar import data as zohar
 
-from maserol.core import prepare_data
 from maserol.heatmap import plot_deviation_heatmap
-from maserol.preprocess import HIgGs
+from maserol.preprocess import HIgGs, prepare_data
 from maserol.resample import bootstrap
 
 def makeFigure():
@@ -20,6 +19,7 @@ def makeFigure():
     opt_kwargs = {
         "lrank": not post_opt_factor,
         "fitKa": False,
+        "maxiter": 1000, # increase this to reduce inter-run variance
         "ab_types": ab_types,
         "post_opt_factor": post_opt_factor,
     }
