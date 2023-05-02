@@ -4,9 +4,9 @@ paper.
 """
 from tensordata.zohar import data as zohar
 
-from maserol.core import prepare_data
+from maserol.preprocess import prepare_data
 from maserol.scatterplot import plotLRcpO
 
 def makeFigure():
     data = prepare_data(zohar())
-    return plotLRcpO(data, "FcR2B", metric="mean")
+    return plotLRcpO(data, "FcR2B")

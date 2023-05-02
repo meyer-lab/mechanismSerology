@@ -35,61 +35,45 @@ def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
     return f
 
 
-def plotOptimize(data: xarray.DataArray, metric="mean", lrank=True, fitKa=False,
+def plotOptimize(data: xarray.DataArray, lrank=True, fitKa=False,
                  ab_types=HIgGs, maxiter=500):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
-    x_opt, ctx = optimizeLoss(cube, metric=metric, lrank=lrank, fitKa=fitKa,
+    x_opt, ctx = optimizeLoss(cube, lrank=lrank, fitKa=fitKa,
                                         ab_types=ab_types, maxiter=maxiter)
-    init_p = ctx["init_params"]
 
-    init_lbound = inferLbound(cube, *init_p, lrank=lrank)
+    init_lbound = inferLbound(cube, *ctx["init_params"], lrank=lrank)
 
     new_p = reshapeParams(x_opt, cube, lrank=lrank, fitKa=fitKa, ab_types=ab_types)
     if not fitKa:
-        new_p.append(init_p[-1])
+        new_p.append(ctx["init_params"][-1])
     final_lbound = inferLbound(cube, *new_p, lrank=lrank)
 
-    if metric.startswith("mean"):
-        if metric.endswith("autoscale"):
-            if metric.startswith("mean_rcp"):
-                log_diffs = np.nan_to_num(np.log(cube.values) - np.log(final_lbound))
-                final_scaler = np.mean(np.mean(log_diffs, axis=2), axis=0)[:, np.newaxis]
-            else:
-                log_diffs = np.nan_to_num(np.log(cube.values) - np.log(final_lbound))
-                final_scaler = np.mean(log_diffs)
-            init_scaler = 1 # we want to see the true initial Lbound distribution
-        elif metric.startswith("mean_rcp"):
-            init_scaler = (np.random.rand(data.Receptor.size) * 2)[:, np.newaxis]
-            final_scaler = x_opt[x_opt.size - cube.shape[1]:, np.newaxis]
-        elif metric == "mean_direct":
-            init_scaler = 0
-            final_scaler = 0
-        else:
-            init_scaler = np.random.rand(1) * 2
-            final_scaler = x_opt[-1]
-        print("Init Scaling factors", init_scaler)
-        print("Scaling factors:", final_scaler)
-        init_lbound = np.log(init_lbound) + init_scaler
-        final_lbound = np.log(final_lbound) + final_scaler
-        if not metric.endswith("no_log"):
-            cube = np.log(cube)
+    init_scaler = np.random.rand(1) * 2
+    final_scaler = x_opt[-1]
+    init_lbound = np.log(init_lbound) + init_scaler
+    final_lbound = np.log(final_lbound) + final_scaler
 
     axs, f = getSetup((13, 5), (1, 2))
     sns.set(style="darkgrid", font_scale=1)
-    initial_f = plotPrediction(cube, init_lbound, axs[0], logscale=not metric.startswith("mean"))
+    initial_f = plotPrediction(cube, init_lbound, axs[0], logscale=False)
     initial_f.set_title("Initial", fontsize=13)
-    new_f = plotPrediction(cube, final_lbound, axs[1], logscale=not metric.startswith("mean"))
+    new_f = plotPrediction(cube, final_lbound, axs[1], logscale=False)
     new_f.set_title("After Abundance Fit", fontsize=13)
 
     # Add R numbers onto plot
-    Raxis = -1
-    if metric == "rrcp":
-        Raxis = 1
-    if metric == "rag":
-        Raxis = 2
-
+    f.text(0.05, 0.1, gen_R_labels(cube, init_lbound), fontsize=12)
+    f.text(0.55, 0.1, gen_R_labels(cube, final_lbound), fontsize=12)
     return f
+
+
+def gen_R_labels(cube, lbound):
+    """ Make a long string on the R breakdowns for plotting purpose """
+    retstr = ""
+    valid_idx = getNonnegIdx(cube)
+    rtot = np.corrcoef(np.ravel(cube)[valid_idx], np.ravel(lbound)[valid_idx])[0, 1]
+    retstr += '$r_{total}$' + r'= {:.2f}'.format(rtot) + '\n'
+    return retstr
 
 
 def plotLbound(data: xarray.DataArray, lbound: Union[xarray.DataArray, np.ndarray],

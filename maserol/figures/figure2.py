@@ -13,7 +13,7 @@ def makeFigure():
 
     data = prepare_data(atyeo(), data_id="atyeo")
 
-    RKa_opt, _ = optimizeLoss(data, lrank=1, maxiter=1000)
+    RKa_opt, _ = optimizeLoss(data, lrank=1)
 
     # heatmap for correlation
     # TODO: BROKEN

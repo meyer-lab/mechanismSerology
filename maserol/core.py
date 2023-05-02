@@ -16,13 +16,12 @@ from sklearn.decomposition import NMF as non_neg_matrix_factor
 from tqdm import tqdm
 
 # Current Package
-from .preprocess import assembleKav, DEFAULT_AB_TYPES, prepare_data
+from .preprocess import assembleKav, DEFAULT_AB_TYPES
 
 config.update("jax_enable_x64", True)
 
 DEFAULT_FIT_KA_VAL = False
 DEFAULT_LRANK_VAL = False
-DEFAULT_METRIC_VAL = "mean_rcp"
 DEFAULT_FC_IDX_VAL = 4
 
 def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types: Collection=DEFAULT_AB_TYPES) -> List:
@@ -132,7 +131,7 @@ def flattenParams(*args):
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
 def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.ndarray, nonneg_idx, 
-              ab_types: Collection=DEFAULT_AB_TYPES, metric: str=DEFAULT_METRIC_VAL, lrank: bool=DEFAULT_LRANK_VAL,
+              ab_types: Collection=DEFAULT_AB_TYPES, lrank: bool=DEFAULT_LRANK_VAL,
               fitKa: bool=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL) -> jnp.ndarray:
     """
     Computes the loss, comparing model output and actual measurements.
@@ -141,55 +140,35 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
         x: np array flattened params
         cube: xarray or np array with the shape of the model output
         Ka: fixed Ka, won't be used if fitKa
-        nnoneg_idx: getNonnegIdx(cube, metric)
+        nnoneg_idx: getNonnegIdx(cube)
     
     Returns:
         The loss
     """
-    params = reshapeParams(log_x, cube, ab_types=ab_types, lrank=lrank, fitKa=fitKa)   # one more item there as scale is fine
+    params = reshapeParams(log_x, cube, ab_types=ab_types, lrank=lrank, fitKa=fitKa) 
     if isinstance(cube, xr.DataArray):
         cube = jnp.array(cube)
     Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), lrank=lrank, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
+    scaling_factor = log_x[-1]
+    return jnp.linalg.norm(jnp.ravel((jnp.log(cube) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx])
 
-    if metric.endswith("autoscale"):
-        scaling_factor = jnp.nan_to_num(jnp.log(cube) - jnp.log(Lbound))
-        if metric.startswith("mean_rcp"):
-            scaling_factor = np.mean(np.mean(scaling_factor, axis=2), axis=0) # per receptor scaling factor
-            assert scaling_factor.size == cube.shape[1]
-            scaling_factor = scaling_factor[:, np.newaxis]
-        else:
-            scaling_factor = np.mean(scaling_factor)
-    elif metric.startswith("mean_rcp") and len(log_x) - np.sum([p.size for p in params]) == cube.shape[1]:
-        scaling_factor = log_x[log_x.size - cube.shape[1]:, np.newaxis]
-    elif metric == "mean_direct": scaling_factor = 0
-    elif metric.startswith("mean") and len(log_x) - np.sum([p.size for p in params]) == 1:
-        scaling_factor = log_x[-1]
-    else: raise ValueError("invalid metric")
-    diff = jnp.ravel((jnp.log(cube) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx]
-    return jnp.linalg.norm(diff)
-
-
-def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
-                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=50000, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL, params: List=None):
+def optimizeLoss(data: xr.DataArray, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
+                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=10000, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL, params: List=None):
     """ Optimization method to minimize modelLoss() output """
     if params is None:
         params = initializeParams(data, lrank=lrank, ab_types=ab_types)
     Ka = params[-1]
     if not fitKa:
         params = params[:-1]
-    log_x0 = flattenParams(*params)
-    if not metric.endswith("autoscale"):
-        if metric.startswith("mean_rcp"):
-            log_x0 = np.append(log_x0, np.random.rand(data.Receptor.size) * 2) # scaling factor per receptor
-        elif metric.startswith("mean") and metric != "mean_direct":
-            log_x0 = np.append(log_x0, np.random.rand(1) * 2) # scaling factor
+    # flatten params and append scaling factor
+    log_x0 = np.append(flattenParams(*params), np.random.rand(1) * 2) 
     arrgs = (data.values, 
              Ka, # if fitKa this value won't be used
-             getNonnegIdx(data.values, metric=metric),
-             ab_types, metric, lrank, fitKa,
+             getNonnegIdx(data.values),
+             ab_types, lrank, fitKa,
              L0, KxStar, FcIdx, # L0 and Kx*
              )
-    static_argnums = np.arange(4, 11)
+    static_argnums = np.arange(4, 10)
     func = jit(value_and_grad(modelLoss), static_argnums=static_argnums)
     opts = { 'maxiter': maxiter }
 
@@ -220,19 +199,11 @@ def optimizeLoss(data: xr.DataArray, metric=DEFAULT_METRIC_VAL, lrank=DEFAULT_LR
     return ret
 
 
-def getNonnegIdx(cube, metric=DEFAULT_METRIC_VAL):
+def getNonnegIdx(cube):
     """ Generate/save nonnegative indices for cube so index operations seem static for JAX """
     if isinstance(cube, xr.DataArray):
         cube = cube.values
-    if metric == "rtot" or metric.startswith("mean"):
-        return jnp.where(jnp.ravel(cube) > 0)
-    else: # per receptor or per Ag
-        i_list = []
-        # assume cube has shape Samples x Receptors x Ags
-        cube = np.swapaxes(cube, 0, (2 if metric == "rag" else 1))  # else = per Receptor
-        for i in range(cube.shape[0]):
-            i_list.append(jnp.where(jnp.ravel(cube[i, :]) > 0))
-        return i_list
+    return jnp.where(jnp.ravel(cube) > 0)
 
 def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
     """

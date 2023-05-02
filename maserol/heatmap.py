@@ -4,8 +4,8 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from matplotlib.tri import Triangulation
 from .figures.common import getSetup
-from .preprocess import HIgGs, HIgGFs
-from .core import prepare_data, reshapeParams, assembleKav, DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL
+from .preprocess import HIgGs, HIgGFs, prepare_data
+from .core import reshapeParams, assembleKav, DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL
 
 
 def plotOneHeatmap(data, title, color, abs, ax, annot=False):
