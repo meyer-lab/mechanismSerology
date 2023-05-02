@@ -8,12 +8,11 @@ from typing import Collection, Iterable, List, Union
 import jax.numpy as jnp
 import numpy as np
 import xarray as xr
-from jax import value_and_grad, jit
+from jax import jit, jacrev
 from jax.config import config
 from jaxopt import GaussNewton
-from scipy.optimize import minimize
+from scipy.optimize import least_squares
 from sklearn.decomposition import NMF as non_neg_matrix_factor
-from tqdm import tqdm
 
 # Current Package
 from .preprocess import assembleKav, DEFAULT_AB_TYPES
@@ -150,7 +149,7 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
         cube = jnp.array(cube)
     Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), lrank=lrank, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
     scaling_factor = log_x[-1]
-    return jnp.linalg.norm(jnp.ravel((jnp.log(cube) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx])
+    return jnp.ravel((jnp.log(cube) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx]
 
 def optimizeLoss(data: xr.DataArray, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
                  ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=10000, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL, params: List=None):
@@ -169,30 +168,16 @@ def optimizeLoss(data: xr.DataArray, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_
              L0, KxStar, FcIdx, # L0 and Kx*
              )
     static_argnums = np.arange(4, 10)
-    func = jit(value_and_grad(modelLoss), static_argnums=static_argnums)
-    opts = { 'maxiter': maxiter }
+    funnc = jit(modelLoss, static_argnums=static_argnums)
+    jacc = jit(jacrev(modelLoss), static_argnums=static_argnums)
 
-    loss_traj = []
-    gnorm_traj = []
-    def callback(xk, *args):
-        a, b = func(xk, *arrgs)
-        gNorm = np.linalg.norm(b)
-        tq.set_postfix(loss='{:.2e}'.format(a), g='{:.2e}'.format(gNorm), refresh=False)
-        loss_traj.append(a.item())
-        gnorm_traj.append(gNorm)
-        tq.update(1)
+    print("")
+    opt = least_squares(funnc, log_x0, args=arrgs, jac=jacc, verbose=1)
 
-    with tqdm(total=maxiter, delay=0.1) as tq:
-        opt = minimize(func, log_x0, method="L-BFGS-B", args=arrgs,
-                       callback=callback, jac=True, options=opts)
-        print(f"Exit message: {opt.message}")
-        print(f"Exit status: {opt.status}")
     if not fitKa:
         params.append(Ka)
     ctx = {
         "opt": opt,
-        "loss_traj": np.array(loss_traj),
-        "gnorm_traj": np.array(gnorm_traj),
         "init_params": params
     }
     ret = [opt.x, ctx]

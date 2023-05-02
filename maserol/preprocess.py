@@ -127,6 +127,7 @@ def assembleKav(data: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) -> xr
             Kav.loc[dict(Receptor=r, Abs=ab)] = get_affinity(r, ab)
     
     Kav.values[np.where(Kav.values<10.0)] = 10
+    Kav.values = Kav.values.astype('float')
     return Kav
 
 def makeRcpAgLabels(data: xr.DataArray):

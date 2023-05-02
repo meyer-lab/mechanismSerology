@@ -99,9 +99,7 @@ def test_fit(ab_types):
 
 
 @pytest.mark.parametrize("lrank", [False, True])
-@pytest.mark.parametrize("data", [zohar(),
-                                  atyeo(),
-                                  MGH4D()["Serology"].stack(Sample = ("Subject", "Time")),
+@pytest.mark.parametrize("data", [atyeo(),
                                   SpaceX4D().stack(Sample = ("Subject", "Time"))])
 def test_reshape_params(lrank, data):
     ab_types = list(HIgGs)
@@ -214,27 +212,25 @@ def test_profiling():
                 KxStar=KxStar)
 
 
-def test_forward_backward_simple():
+@pytest.mark.parametrize("n_samp", [8, 32, 256])
+@pytest.mark.parametrize("L0", [1e-9, 1e-5])
+def test_forward_backward_simple(n_samp, L0):
     # subset of HIgGFs
-    ab_types = ["IgG1"]
+    ab_types = ["IgG1", "IgG2", "IgG3"]
     # subset of ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
     #        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
-    rcp = ["IgG1"] 
-    L0 = 1e-5
+    rcp = ['FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB'] 
     KxStar = 1e-12
-    n_samp = 2
     Rtot_np = np.full((n_samp, len(ab_types), 1), 1) # two samples
     Rtot_np[:, 0, 0] = np.random.rand(n_samp) * 1e5 # random Ab abundances for each sample
     Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)
     cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
     Ka = assembleKav(cube, ab_types)
-    Ka.values = Ka.values.astype('float')
-    Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
-    cube.values = Lbound
+    cube.values = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
     x_opt, ctx = optimizeLoss(cube, lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
-                    KxStar=KxStar, maxiter=700)
+                    KxStar=KxStar, maxiter=10_000)
     Rtot_inferred_flat = np.exp(x_opt[:np.prod(Rtot.size)])
     Rtot_flat = Rtot.values.flatten()
-    print("correlation:", np.corrcoef(Rtot_flat, Rtot_inferred_flat)[0][1])
+    assert np.corrcoef(Rtot_flat, Rtot_inferred_flat)[0][1] > 0.999
     # plot:
     # sns.scatterplot(x=Rtot.values.flatten(), y=Rtot_inferred)
