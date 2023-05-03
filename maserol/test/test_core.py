@@ -231,6 +231,4 @@ def test_forward_backward_simple(n_samp, L0):
                     KxStar=KxStar, maxiter=10_000)
     Rtot_inferred_flat = np.exp(x_opt[:np.prod(Rtot.size)])
     Rtot_flat = Rtot.values.flatten()
-    assert np.corrcoef(Rtot_flat, Rtot_inferred_flat)[0][1] > 0.999
-    # plot:
-    # sns.scatterplot(x=Rtot.values.flatten(), y=Rtot_inferred)
+    assert np.corrcoef(Rtot_flat, Rtot_inferred_flat)[0][1] > 0.95

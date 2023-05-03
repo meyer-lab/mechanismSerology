@@ -171,8 +171,11 @@ def optimizeLoss(data: xr.DataArray, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_
     funnc = jit(modelLoss, static_argnums=static_argnums)
     jacc = jit(jacrev(modelLoss), static_argnums=static_argnums)
 
-    print("")
-    opt = least_squares(funnc, log_x0, args=arrgs, jac=jacc, verbose=1)
+    jnum = jacc(log_x0, *arrgs)
+    jnumTwo = jacc(np.random.randn(log_x0.size), *arrgs)
+    jacSparse = np.array((jnum != 0.0) | (jnumTwo != 0.0), dtype=int)
+
+    opt = least_squares(funnc, log_x0, args=arrgs, verbose=1, tr_solver="lsmr", jac_sparsity=jacSparse) # , jac=jacc
 
     if not fitKa:
         params.append(Ka)
