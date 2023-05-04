@@ -221,8 +221,7 @@ def test_forward_backward_simple(n_samp, L0):
     #        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
     rcp = ['FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB'] 
     KxStar = 1e-12
-    Rtot_np = np.full((n_samp, len(ab_types), 1), 1) # two samples
-    Rtot_np[:, 0, 0] = np.random.rand(n_samp) * 1e5 # random Ab abundances for each sample
+    Rtot_np = np.random.rand(n_samp, len(ab_types), 1) * 1e5
     Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)
     cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
     Ka = assembleKav(cube, ab_types)
