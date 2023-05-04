@@ -1,7 +1,7 @@
 import pytest
 from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data as zohar
-from tensordata.kaplonek import MGH4D, SpaceX4D
+from tensordata.kaplonek import SpaceX4D
 from valentbind.model import polyc
 
 from ..core import *
@@ -90,11 +90,10 @@ def test_fit(ab_types):
     x0 = np.append(x0, 0)
 
     # test mean (MSE) method
-    x0_loss = modelLoss(x0, cube, Ka, getNonnegIdx(cube), ab_types, lrank=True)
-    assert x0_loss > 0.0
-    assert np.isfinite(x0_loss)
+    x0_loss = modelLoss(x0, cube, Ka, ab_types, lrank=True)
+    assert np.isfinite(x0_loss).all()
     x_opt, ctx = optimizeLoss(cube, lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
-    assert ctx["opt"].fun < x0_loss
+    assert np.linalg.norm(ctx["opt"].fun) < np.linalg.norm(x0_loss)
     assert len(x0) == len(x_opt)
 
 
@@ -219,7 +218,7 @@ def test_forward_backward_simple(n_samp, L0):
     ab_types = ["IgG1", "IgG2", "IgG3"]
     # subset of ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
     #        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
-    rcp = ['FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB'] 
+    rcp = ['IgG1', 'IgG2', 'IgG3', 'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB'] 
     KxStar = 1e-12
     Rtot_np = np.random.rand(n_samp, len(ab_types), 1) * 1e5
     Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)

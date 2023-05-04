@@ -1,6 +1,6 @@
 """
 Core function for serology mechanistic tensor factorization
-""" 
+"""
 # Base Python
 from typing import Collection, Iterable, List, Union
 
@@ -8,10 +8,11 @@ from typing import Collection, Iterable, List, Union
 import jax.numpy as jnp
 import numpy as np
 import xarray as xr
-from jax import jit, jacrev
+from jax import jit
 from jax.config import config
 from jaxopt import GaussNewton
 from scipy.optimize import least_squares
+from scipy.linalg import block_diag
 from sklearn.decomposition import NMF as non_neg_matrix_factor
 
 # Current Package
@@ -129,7 +130,7 @@ def flattenParams(*args):
     Order: (r_subj, r_ag) / abund, Ka """
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
-def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.ndarray, nonneg_idx, 
+def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.ndarray, 
               ab_types: Collection=DEFAULT_AB_TYPES, lrank: bool=DEFAULT_LRANK_VAL,
               fitKa: bool=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL) -> jnp.ndarray:
     """
@@ -149,49 +150,63 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
         cube = jnp.array(cube)
     Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), lrank=lrank, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
     scaling_factor = log_x[-1]
-    return jnp.ravel((jnp.log(cube) - (jnp.log(Lbound) + scaling_factor)))[nonneg_idx]
 
-def optimizeLoss(data: xr.DataArray, lrank=DEFAULT_LRANK_VAL, fitKa=DEFAULT_FIT_KA_VAL,
-                 ab_types: Collection=DEFAULT_AB_TYPES, maxiter: int=10000, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL, params: List=None):
-    """ Optimization method to minimize modelLoss() output """
+    return jnp.nan_to_num(jnp.log(cube) - jnp.log(Lbound) + scaling_factor).flatten()
+
+
+def optimizeLoss(
+    data: xr.DataArray,
+    lrank=DEFAULT_LRANK_VAL,
+    fitKa=DEFAULT_FIT_KA_VAL,
+    ab_types: Collection = DEFAULT_AB_TYPES,
+    maxiter: int = 10000,
+    L0=1e-9,
+    KxStar=1e-12,
+    FcIdx=DEFAULT_FC_IDX_VAL,
+    params: List = None,
+):
+    """Optimization method to minimize modelLoss() output"""
+    n_subj, n_rec, n_ag = data.shape
+
     if params is None:
         params = initializeParams(data, lrank=lrank, ab_types=ab_types)
     Ka = params[-1]
     if not fitKa:
         params = params[:-1]
     # flatten params and append scaling factor
-    log_x0 = np.append(flattenParams(*params), np.random.rand(1) * 2) 
-    arrgs = (data.values, 
-             Ka, # if fitKa this value won't be used
-             getNonnegIdx(data.values),
-             ab_types, lrank, fitKa,
-             L0, KxStar, FcIdx, # L0 and Kx*
-             )
-    static_argnums = np.arange(4, 10)
-    funnc = jit(modelLoss, static_argnums=static_argnums)
-    jacc = jit(jacrev(modelLoss), static_argnums=static_argnums)
+    log_x0 = np.append(flattenParams(*params), np.random.rand(1) * 2)
+    arrgs = (
+        data.values,
+        Ka,  # if fitKa this value won't be used
+        ab_types,
+        lrank,
+        fitKa,
+        L0,
+        KxStar,
+        FcIdx,  # L0 and Kx*
+    )
+    funnc = jit(modelLoss, static_argnums=np.arange(3, 9))
 
-    jnum = jacc(log_x0, *arrgs)
-    jnumTwo = jacc(np.random.randn(log_x0.size), *arrgs)
-    jacSparse = np.array((jnum != 0.0) | (jnumTwo != 0.0), dtype=int)
+    # Setup a matrix characterizing the block sparsity of the Jacobian
+    A = np.ones((n_rec, len(ab_types)), dtype=int)
+    jacHand = block_diag(*([A] * n_subj))
+    jacHand = np.pad(jacHand, ((0, 0), (0, 1)), constant_values=1)
 
-    opt = least_squares(funnc, log_x0, args=arrgs, verbose=1, tr_solver="lsmr", jac_sparsity=jacSparse) # , jac=jacc
+    opt = least_squares(
+        funnc,
+        log_x0,
+        args=arrgs,
+        verbose=1,
+        tr_options={"atol": 1e-9, "btol": 1e-9},
+        jac_sparsity=jacHand,
+    )
 
     if not fitKa:
         params.append(Ka)
-    ctx = {
-        "opt": opt,
-        "init_params": params
-    }
+    ctx = {"opt": opt, "init_params": params}
     ret = [opt.x, ctx]
     return ret
 
-
-def getNonnegIdx(cube):
-    """ Generate/save nonnegative indices for cube so index operations seem static for JAX """
-    if isinstance(cube, xr.DataArray):
-        cube = cube.values
-    return jnp.where(jnp.ravel(cube) > 0)
 
 def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
     """
@@ -201,7 +216,7 @@ def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
         abundance: abundance tensor as an xarray
         n_comps: number of components in factorization
         as_xarray: if true, return resulting factors in xarrays
-    
+
     Returns:
         Two factor tensors.
         1. Sample factors, with shape (n_samples, n_abs, n_comps)
@@ -224,10 +239,19 @@ def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
         ag_facs[:, ab_idx, :] = ag_slice.T
     if as_xarray:
         # component names will be 1-indexed
-        comp_names = np.arange(1, n_comps+1) 
-        sample_facs = xr.DataArray(sample_facs, (abundance.Sample.values, abundance.Antibody.values, comp_names), ("Sample", "Antibody", "Component"))
-        ag_facs = xr.DataArray(ag_facs, (abundance.Antigen.values, abundance.Antibody.values, comp_names), ("Antigen", "Antibody", "Component"))
+        comp_names = np.arange(1, n_comps + 1)
+        sample_facs = xr.DataArray(
+            sample_facs,
+            (abundance.Sample.values, abundance.Antibody.values, comp_names),
+            ("Sample", "Antibody", "Component"),
+        )
+        ag_facs = xr.DataArray(
+            ag_facs,
+            (abundance.Antigen.values, abundance.Antibody.values, comp_names),
+            ("Antigen", "Antibody", "Component"),
+        )
     return sample_facs, ag_facs
+
 
 def reconstructAbundance(sample_facs, ag_facs):
     """
