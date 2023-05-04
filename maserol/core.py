@@ -21,10 +21,9 @@ from .preprocess import assembleKav, DEFAULT_AB_TYPES
 config.update("jax_enable_x64", True)
 
 DEFAULT_FIT_KA_VAL = False
-DEFAULT_LRANK_VAL = False
 DEFAULT_FC_IDX_VAL = 4
 
-def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types: Collection=DEFAULT_AB_TYPES) -> List:
+def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) -> List:
     """
     Generate initial guesses for input parameters.
 
@@ -42,11 +41,8 @@ def initializeParams(cube: xr.DataArray, lrank: bool=DEFAULT_LRANK_VAL, ab_types
     Ka = assembleKav(cube, ab_types).values
     samp = np.random.uniform(1E-1, 1E3, (cube.shape[0], n_ab_types))
     ag = np.random.uniform(0, 1, (cube.shape[2], n_ab_types))
-    if lrank:       # with low-rank assumption
-        return [samp, ag, Ka]
-    else:           # without low-rank assumption
-        abundance = np.einsum("ij,kj->ijk", samp, ag)
-        return [abundance, Ka]
+    abundance = np.einsum("ij,kj->ijk", samp, ag)
+    return [abundance, Ka]
 
 def phi(Phi, Rtot, L0, KxStar, Ka, f):
     temp = jnp.einsum("jl,ijk->ilkj", Ka, (1.0 + Phi) ** (f - 1))
@@ -58,7 +54,7 @@ def phi(Phi, Rtot, L0, KxStar, Ka, f):
 def phi_res(*args):
     return phi(*args) - args[0]
 
-def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL):
+def inferLbound(cube, *args, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL):
     """
         Pass the matrices generated above into polyc, run through each receptor
         and ant x sub pair and store in matrix same size as flatten.
@@ -66,14 +62,9 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
         Numbers in args should NOT be log scaled.
     """
     AB_VALENCY, FC_VALENCY = 2, 4
-    if lrank:
-        assert len(args) == 3, "args == [0] r_subj, [1] r_ag, [2] kav"
-        Ka = args[2]
-        Rtot = jnp.einsum("ij,kj->ijk", args[0], args[1])
-    else:
-        assert len(args) == 2, "args == [0] abundance, [1] kav"
-        Ka = args[1]
-        Rtot = args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
+    assert len(args) == 2, "args == [0] abundance, [1] kav"
+    Ka = args[1]
+    Rtot = args[0].reshape((cube.shape[0], args[0].shape[1], cube.shape[2]))
     Phi = jnp.zeros((cube.shape[0], cube.shape[1], cube.shape[2]))
 
     if isinstance(KxStar, Iterable):
@@ -89,32 +80,20 @@ def inferLbound(cube, *args, lrank=DEFAULT_LRANK_VAL, L0=1e-9, KxStar=1e-12, FcI
     Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi_Fc) ** FC_VALENCY - 1.0)
     return jnp.concatenate((Lbound_Ab, Lbound_Rcp), axis=1)
 
-def reshapeParams(log_x: np.ndarray, cube, lrank: bool=DEFAULT_LRANK_VAL, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
+def reshapeParams(log_x: np.ndarray, cube, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
     x = jnp.exp(log_x)
     n_subj, n_rec, n_ag = cube.shape
     n_ab = len(ab_types)
 
+    non_ka_params_len = abundance_len = n_subj * n_ag * n_ab 
+    abundance = x[:abundance_len].reshape((n_subj * n_ag, n_ab))
     if as_xarray:
         assert isinstance(cube, xr.DataArray), "When returning xarray instances reshapeParams, the `cube` parameter must be a xarray.DataArray instance to provide the axis labels"
+        abundance = abundance.reshape((n_subj, n_ab, n_ag))
+        abundance = xr.DataArray(abundance, (cube.Sample.values, list(ab_types), cube.Antigen.values), ("Sample", "Antibody", "Antigen"))
+    retVal = [abundance]
 
-    if not lrank:  # abundance as a whole big matrix
-        non_ka_params_len = abundance_len = n_subj * n_ag * n_ab 
-        abundance = x[:abundance_len].reshape((n_subj * n_ag, n_ab))
-        if as_xarray:
-            abundance = abundance.reshape((n_subj, n_ab, n_ag))
-            abundance = xr.DataArray(abundance, (cube.Sample.values, list(ab_types), cube.Antigen.values), ("Sample", "Antibody", "Antigen"))
-        retVal = [abundance]
-    else:   # separate receptor and antigen matrices
-        sample_matrix_len = n_subj * n_ab
-        ag_matrix_len = n_ag * n_ab
-        non_ka_params_len = sample_matrix_len + ag_matrix_len
-        r_subj = x[0:sample_matrix_len].reshape(n_subj, n_ab)
-        r_ag = x[sample_matrix_len:sample_matrix_len + ag_matrix_len].reshape(n_ag, n_ab)
-        if as_xarray:
-            r_subj = xr.DataArray(r_subj, (cube.Sample.values, list(ab_types)), ("Sample", "Antibody"))
-            r_ag = xr.DataArray(r_ag, (cube.Antigen.values, list(ab_types)), ("Antigen", "Antibody"))
-        retVal = [r_subj, r_ag]
     if fitKa:   # retrieve Ka from x as well
         ka_len = n_rec * n_ab
         Ka = x[non_ka_params_len:non_ka_params_len+ka_len].reshape(n_rec, n_ab)
@@ -131,7 +110,7 @@ def flattenParams(*args):
     return jnp.log(jnp.concatenate([a.flatten() for a in args]))
 
 def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.ndarray, 
-              ab_types: Collection=DEFAULT_AB_TYPES, lrank: bool=DEFAULT_LRANK_VAL,
+              ab_types: Collection=DEFAULT_AB_TYPES,
               fitKa: bool=DEFAULT_FIT_KA_VAL, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL) -> jnp.ndarray:
     """
     Computes the loss, comparing model output and actual measurements.
@@ -145,10 +124,10 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
     Returns:
         The loss
     """
-    params = reshapeParams(log_x, cube, ab_types=ab_types, lrank=lrank, fitKa=fitKa) 
+    params = reshapeParams(log_x, cube, ab_types=ab_types, fitKa=fitKa) 
     if isinstance(cube, xr.DataArray):
         cube = jnp.array(cube)
-    Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), lrank=lrank, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
+    Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), L0=L0, KxStar=KxStar, FcIdx=FcIdx)
     scaling_factor = log_x[-1]
 
     return jnp.nan_to_num(jnp.log(cube) - jnp.log(Lbound) + scaling_factor).flatten()
@@ -156,7 +135,6 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
 
 def optimizeLoss(
     data: xr.DataArray,
-    lrank=DEFAULT_LRANK_VAL,
     fitKa=DEFAULT_FIT_KA_VAL,
     ab_types: Collection = DEFAULT_AB_TYPES,
     maxiter: int = 10000,
@@ -169,7 +147,7 @@ def optimizeLoss(
     n_subj, n_rec, n_ag = data.shape
 
     if params is None:
-        params = initializeParams(data, lrank=lrank, ab_types=ab_types)
+        params = initializeParams(data, ab_types=ab_types)
     Ka = params[-1]
     if not fitKa:
         params = params[:-1]
@@ -179,13 +157,12 @@ def optimizeLoss(
         data.values,
         Ka,  # if fitKa this value won't be used
         ab_types,
-        lrank,
         fitKa,
         L0,
         KxStar,
         FcIdx,  # L0 and Kx*
     )
-    funnc = jit(modelLoss, static_argnums=np.arange(3, 9))
+    funnc = jit(modelLoss, static_argnums=np.arange(3, 8))
 
     # Setup a matrix characterizing the block sparsity of the Jacobian
     A = np.ones((n_rec, len(ab_types)), dtype=int)
