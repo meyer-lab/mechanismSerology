@@ -166,14 +166,15 @@ def optimizeLoss(
 
     # Setup a matrix characterizing the block sparsity of the Jacobian
     A = np.ones((n_rec, len(ab_types)), dtype=int)
-    jacHand = block_diag(*([A] * n_subj))
+    jacHand = block_diag(*([A] * n_subj * n_ag))
     jacHand = np.pad(jacHand, ((0, 0), (0, 1)), constant_values=1)
 
+    print("")
     opt = least_squares(
         funnc,
         log_x0,
         args=arrgs,
-        verbose=1,
+        verbose=2,
         tr_options={"atol": 1e-9, "btol": 1e-9},
         jac_sparsity=jacHand,
     )
