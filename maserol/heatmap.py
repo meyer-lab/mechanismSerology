@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from matplotlib.tri import Triangulation
 from .figures.common import getSetup
 from .preprocess import HIgGs, HIgGFs, prepare_data
-from .core import reshapeParams, assembleKav, DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL
+from .core import reshapeParams, assembleKav, DEFAULT_FIT_KA_VAL
 
 
 def plotOneHeatmap(data, title, color, abs, ax, annot=False):
@@ -17,54 +17,6 @@ def plotOneHeatmap(data, title, color, abs, ax, annot=False):
     f.set_xlabel("Antibodies", fontsize=11, rotation=0)
     f.set_title(title, fontsize=13)
     return f
-
-
-def plotHeatmaps(cube: xarray.DataArray, x_opt, fitKa=DEFAULT_FIT_KA_VAL, lrank=DEFAULT_LRANK_VAL,
-                 outcomes=None, name="", normPerAg=False):
-    """
-    Creates three heatmaps in one plot (Samples, Antigens, Kav).
-    """
-    # extract optimization results
-    assert lrank, "plotHeatmaps() can only handle low rank-ed abundance (as two matrices)"
-    cube = prepare_data(cube)
-    opt_ps = reshapeParams(x_opt, cube, lrank=True, fitKa=fitKa)
-    if fitKa:
-        samp, ag, kav = opt_ps[0], opt_ps[1], opt_ps[2]
-    else:
-        samp, ag = opt_ps[0], opt_ps[1]
-        kav = assembleKav(cube)
-
-    # preprocess data
-    kav_log = np.log(kav)
-    n_ab = samp.shape[1]
-    abs = ["Ab"+str(i) for i in range(1, n_ab+1)]   # default Ag label as "Abx"
-    if n_ab == 4:
-        abs = list(HIgGs)
-    if n_ab == 8:
-        abs = list(HIgGFs)
-    # normalize Ag matrix and shift weights to samp matrix, may do by each Ag
-    agmax = np.max(ag, axis=(0 if normPerAg else None))
-    ag /= agmax
-    samp *= agmax
-
-    axs, f = getSetup((16,6),(1,3))
-    plt.subplots_adjust(wspace=.4)
-
-    # plot
-    subj_fig = plotOneHeatmap(samp, "Subjects Log10 ", "PuBuGn", abs, axs[0])
-    ag_fig = plotOneHeatmap(ag, "Antigens", "PuBuGn", abs, axs[1])
-    af_fig = plotOneHeatmap(kav_log, "Affinities (1/M)", "PuBuGn", abs, axs[2], True)
-
-    # label axes
-    ag_fig.set_yticks([x for x in range(len(cube.Antigen))], cube.Antigen.values, fontsize=8, rotation=0)
-    af_fig.set_yticklabels(cube.Receptor.values, fontsize=8, rotation=0)
-    if (outcomes != None):
-        outcomes.sort()
-        labels = set(outcomes)
-        outcome_index = [outcomes.index(outcome) for outcome in labels]
-        subj_fig.set_yticks(outcome_index, labels, fontsize=8, rotation=0)
-    f.suptitle(f'{name.capitalize()}', fontsize=18)
-    return f, subj_fig, ag_fig, af_fig
 
 
 def plot_deviation_heatmap(mean_matrix, std_matrix, absf, ylabels):

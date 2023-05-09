@@ -157,17 +157,12 @@ def test_convergence(ab_types, rcp):
     assert ctx["opt"].status > 0
     
 def test_profiling():
-    # * test with no assertions
-    # * meant for profiling
-    # * this will take a long time
-
-    # disable this test by default so we don't hog github jobs
     ab_types = HIgGFs
     rcp = ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
         'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
     L0 = 1e-5
     KxStar = 1e-12
-    Rtot_np = np.full((1000, len(ab_types), 1), 1)
+    Rtot_np = np.full((20, len(ab_types), 1), 1)
     tot_ab = 1e7
     for i in range(Rtot_np.shape[0]):
         Rtot_np[i, :, 0] = generate_random_numbers(len(ab_types), tot_ab)

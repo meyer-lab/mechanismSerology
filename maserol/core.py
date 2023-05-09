@@ -162,7 +162,6 @@ def optimizeLoss(
         KxStar,
         FcIdx,  # L0 and Kx*
     )
-    funnc = jit(modelLoss, static_argnums=np.arange(3, 8))
 
     # Setup a matrix characterizing the block sparsity of the Jacobian
     A = np.ones((n_rec, len(ab_types)), dtype=int)
@@ -171,7 +170,7 @@ def optimizeLoss(
 
     print("")
     opt = least_squares(
-        funnc,
+        modelLoss,
         log_x0,
         args=arrgs,
         verbose=2,
