@@ -5,7 +5,6 @@ Core function for serology mechanistic tensor factorization
 from typing import Collection, Iterable, List, Union
 
 # Extended Python
-import jax.numpy as jnp
 import numpy as np
 import xarray as xr
 from scipy.optimize import least_squares
@@ -40,9 +39,9 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
     return [abundance, Ka]
 
 def phi(Phi, Rtot, L0, KxStar, Ka, f):
-    temp = jnp.einsum("jl,ijk->ilkj", Ka, (1.0 + Phi) ** (f - 1))
+    temp = np.einsum("jl,ijk->ilkj", Ka, (1.0 + Phi) ** (f - 1))
     Req = Rtot[:, :, :, np.newaxis] / (1.0 + f * L0 * temp)
-    Phi_temp = jnp.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
+    Phi_temp = np.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
     assert Phi_temp.shape == Phi.shape
     return Phi_temp
 
@@ -53,13 +52,16 @@ def phi_res(*args):
 def custom_root(f0, args):
 
     for ii in range(100):
-        resid = phi_res(f0 + 1.j, *args)
+        resid = phi_res(f0, *args)
+        reside = phi_res(f0 + 1e-6, *args)
 
-        fNew = f0 - resid.real / resid.imag
-        # print(f"iter {ii}: {np.linalg.norm(Phi.real)}")
+        df = (reside - resid) / 1e-6
+
+        fNew = f0 - resid / df
+        # print(f"iter {ii}: {np.linalg.norm(resid)}")
         f0 = np.maximum(fNew, 0)
 
-        if np.linalg.norm(resid.real) < 1e-18:
+        if np.linalg.norm(resid) < 1e-13:
             break
 
     return f0
