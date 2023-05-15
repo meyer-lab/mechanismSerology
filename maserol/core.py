@@ -152,7 +152,8 @@ def optimizeLoss(
     params: List = None,
 ) -> Tuple[np.ndarray, Dict]:
     """Optimization method to minimize modelLoss() output"""
-    n_subj, n_rec, n_ag = data.shape
+    n_samp, n_rcp, n_ag = data.shape
+    n_ab = len(ab_types)
 
     if params is None:
         params = initializeParams(data, ab_types=ab_types)
@@ -172,9 +173,15 @@ def optimizeLoss(
     )
 
     # Setup a matrix characterizing the block sparsity of the Jacobian
-    A = np.ones((n_rec, len(ab_types)), dtype=int)
-    jacHand = block_diag(*([A] * n_subj * n_ag))
-    jacHand = np.pad(jacHand, ((0, 0), (0, 1)), constant_values=1)
+    rcp_ab_block = np.ones((n_rcp, n_ab), dtype=int)
+    jac_sparsity = np.zeros((n_samp, n_ag, n_samp, n_ag, n_rcp, n_ab))
+    lil_guy = np.zeros((n_samp, n_ag), dtype=int)
+    idx = np.indices(lil_guy.shape)
+    jac_sparsity[*idx, *idx] = rcp_ab_block
+    jac_sparsity = np.moveaxis(jac_sparsity, 4, 1)
+    jac_sparsity = np.moveaxis(jac_sparsity, 5, 4)
+    jac_sparsity = jac_sparsity.reshape(n_samp * n_rcp * n_ag, n_samp * n_ab * n_ag)
+    jac_sparsity = np.pad(jac_sparsity, ((0, 0), (0, 1)), constant_values=1) # cheeky scaling factor
 
     print("")
     opt = least_squares(
@@ -183,7 +190,7 @@ def optimizeLoss(
         args=arrgs,
         verbose=2,
         tr_options={"atol": 1e-9, "btol": 1e-9},
-        jac_sparsity=jacHand,
+        jac_sparsity=jac_sparsity,
     )
 
     if not fitKa:
