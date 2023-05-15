@@ -9,7 +9,7 @@ import numpy as np
 import xarray as xr
 from scipy.optimize import least_squares
 from scipy.linalg import block_diag
-from sklearn.decomposition import NMF as non_neg_matrix_factor
+from sklearn.decomposition import NMF
 
 # Current Package
 from .preprocess import assembleKav, DEFAULT_AB_TYPES
@@ -214,7 +214,7 @@ def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
     ag_facs = np.zeros((len(abundance.Antigen), n_abs, n_comps))
     for ab_idx in range(n_abs):
         mat = abundance.isel(Antibody=ab_idx).values
-        model = non_neg_matrix_factor(n_comps, max_iter=1_000)
+        model = NMF(n_comps, max_iter=5_000)
         sample_slice = model.fit_transform(mat)
         ag_slice = model.components_
         # move the weight from ag_slice to sample_slice
