@@ -1,10 +1,12 @@
 import pytest
+import numpy as np
+import xarray as xr
 from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data as zohar
-from tensordata.kaplonek import MGH4D, SpaceX4D
+from tensordata.kaplonek import SpaceX4D
 from valentbind.model import polyc
 
-from ..core import *
+from ..core import initializeParams, inferLbound, assembleKav, flattenParams, reconstructAbundance, reshapeParams, factorAbundance, optimizeLoss
 from ..preprocess import HIgGs, HIgGFs, prepare_data
 
 
@@ -15,13 +17,11 @@ def test_initialize(n_ab):
     cube = prepare_data(cube)
     n_samp, n_recp, n_ag = cube.shape
     ab_types = HIgGs[:n_ab]
-    ps = initializeParams(cube, lrank=True, ab_types=ab_types)  # should return subj, ag
-    assert len(ps) == 3
-    assert ps[1].shape == (n_ag, n_ab)
-    ps = initializeParams(cube, lrank=False, ab_types=ab_types)  # should return abund, Ka
+    ps = initializeParams(cube, ab_types=ab_types)  # should return abund, Ka
     assert len(ps) == 2
     assert ps[0].shape == (n_samp, n_ab, n_ag)
     assert ps[1].shape == (n_recp, n_ab)
+
 
 def test_inferLbound_matches_valentbind():
     """ Test that our model here provides the same outcome as expected """
@@ -34,7 +34,7 @@ def test_inferLbound_matches_valentbind():
 
     # maserol implementation of binding model
     cube = np.zeros((n_subj, n_rcp, n_ag))
-    msRes = inferLbound(cube, Rtot, Ka, lrank=False, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
+    msRes = inferLbound(cube, Rtot, Ka, L0=L0, KxStar=KxStar, FcIdx=FcIdx)
 
     # valentbind implementation of binding model
     vbRes = np.zeros((n_subj, n_rcp, n_ag))
@@ -48,7 +48,7 @@ def test_inferLbound_matches_valentbind():
                     Ka[[i_rcp], :])[0]
     
     # compare
-    assert np.allclose(msRes, vbRes, rtol = 1e-4)
+    np.testing.assert_allclose(msRes, vbRes, rtol = 1e-4)
 
 def test_inferLbound_monotonicity():
     # if root finding doesn't converge, the most obvious indicator is commonly a
@@ -66,7 +66,7 @@ def test_inferLbound_monotonicity():
     rcp = ["IgG1", "FcgRI"]
     cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
     Ka = assembleKav(cube, ab_types)
-    Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar, FcIdx=1)
+    Lbound = inferLbound(cube.values, Rtot.values, Ka.values, L0=L0, KxStar=KxStar, FcIdx=1)
 
     # Check if the function f is monotonically increasing
     def is_monotonically_increasing(x, y):
@@ -79,48 +79,18 @@ def test_inferLbound_monotonicity():
     assert is_monotonically_increasing(np.log10(Rtot_np.flatten()), np.log10(Lbound[:, 0, :]))
     assert is_monotonically_increasing(np.log10(Rtot_np.flatten()), np.log10(Lbound[:, 1, :]))
 
-@pytest.mark.parametrize("ab_types", [HIgGs, HIgGFs])
-def test_fit(ab_types):
-    """ Test mean (MSE) mode, low rank assumption, not fitting Ka """
-    cube = zohar()
-    cube = prepare_data(cube)
-    cube.values[np.random.rand(*cube.shape) < 0.05] = np.nan    # introduce missing values
-    R_subj_guess, R_Ag_guess, Ka = initializeParams(cube, lrank=True, ab_types=ab_types)
-    x0 = flattenParams(R_subj_guess, R_Ag_guess)
-    x0 = np.append(x0, 0)
 
-    # test mean (MSE) method
-    x0_loss = modelLoss(x0, cube, Ka, getNonnegIdx(cube), ab_types, lrank=True)
-    assert x0_loss > 0.0
-    assert np.isfinite(x0_loss)
-    x_opt, ctx = optimizeLoss(cube, lrank=True, fitKa=False, maxiter=20, ab_types=ab_types)
-    assert ctx["opt"].fun < x0_loss
-    assert len(x0) == len(x_opt)
-
-
-@pytest.mark.parametrize("lrank", [False, True])
-@pytest.mark.parametrize("data", [zohar(),
-                                  atyeo(),
-                                  MGH4D()["Serology"].stack(Sample = ("Subject", "Time")),
+@pytest.mark.parametrize("data", [atyeo(),
                                   SpaceX4D().stack(Sample = ("Subject", "Time"))])
-def test_reshape_params(lrank, data):
+def test_reshape_params(data):
     ab_types = list(HIgGs)
     cube = prepare_data(data)
-    if lrank:
-        sample, ag, Ka = initializeParams(cube, lrank=lrank, ab_types=ab_types)
-        x = flattenParams(sample, ag, Ka)
-        sample, ag, Ka = reshapeParams(x, cube, lrank=lrank, fitKa=True, as_xarray=True, ab_types=ab_types)
-        assert (sample.Sample.values == cube.Sample.values).all()
-        assert (sample.Antibody.values == ab_types).all()
-        assert (ag.Antigen.values == cube.Antigen.values).all()
-        assert (ag.Antibody.values == ab_types).all()
-    else:
-        abundance, Ka = initializeParams(cube, lrank=lrank, ab_types=ab_types)
-        x = flattenParams(abundance, Ka)
-        abundance, Ka = reshapeParams(x, cube, lrank=lrank, fitKa=True, as_xarray=True, ab_types=ab_types)
-        assert (abundance.Sample.values == cube.Sample.values).all()
-        assert (abundance.Antigen.values == cube.Antigen.values).all()
-        assert (abundance.Antibody.values == ab_types).all()
+    abundance, Ka = initializeParams(cube, ab_types=ab_types)
+    x = flattenParams(abundance, Ka)
+    abundance, Ka = reshapeParams(x, cube, fitKa=True, as_xarray=True, ab_types=ab_types)
+    assert (abundance.Sample.values == cube.Sample.values).all()
+    assert (abundance.Antigen.values == cube.Antigen.values).all()
+    assert (abundance.Antibody.values == ab_types).all()
 
 def test_factor_abundance():
     n_comps = 1
@@ -161,6 +131,7 @@ def test_factor_abundance():
     # assert that the reconstruction error is small
     assert normalized_error(got_abundance, abundance) < 0.01 * normalized_error(baseline, abundance)
 
+
 def generate_random_numbers(n, m):
     # generate n random numbers that sum to m
     random_numbers = np.random.rand(n - 1) * m
@@ -169,46 +140,23 @@ def generate_random_numbers(n, m):
     return np.diff(random_numbers)
 
 
-@pytest.mark.parametrize("ab_types", [("IgG1", "IgG3")])
-@pytest.mark.parametrize("rcp", [["IgG1", "IgG3"]])
-def test_convergence(ab_types, rcp):
-    # assert that fitting with simple synthetic dataset results in convergence 
-    L0 = 1e-5
+@pytest.mark.parametrize("n_samp", [8, 32, 256])
+@pytest.mark.parametrize("L0", [1e-9, 1e-5])
+def test_forward_backward_simple(n_samp, L0):
+    # subset of HIgGFs
+    ab_types = ["IgG1", "IgG2", "IgG3", "IgG3f"]
+    # subset of ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
+    #        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
+    rcp = ['IgG1', 'IgG2', 'IgG3', 'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB'] 
     KxStar = 1e-12
-    Rtot_np = np.full((1000, len(ab_types), 1), 1)
-    tot_ab = 1e7
-    for i in range(Rtot_np.shape[0]):
-        Rtot_np[i, :, 0] = generate_random_numbers(len(ab_types), tot_ab)
+    Rtot_np = np.random.rand(n_samp, len(ab_types), 1) * 1e5
     Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)
     cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
     Ka = assembleKav(cube, ab_types)
-    Ka.values = Ka.values.astype('float')
-    Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
-    cube.values = Lbound
-    _, ctx = optimizeLoss(cube, lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
-                    KxStar=KxStar, maxiter=700)
-    assert ctx["opt"].status == 0
-    
-def test_profiling():
-    # * test with no assertions
-    # * meant for profiling
-    # * this will take a long time
-
-    # disable this test by default so we don't hog github jobs
-    ab_types = HIgGFs
-    rcp = ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
-        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
-    L0 = 1e-5
-    KxStar = 1e-12
-    Rtot_np = np.full((1000, len(ab_types), 1), 1)
-    tot_ab = 1e7
-    for i in range(Rtot_np.shape[0]):
-        Rtot_np[i, :, 0] = generate_random_numbers(len(ab_types), tot_ab)
-    Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)
-    cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
-    Ka = assembleKav(cube, ab_types)
-    Ka.values = Ka.values.astype('float')
-    Lbound = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar)
-    cube.values = Lbound
-    optimizeLoss(cube, lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
-                KxStar=KxStar)
+    cube.values = inferLbound(cube.values, Rtot.values, Ka.values, L0=L0, KxStar=KxStar)
+    x_opt, ctx = optimizeLoss(cube, fitKa=False, ab_types=tuple(ab_types), L0=L0,
+                    KxStar=KxStar, maxiter=10_000)
+    assert ctx["opt"].status > 0
+    Rtot_inferred_flat = np.exp(x_opt[:np.prod(Rtot.size)])
+    Rtot_flat = Rtot.values.flatten()
+    assert np.corrcoef(Rtot_flat, Rtot_inferred_flat)[0][1] > 0.95

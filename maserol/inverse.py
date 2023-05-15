@@ -1,8 +1,8 @@
 import numpy as np
 import seaborn as sns
-from scipy.stats import spearmanr
+import xarray as xr
 
-from .core import *
+from .core import inferLbound, assembleKav, optimizeLoss
 from .figures.common import getSetup
 
 
@@ -26,7 +26,7 @@ def genForwardSim(noise = 0.5, n_sample=1000, n_antigen=5):
                         ["Sample", "Receptor", "Antigen"])
 
     Ka = assembleKav(cube, tuple(ab_types))
-    cube.values = inferLbound(cube.values, Rtot.values, Ka.values, lrank=False, L0=L0, KxStar=KxStar,
+    cube.values = inferLbound(cube.values, Rtot.values, Ka.values, L0=L0, KxStar=KxStar,
                               FcIdx=len(ab_types))
     # add a Gaussian noise to measurements
     cube.values = cube + cube * np.random.randn(*cube.shape) * noise
@@ -40,7 +40,7 @@ def plotInverse():
 
     ax, f = getSetup((12, 4), (1, 1))
 
-    x, _ = optimizeLoss(cube, lrank=False, fitKa=False, ab_types=tuple(ab_types), L0=L0,
+    x, _ = optimizeLoss(cube, fitKa=False, ab_types=tuple(ab_types), L0=L0,
                         KxStar=KxStar)
     x = x[:np.prod(Rtot.shape)]
 
