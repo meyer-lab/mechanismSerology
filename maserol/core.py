@@ -146,7 +146,6 @@ def optimizeLoss(
     data: xr.DataArray,
     fitKa=DEFAULT_FIT_KA_VAL,
     ab_types: Collection = DEFAULT_AB_TYPES,
-    maxiter: int = 10000,
     L0=1e-9,
     KxStar=1e-12,
     FcIdx=DEFAULT_FC_IDX_VAL,

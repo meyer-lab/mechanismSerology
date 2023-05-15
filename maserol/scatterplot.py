@@ -36,11 +36,11 @@ def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
 
 
 def plotOptimize(data: xarray.DataArray, fitKa=False,
-                 ab_types=HIgGs, maxiter=500):
+                 ab_types=HIgGs):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
     x_opt, ctx = optimizeLoss(cube, fitKa=fitKa,
-                                        ab_types=ab_types, maxiter=maxiter)
+                                        ab_types=ab_types)
 
     init_lbound = inferLbound(cube, *ctx["init_params"])
 
