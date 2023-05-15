@@ -11,7 +11,7 @@ from maserol.preprocess import HIgGs, prepare_data
 from maserol.resample import bootstrap
 
 def makeFigure():
-    # skip
+    return plt.figure()
     cube = prepare_data(zohar())
     ab_types = HIgGs
     post_opt_factor = True

@@ -2,7 +2,7 @@
 Core function for serology mechanistic tensor factorization
 """
 # Base Python
-from typing import Collection, Iterable, List, Union
+from typing import Collection, Dict, Iterable, List, Tuple, Union
 
 # Extended Python
 import numpy as np
@@ -151,7 +151,7 @@ def optimizeLoss(
     KxStar=1e-12,
     FcIdx=DEFAULT_FC_IDX_VAL,
     params: List = None,
-):
+) -> Tuple[np.ndarray, Dict]:
     """Optimization method to minimize modelLoss() output"""
     n_subj, n_rec, n_ag = data.shape
 
@@ -190,7 +190,7 @@ def optimizeLoss(
     if not fitKa:
         params.append(Ka)
     ctx = {"opt": opt, "init_params": params}
-    ret = [opt.x, ctx]
+    ret = (opt.x, ctx)
     return ret
 
 
