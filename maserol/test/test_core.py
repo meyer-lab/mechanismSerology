@@ -22,6 +22,7 @@ def test_initialize(n_ab):
     assert ps[0].shape == (n_samp, n_ab, n_ag)
     assert ps[1].shape == (n_recp, n_ab)
 
+
 def test_inferLbound_matches_valentbind():
     """ Test that our model here provides the same outcome as expected """
     n_subj, n_rcp, n_ag, n_ab = 6, 5, 4, 3
@@ -47,7 +48,7 @@ def test_inferLbound_matches_valentbind():
                     Ka[[i_rcp], :])[0]
     
     # compare
-    assert np.allclose(msRes, vbRes, rtol = 1e-4)
+    np.testing.assert_allclose(msRes, vbRes, rtol = 1e-4)
 
 def test_inferLbound_monotonicity():
     # if root finding doesn't converge, the most obvious indicator is commonly a
@@ -143,7 +144,7 @@ def generate_random_numbers(n, m):
 @pytest.mark.parametrize("L0", [1e-9, 1e-5])
 def test_forward_backward_simple(n_samp, L0):
     # subset of HIgGFs
-    ab_types = ["IgG1", "IgG2", "IgG3"]
+    ab_types = ["IgG1", "IgG2", "IgG3", "IgG3f"]
     # subset of ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
     #        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
     rcp = ['IgG1', 'IgG2', 'IgG3', 'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB'] 
