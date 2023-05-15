@@ -52,16 +52,14 @@ def phi_res(*args):
 def custom_root(f0, args):
 
     for ii in range(100):
-        resid = phi_res(f0, *args)
-        reside = phi_res(f0 + 1e-6, *args)
+        f1 = phi_res(f0 + 1e-6*1.j, *args)
+    
+        df = f1.imag / 1e-6
 
-        df = (reside - resid) / 1e-6
-
-        fNew = f0 - resid / df
-        # print(f"iter {ii}: {np.linalg.norm(resid)}")
+        fNew = f0 - f1.real / df
         f0 = np.maximum(fNew, 0)
 
-        if np.linalg.norm(resid) < 1e-13:
+        if np.linalg.norm(f1.real) < 1e-13:
             break
 
     return f0
@@ -189,6 +187,8 @@ def optimizeLoss(
         log_x0,
         args=arrgs,
         verbose=2,
+        ftol=1e-9,
+        gtol=1e-9,
         tr_options={"atol": 1e-9, "btol": 1e-9},
         jac_sparsity=jac_sparsity,
     )
