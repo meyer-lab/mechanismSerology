@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import roc_auc_score
 
@@ -9,6 +10,7 @@ from maserol.preprocess import HIgGFs, HIgGs, prepare_data
 from maserol.regression import regression, get_labels_zohar, plot_roc, plot_confusion_matrix, plot_regression_weights, add_auc_label
 
 def makeFigure():
+    return plt.figure()
     cube = prepare_data(zohar())
 
     ab_types = HIgGFs
@@ -22,7 +24,6 @@ def makeFigure():
     labels, label_encoder = get_labels_zohar(multiclass=False)
     y_pred, model, x, y = regression(sample, labels, scale_x=0, l1_ratio=0)
     y_pred_no_fucose, model_no_fucose, x_no_fucose, y = regression(sample_no_fucose, labels, scale_x=0, l1_ratio=0)
-    axes, fig = getSetup((15, 8), (2, 3))
     palette = sns.color_palette("bright", 2)
     ax = plot_roc(x, y, model, label_encoder, axes[0], label="Fucose", palette=palette[0:1], auc_label=False)
     ax.set(title="ROC Curve for Progressor vs Controller Prediction")

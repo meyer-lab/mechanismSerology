@@ -9,12 +9,14 @@ from maserol.preprocess import prepare_data
 from maserol.regression import regression, get_labels_zohar, plot_roc, plot_confusion_matrix
 
 def makeFigure():
+    axes, fig = getSetup((10, 4), (1, 2))
+    # this needs to be recreated after lrank was abandoned
+    return fig
     cube = prepare_data(zohar())
     x_opt_lrank, _ = optimizeLoss(cube, lrank=True)
     sample, ag = reshapeParams(x_opt_lrank, cube, lrank=True)
     labels, label_encoder = get_labels_zohar()
     y_pred, model, x, y = regression(sample, labels, scale_x=0, l1_ratio=0)
-    axes, fig = getSetup((10, 4), (1, 2))
     ax = plot_roc(x, y, model, label_encoder, axes[0])
     ax.set(title="ROC Curves for Multi-Class Prediction (OVR)")
     ax = plot_confusion_matrix(x, y, model, label_encoder, axes[1])

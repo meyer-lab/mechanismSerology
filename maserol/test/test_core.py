@@ -155,7 +155,7 @@ def test_forward_backward_simple(n_samp, L0):
     Ka = assembleKav(cube, ab_types)
     cube.values = inferLbound(cube.values, Rtot.values, Ka.values, L0=L0, KxStar=KxStar)
     x_opt, ctx = optimizeLoss(cube, fitKa=False, ab_types=tuple(ab_types), L0=L0,
-                    KxStar=KxStar, maxiter=10_000)
+                    KxStar=KxStar)
     assert ctx["opt"].status > 0
     Rtot_inferred_flat = np.exp(x_opt[:np.prod(Rtot.size)])
     Rtot_flat = Rtot.values.flatten()

@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib
 import seaborn as sns
 from .preprocess import makeRcpAgLabels, HIgGs, assembleKav, prepare_data
-from .core import getNonnegIdx, inferLbound, reshapeParams, optimizeLoss, DEFAULT_FIT_KA_VAL, DEFAULT_LRANK_VAL
+from .core import inferLbound, reshapeParams, optimizeLoss, DEFAULT_FIT_KA_VAL
 from .figures.common import getSetup
 
 
@@ -14,11 +14,11 @@ def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
     assert data.shape == lbound.shape
     cube_flat = data.values.flatten()
 
-    valid = getNonnegIdx(data)
+    valid_idx = np.where(cube_flat > 0)
     receptor_labels, antigen_labels = makeRcpAgLabels(data)
 
-    x = cube_flat[valid]
-    y = lbound.flatten()[valid]
+    x = cube_flat[valid_idx]
+    y = lbound.flatten()[valid_idx]
     if logscale:
         x = np.log(x)
         y = np.log(y)
@@ -26,8 +26,8 @@ def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
     # plot
     f = sns.scatterplot(x=x,
                         y=y, 
-                        hue=receptor_labels[valid],
-                        style=antigen_labels[valid],
+                        hue=receptor_labels[valid_idx],
+                        style=antigen_labels[valid_idx],
                         ax=ax, s=70, alpha=0.5)
     f.legend(title="Receptor | Antigen", bbox_to_anchor=(1, 1), borderaxespad=0)
     f.set_xlabel("Actual", fontsize=12)
@@ -35,19 +35,19 @@ def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
     return f
 
 
-def plotOptimize(data: xarray.DataArray, lrank=True, fitKa=False,
-                 ab_types=HIgGs, maxiter=500):
+def plotOptimize(data: xarray.DataArray, fitKa=False,
+                 ab_types=HIgGs):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
-    x_opt, ctx = optimizeLoss(cube, lrank=lrank, fitKa=fitKa,
-                                        ab_types=ab_types, maxiter=maxiter)
+    x_opt, ctx = optimizeLoss(cube, fitKa=fitKa,
+                                        ab_types=ab_types)
 
-    init_lbound = inferLbound(cube, *ctx["init_params"], lrank=lrank)
+    init_lbound = inferLbound(cube, *ctx["init_params"])
 
-    new_p = reshapeParams(x_opt, cube, lrank=lrank, fitKa=fitKa, ab_types=ab_types)
+    new_p = reshapeParams(x_opt, cube, fitKa=fitKa, ab_types=ab_types)
     if not fitKa:
         new_p.append(ctx["init_params"][-1])
-    final_lbound = inferLbound(cube, *new_p, lrank=lrank)
+    final_lbound = inferLbound(cube, *new_p)
 
     init_scaler = np.random.rand(1) * 2
     final_scaler = x_opt[-1]
@@ -70,8 +70,9 @@ def plotOptimize(data: xarray.DataArray, lrank=True, fitKa=False,
 def gen_R_labels(cube, lbound):
     """ Make a long string on the R breakdowns for plotting purpose """
     retstr = ""
-    valid_idx = getNonnegIdx(cube)
-    rtot = np.corrcoef(np.ravel(cube)[valid_idx], np.ravel(lbound)[valid_idx])[0, 1]
+    cube_flat = np.ravel(cube)
+    valid_idx = np.where(cube_flat > 0)
+    rtot = np.corrcoef(cube_flat[valid_idx], np.ravel(lbound)[valid_idx])[0, 1]
     retstr += '$r_{total}$' + r'= {:.2f}'.format(rtot) + '\n'
     return retstr
 
@@ -113,7 +114,7 @@ def plotLbound(data: xarray.DataArray, lbound: Union[xarray.DataArray, np.ndarra
     return f
 
 
-def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
+def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], fitKa=DEFAULT_FIT_KA_VAL) -> np.ndarray:
     """
     Trains the model, leaving out the receptors specified by rec.
 
@@ -128,12 +129,11 @@ def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], **opt_kwargs
         rec = [rec]
     idx = np.where(np.logical_not(np.isin(data.Receptor.values, rec)))
     data_no_rec = data.isel(Receptor=idx[0])
-    opt_x, _ = optimizeLoss(data_no_rec, **opt_kwargs)
-    infer_lbound_kwargs = {k: v for k, v in opt_kwargs.items() if k in ("lrank", "fitKa")}
-    params = reshapeParams(opt_x, data, **infer_lbound_kwargs)
-    if not opt_kwargs.get("fitKa", DEFAULT_FIT_KA_VAL):
+    opt_x, _ = optimizeLoss(data_no_rec, fitKa=fitKa)
+    params = reshapeParams(opt_x, data, fitKa=fitKa)
+    if not fitKa:
         params.append(assembleKav(data).values)
-    lbound = inferLbound(data, *params, lrank=opt_kwargs.get("lrank", DEFAULT_LRANK_VAL))
+    lbound = inferLbound(data, *params)
     return lbound
 
 

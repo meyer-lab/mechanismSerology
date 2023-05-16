@@ -2,14 +2,15 @@
 Core function for serology mechanistic tensor factorization
 """
 # Base Python
-from typing import Collection, Iterable, List, Union
+from typing import Collection, Dict, Iterable, List, Tuple, Union
 
 # Extended Python
 import numpy as np
+from numba import njit
 import xarray as xr
 from scipy.optimize import least_squares
-from scipy.linalg import block_diag
 from sklearn.decomposition import NMF
+from scipy.sparse import coo_matrix
 
 # Current Package
 from .preprocess import assembleKav, DEFAULT_AB_TYPES
@@ -31,37 +32,32 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
     Returns:
         The list of parameters.
     """
-    n_ab_types = len(ab_types)
     Ka = assembleKav(cube, ab_types).values
-    samp = np.random.uniform(1E-1, 1E3, (cube.shape[0], n_ab_types))
-    ag = np.random.uniform(0, 1, (cube.shape[2], n_ab_types))
-    abundance = np.einsum("ij,kj->ijk", samp, ag)
+    abundance = np.random.uniform(1E0, 1E4, (cube.sizes["Sample"], len(ab_types), cube.sizes["Antigen"]))
     return [abundance, Ka]
 
-def phi(Phi, Rtot, L0, KxStar, Ka, f):
-    temp = np.einsum("jl,ijk->ilkj", Ka, (1.0 + Phi) ** (f - 1))
-    Req = Rtot[:, :, :, np.newaxis] / (1.0 + f * L0 * temp)
-    Phi_temp = np.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
+
+@njit
+def phi(Phi: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int):
+    temp = Ka[np.newaxis, :, :, np.newaxis] * (1.0 + Phi[:, :, np.newaxis, :]) ** (f - 1)
+    Req = Rtot[:, np.newaxis, :, :] / (1.0 + f * L0 * temp)
+    Phi_temp = np.sum(Ka[np.newaxis, :, :, np.newaxis] * Req, axis=2) * KxStar
     assert Phi_temp.shape == Phi.shape
     return Phi_temp
 
-def phi_res(*args):
-    return phi(*args) - args[0]
 
-
-def custom_root(f0, args):
+def custom_root(f0: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int):
 
     for ii in range(100):
-        resid = phi_res(f0, *args)
-        reside = phi_res(f0 + 1e-6, *args)
+        x0 = f0 + 1e-6*1.j
+        f1 = phi(x0, Rtot, L0, KxStar, Ka, f) - x0 # phi_res
+    
+        df = f1.imag / 1e-6
 
-        df = (reside - resid) / 1e-6
-
-        fNew = f0 - resid / df
-        # print(f"iter {ii}: {np.linalg.norm(resid)}")
+        fNew = f0 - f1.real / df
         f0 = np.maximum(fNew, 0)
 
-        if np.linalg.norm(resid) < 1e-13:
+        if np.linalg.norm(f1.real) < 1e-13:
             break
 
     return f0
@@ -82,8 +78,8 @@ def inferLbound(cube: np.ndarray, Rtot, Ka: np.ndarray, L0=1e-9, KxStar=1e-12, F
         KxStarAb, KxStarRcp = KxStar, KxStar
 
     Phi = np.zeros(cube.shape[0:3])
-    Phi_Ab = custom_root(Phi[:, :FcIdx, :], args=(Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY))
-    Phi_Fc = custom_root(Phi[:, FcIdx:, :], args=(Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY))
+    Phi_Ab = custom_root(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
+    Phi_Fc = custom_root(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
 
     Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi_Ab) ** AB_VALENCY - 1.0)
     Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi_Fc) ** FC_VALENCY - 1.0)
@@ -146,14 +142,14 @@ def optimizeLoss(
     data: xr.DataArray,
     fitKa=DEFAULT_FIT_KA_VAL,
     ab_types: Collection = DEFAULT_AB_TYPES,
-    maxiter: int = 10000,
     L0=1e-9,
     KxStar=1e-12,
     FcIdx=DEFAULT_FC_IDX_VAL,
     params: List = None,
-):
+) -> Tuple[np.ndarray, Dict]:
     """Optimization method to minimize modelLoss() output"""
-    n_subj, n_rec, n_ag = data.shape
+    n_samp, n_rcp, n_ag = data.shape
+    n_ab = len(ab_types)
 
     if params is None:
         params = initializeParams(data, ab_types=ab_types)
@@ -173,9 +169,15 @@ def optimizeLoss(
     )
 
     # Setup a matrix characterizing the block sparsity of the Jacobian
-    A = np.ones((n_rec, len(ab_types)), dtype=int)
-    jacHand = block_diag(*([A] * n_subj * n_ag))
-    jacHand = np.pad(jacHand, ((0, 0), (0, 1)), constant_values=1)
+    rcp_ab_block = np.ones((n_rcp, n_ab), dtype=int)
+    jac_sparsity = np.zeros((n_samp, n_ag, n_samp, n_ag, n_rcp, n_ab), dtype=int)
+    lil_guy = np.zeros((n_samp, n_ag), dtype=int)
+    idx = np.indices(lil_guy.shape)
+    jac_sparsity[*idx, *idx] = rcp_ab_block
+    jac_sparsity = np.moveaxis(jac_sparsity, (4, 5), (1, 4))
+    jac_sparsity = jac_sparsity.reshape(n_samp * n_rcp * n_ag, n_samp * n_ab * n_ag)
+    jac_sparsity = np.pad(jac_sparsity, ((0, 0), (0, 1)), constant_values=1) # cheeky scaling factor
+    jac_sparsity = coo_matrix(jac_sparsity)
 
     print("")
     opt = least_squares(
@@ -183,14 +185,15 @@ def optimizeLoss(
         log_x0,
         args=arrgs,
         verbose=2,
-        tr_options={"atol": 1e-9, "btol": 1e-9},
-        jac_sparsity=jacHand,
+        ftol=1e-9,
+        gtol=1e-9,
+        jac_sparsity=jac_sparsity,
     )
 
     if not fitKa:
         params.append(Ka)
     ctx = {"opt": opt, "init_params": params}
-    ret = [opt.x, ctx]
+    ret = (opt.x, ctx)
     return ret
 
 

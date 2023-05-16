@@ -10,6 +10,7 @@ from maserol.subclass_amount import plot_ab_aggs
 
 def makeFigure():
     axes, fig = getSetup((9, 4.5), (1, 2))
+    return fig
     gp120 = load_file("data-glycan-gp120")
     abs = HIgGFs
     cube_alter = prepare_data(alter()["Fc"], data_id="alter")
