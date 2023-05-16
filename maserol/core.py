@@ -31,11 +31,8 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
     Returns:
         The list of parameters.
     """
-    n_ab_types = len(ab_types)
     Ka = assembleKav(cube, ab_types).values
-    samp = np.random.uniform(1E-1, 1E3, (cube.shape[0], n_ab_types))
-    ag = np.random.uniform(0, 1, (cube.shape[2], n_ab_types))
-    abundance = np.einsum("ij,kj->ijk", samp, ag)
+    abundance = np.random.uniform(1E0, 1E4, (cube.sizes["Sample"], len(ab_types), cube.sizes["Antigen"]))
     return [abundance, Ka]
 
 def phi(Phi, Rtot, L0, KxStar, Ka, f):
@@ -172,7 +169,7 @@ def optimizeLoss(
 
     # Setup a matrix characterizing the block sparsity of the Jacobian
     rcp_ab_block = np.ones((n_rcp, n_ab), dtype=int)
-    jac_sparsity = np.zeros((n_samp, n_ag, n_samp, n_ag, n_rcp, n_ab))
+    jac_sparsity = np.zeros((n_samp, n_ag, n_samp, n_ag, n_rcp, n_ab), dtype=int)
     lil_guy = np.zeros((n_samp, n_ag), dtype=int)
     idx = np.indices(lil_guy.shape)
     jac_sparsity[*idx, *idx] = rcp_ab_block
