@@ -6,10 +6,11 @@ from typing import Collection, Dict, Iterable, List, Tuple, Union
 
 # Extended Python
 import numpy as np
+from numba import njit
 import xarray as xr
 from scipy.optimize import least_squares
-from scipy.linalg import block_diag
 from sklearn.decomposition import NMF
+from scipy.sparse import coo_matrix
 
 # Current Package
 from .preprocess import assembleKav, DEFAULT_AB_TYPES
@@ -35,21 +36,21 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
     abundance = np.random.uniform(1E0, 1E4, (cube.sizes["Sample"], len(ab_types), cube.sizes["Antigen"]))
     return [abundance, Ka]
 
-def phi(Phi, Rtot, L0, KxStar, Ka, f):
-    temp = np.einsum("jl,ijk->ilkj", Ka, (1.0 + Phi) ** (f - 1))
-    Req = Rtot[:, :, :, np.newaxis] / (1.0 + f * L0 * temp)
-    Phi_temp = np.einsum("jl,ilkj->ijk", Ka * KxStar, Req)
+
+@njit
+def phi(Phi: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int):
+    temp = Ka[np.newaxis, :, :, np.newaxis] * (1.0 + Phi[:, :, np.newaxis, :]) ** (f - 1)
+    Req = Rtot[:, np.newaxis, :, :] / (1.0 + f * L0 * temp)
+    Phi_temp = np.sum(Ka[np.newaxis, :, :, np.newaxis] * Req, axis=2) * KxStar
     assert Phi_temp.shape == Phi.shape
     return Phi_temp
 
-def phi_res(*args):
-    return phi(*args) - args[0]
 
-
-def custom_root(f0, args):
+def custom_root(f0: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int):
 
     for ii in range(100):
-        f1 = phi_res(f0 + 1e-6*1.j, *args)
+        x0 = f0 + 1e-6*1.j
+        f1 = phi(x0, Rtot, L0, KxStar, Ka, f) - x0 # phi_res
     
         df = f1.imag / 1e-6
 
@@ -77,8 +78,8 @@ def inferLbound(cube: np.ndarray, Rtot, Ka: np.ndarray, L0=1e-9, KxStar=1e-12, F
         KxStarAb, KxStarRcp = KxStar, KxStar
 
     Phi = np.zeros(cube.shape[0:3])
-    Phi_Ab = custom_root(Phi[:, :FcIdx, :], args=(Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY))
-    Phi_Fc = custom_root(Phi[:, FcIdx:, :], args=(Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY))
+    Phi_Ab = custom_root(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
+    Phi_Fc = custom_root(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
 
     Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi_Ab) ** AB_VALENCY - 1.0)
     Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi_Fc) ** FC_VALENCY - 1.0)
@@ -173,10 +174,10 @@ def optimizeLoss(
     lil_guy = np.zeros((n_samp, n_ag), dtype=int)
     idx = np.indices(lil_guy.shape)
     jac_sparsity[*idx, *idx] = rcp_ab_block
-    jac_sparsity = np.moveaxis(jac_sparsity, 4, 1)
-    jac_sparsity = np.moveaxis(jac_sparsity, 5, 4)
+    jac_sparsity = np.moveaxis(jac_sparsity, (4, 5), (1, 4))
     jac_sparsity = jac_sparsity.reshape(n_samp * n_rcp * n_ag, n_samp * n_ab * n_ag)
     jac_sparsity = np.pad(jac_sparsity, ((0, 0), (0, 1)), constant_values=1) # cheeky scaling factor
+    jac_sparsity = coo_matrix(jac_sparsity)
 
     print("")
     opt = least_squares(
@@ -186,7 +187,6 @@ def optimizeLoss(
         verbose=2,
         ftol=1e-9,
         gtol=1e-9,
-        tr_options={"atol": 1e-9, "btol": 1e-9},
         jac_sparsity=jac_sparsity,
     )
 
