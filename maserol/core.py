@@ -28,7 +28,7 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
         lrank: Determines whether we should assume a low-rank structure for the
           abundance matrix. If true, return Sample and Ag matrices, else return
           Abundance matrix
-    
+
     Returns:
         The list of parameters.
     """
@@ -46,21 +46,22 @@ def phi(Phi: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndar
     return Phi_temp
 
 
-def custom_root(f0: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int):
+def custom_root(
+    f0: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int
+):
+    for ii in range(50):
+        x0 = f0 + 1e-9 * 1.0j
+        f1 = phi(x0, Rtot, L0, KxStar, Ka, f) - x0  # phi_res
 
-    for ii in range(100):
-        x0 = f0 + 1e-6*1.j
-        f1 = phi(x0, Rtot, L0, KxStar, Ka, f) - x0 # phi_res
-    
-        df = f1.imag / 1e-6
-
+        df = f1.imag / 1e-9
         fNew = f0 - f1.real / df
-        f0 = np.maximum(fNew, 0)
 
-        if np.linalg.norm(f1.real) < 1e-13:
+        f0 = phi(fNew, Rtot, L0, KxStar, Ka, f)
+
+        if np.linalg.norm(f1.real) < 1e-8:
             break
 
-    return f0
+    return np.maximum(f0, 0)
 
 
 def inferLbound(cube: np.ndarray, Rtot, Ka: np.ndarray, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL):
