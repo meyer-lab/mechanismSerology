@@ -38,25 +38,30 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
 
 
 @njit
-def phi(Phi: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int):
-    temp = Ka[np.newaxis, :, :, np.newaxis] * (1.0 + Phi[:, :, np.newaxis, :]) ** (f - 1)
-    Req = Rtot[:, np.newaxis, :, :] / (1.0 + f * L0 * temp)
-    Phi_temp = np.sum(Ka[np.newaxis, :, :, np.newaxis] * Req, axis=2) * KxStar
+def phi(Phi, KaRT, fLKa, f):
+    Phi_temp = np.sum(KaRT / (1.0 + fLKa * (1.0 + Phi[:, :, np.newaxis, :]) ** (f - 1)), axis=2)
     assert Phi_temp.shape == Phi.shape
     return Phi_temp
 
 
-def custom_root(
-    f0: np.ndarray, Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int
-):
+def custom_root(Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int):
+    # Precalculate these quantities for speed
+    KaRT = Ka[np.newaxis, :, :, np.newaxis] * Rtot[:, np.newaxis, :, :] * KxStar
+    fLKa = f * L0 * Ka[np.newaxis, :, :, np.newaxis]
+
+    # Solve for an initial guess by using f = 2
+    a = np.sum(fLKa, axis=2)
+    b = 1 + a
+    f0 = (-b + np.sqrt(b**2 + 4 * a * np.sum(KaRT, axis=2))) / 2 / a
+
     for ii in range(50):
         x0 = f0 + 1e-9 * 1.0j
-        f1 = phi(x0, Rtot, L0, KxStar, Ka, f) - x0  # phi_res
+        f1 = phi(x0, KaRT, fLKa, f) - x0  # phi_res
 
         df = f1.imag / 1e-9
         fNew = f0 - f1.real / df
 
-        f0 = phi(fNew, Rtot, L0, KxStar, Ka, f)
+        f0 = phi(fNew, KaRT, fLKa, f)
 
         if np.linalg.norm(f1.real) < 1e-8:
             break
@@ -78,9 +83,8 @@ def inferLbound(cube: np.ndarray, Rtot, Ka: np.ndarray, L0=1e-9, KxStar=1e-12, F
     else:
         KxStarAb, KxStarRcp = KxStar, KxStar
 
-    Phi = np.zeros(cube.shape[0:3])
-    Phi_Ab = custom_root(Phi[:, :FcIdx, :], Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
-    Phi_Fc = custom_root(Phi[:, FcIdx:, :], Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
+    Phi_Ab = custom_root(Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
+    Phi_Fc = custom_root(Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
 
     Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi_Ab) ** AB_VALENCY - 1.0)
     Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi_Fc) ** FC_VALENCY - 1.0)
