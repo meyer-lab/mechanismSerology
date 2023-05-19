@@ -6,7 +6,6 @@ from typing import Collection, Dict, Iterable, List, Tuple, Union
 
 # Extended Python
 import numpy as np
-from numba import njit
 import xarray as xr
 from scipy.optimize import least_squares
 from sklearn.decomposition import NMF
@@ -37,7 +36,6 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
     return [abundance, Ka]
 
 
-@njit
 def phi(Phi, KaRT, fLKa, f):
     Phi_temp = np.sum(KaRT / (1.0 + fLKa * (1.0 + Phi[:, :, np.newaxis, :]) ** (f - 1)), axis=2)
     assert Phi_temp.shape == Phi.shape
