@@ -74,11 +74,13 @@ def prepare_data(data: xr.DataArray, remove_rcp=None, data_id=None):
     return data
 
 
-def get_affinity(rcp: str, ab_type: str) -> float:
+def get_affinity(rcp: str, ab_type: str, newAff=False) -> float:
     """ 
     Given a receptor and an antibody, returns their affinity value in human.
     """
     df = pd.read_csv(PROJ_DIR / "data" / "human-affinities.csv", 
+                     delimiter=",", comment="#", index_col=0) if not newAff else \
+         pd.read_csv(PROJ_DIR / "data" / "cellrep-affinities.csv",
                      delimiter=",", comment="#", index_col=0)
 
     # figure out of receptor uses iii or 1,2,3 system
@@ -103,7 +105,7 @@ def get_affinity(rcp: str, ab_type: str) -> float:
         raise AffinityNotFoundException(rcp, ab_type)
 
 
-def assembleKav(data: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) -> xr.DataArray:
+def assembleKav(data: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES, newAff=False) -> xr.DataArray:
     """ Assemble affinity matrix for a given dataset. """
     receptors = data.Receptor.values    # work even when data did not go thru prepare_data()
     igg = [x for x in receptors if (re.match("^igg", x, flags=re.IGNORECASE))]
@@ -124,7 +126,7 @@ def assembleKav(data: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) -> xr
         for r in receptors:
             if r in igg:
                 continue
-            Kav.loc[dict(Receptor=r, Abs=ab)] = get_affinity(r, ab)
+            Kav.loc[dict(Receptor=r, Abs=ab)] = get_affinity(r, ab, newAff=newAff)
     
     Kav.values[np.where(Kav.values<10.0)] = 10
     Kav.values = Kav.values.astype('float')
