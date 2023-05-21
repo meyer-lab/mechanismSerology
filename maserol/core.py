@@ -17,7 +17,7 @@ from .preprocess import assembleKav, DEFAULT_AB_TYPES
 DEFAULT_FIT_KA_VAL = False
 DEFAULT_FC_IDX_VAL = 4
 
-def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) -> List:
+def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES, newAff=False) -> List:
     """
     Generate initial guesses for input parameters.
 
@@ -31,7 +31,7 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
     Returns:
         The list of parameters.
     """
-    Ka = assembleKav(cube, ab_types).values
+    Ka = assembleKav(cube, ab_types, newAff=newAff).values
     abundance = np.random.uniform(1E0, 1E4, (cube.sizes["Sample"], len(ab_types), cube.sizes["Antigen"]))
     return [abundance, Ka]
 
@@ -149,13 +149,14 @@ def optimizeLoss(
     KxStar=1e-12,
     FcIdx=DEFAULT_FC_IDX_VAL,
     params: List = None,
+    newAff=False,
 ) -> Tuple[np.ndarray, Dict]:
     """Optimization method to minimize modelLoss() output"""
     n_samp, n_rcp, n_ag = data.shape
     n_ab = len(ab_types)
 
     if params is None:
-        params = initializeParams(data, ab_types=ab_types)
+        params = initializeParams(data, ab_types=ab_types, newAff=newAff)
     Ka = params[-1]
     if not fitKa:
         params = params[:-1]
