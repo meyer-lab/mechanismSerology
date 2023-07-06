@@ -138,7 +138,7 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
     Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), L0=L0, KxStar=KxStar, FcIdx=FcIdx)
     scaling_factor = log_x[-1]
 
-    return np.nan_to_num(np.log(cube) - np.log(Lbound) + scaling_factor).flatten()
+    return np.nan_to_num(np.log(cube) - np.log(Lbound) + scaling_factor, neginf=0).flatten()
 
 
 def optimizeLoss(

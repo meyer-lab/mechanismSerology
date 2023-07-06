@@ -142,14 +142,15 @@ def generate_random_numbers(n, m):
 
 @pytest.mark.parametrize("n_samp", [8, 32, 256])
 @pytest.mark.parametrize("L0", [1e-9, 1e-5])
-def test_forward_backward_simple(n_samp, L0):
+@pytest.mark.parametrize("rcp_high", [1e5, 1e6])
+def test_forward_backward_simple(n_samp, L0, rcp_high):
     # subset of HIgGFs
     ab_types = ["IgG1", "IgG2", "IgG3", "IgG3f"]
     # subset of ['IgG1', 'IgG2', 'IgG3', 'IgG4', 'FcgRI', 'FcgRIIA-131H', 'FcgRIIA-131R',
     #        'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB', 'C1q']
     rcp = ['IgG1', 'IgG2', 'IgG3', 'FcgRIIB-232I', 'FcgRIIIA-158F', 'FcgRIIIA-158V', 'FcgRIIIB'] 
     KxStar = 1e-12
-    Rtot_np = np.random.rand(n_samp, len(ab_types), 1) * 1e5
+    Rtot_np = np.random.uniform(high=rcp_high, size=(n_samp, len(ab_types), 1))
     Rtot = xr.DataArray(Rtot_np, [np.arange(Rtot_np.shape[0]), list(ab_types), np.arange(Rtot_np.shape[2])], ["Sample", "Antibody", "Antigen"],)
     cube = xr.DataArray(np.zeros((Rtot.shape[0], len(rcp), Rtot.shape[2])), (Rtot.Sample.values, rcp, Rtot.Antigen.values),  ("Sample", "Receptor", "Antigen"))
     Ka = assembleKav(cube, ab_types)
