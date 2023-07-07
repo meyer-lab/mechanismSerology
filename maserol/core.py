@@ -7,7 +7,7 @@ from typing import Collection, Dict, Iterable, List, Tuple, Union
 # Extended Python
 import numpy as np
 import xarray as xr
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, newton
 from sklearn.decomposition import NMF
 from scipy.sparse import coo_matrix
 
@@ -32,7 +32,8 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
         The list of parameters.
     """
     Ka = assembleKav(cube, ab_types).values
-    abundance = np.random.uniform(1E0, 1E4, (cube.sizes["Sample"], len(ab_types), cube.sizes["Antigen"]))
+    log_mean = np.mean(np.log10(cube))
+    abundance = np.random.uniform(10 ** (log_mean - 4), 10 ** (log_mean + 2), (cube.sizes["Sample"], len(ab_types), cube.sizes["Antigen"]))
     return [abundance, Ka]
 
 
@@ -40,6 +41,9 @@ def phi(Phi, KaRT, fLKa, f):
     Phi_temp = np.sum(KaRT / (1.0 + fLKa * (1.0 + Phi[:, :, np.newaxis, :]) ** (f - 1)), axis=2)
     assert Phi_temp.shape == Phi.shape
     return Phi_temp
+
+def phi_res(*args):
+    return phi(*args) - args[0]
 
 
 def custom_root(Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: int):
@@ -50,21 +54,16 @@ def custom_root(Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: i
     # Solve for an initial guess by using f = 2
     a = np.sum(fLKa, axis=2)
     b = 1 + a
+    # quadratic formula
     f0 = (-b + np.sqrt(b**2 + 4 * a * np.sum(KaRT, axis=2))) / 2 / a
 
-    for ii in range(50):
-        x0 = f0 + 1e-9 * 1.0j
-        f1 = phi(x0, KaRT, fLKa, f) - x0  # phi_res
-
-        df = f1.imag / 1e-9
-        fNew = f0 - f1.real / df
-
-        f0 = phi(fNew, KaRT, fLKa, f)
-
-        if np.linalg.norm(f1.real) < 1e-8:
-            break
-
-    return np.maximum(f0, 0)
+    root = newton(phi_res, f0, maxiter=10000, args=(KaRT, fLKa, f))
+    
+    # root finding should come up with a positive number
+    # if this assertion fails we need to come up with a workaround
+    # setting to 0 will lead to an inf in modelLoss
+    assert np.all(root > 0) 
+    return root
 
 
 def inferLbound(cube: np.ndarray, Rtot, Ka: np.ndarray, L0=1e-9, KxStar=1e-12, FcIdx=DEFAULT_FC_IDX_VAL):
@@ -136,9 +135,7 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
     if isinstance(cube, xr.DataArray):
         cube = np.array(cube)
     Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), L0=L0, KxStar=KxStar, FcIdx=FcIdx)
-    scaling_factor = log_x[-1]
-
-    return np.nan_to_num(np.log(cube) - np.log(Lbound) + scaling_factor, neginf=0).flatten()
+    return (np.nan_to_num(np.log(cube), neginf=0) - np.log(Lbound)).flatten()
 
 
 def optimizeLoss(
@@ -159,8 +156,8 @@ def optimizeLoss(
     Ka = params[-1]
     if not fitKa:
         params = params[:-1]
-    # flatten params and append scaling factor
-    log_x0 = np.append(flattenParams(*params), np.random.rand(1) * 2)
+    log_x0 = flattenParams(*params)
+
     arrgs = (
         data.values,
         Ka,  # if fitKa this value won't be used
@@ -179,7 +176,6 @@ def optimizeLoss(
     jac_sparsity[*idx, *idx] = rcp_ab_block
     jac_sparsity = np.moveaxis(jac_sparsity, (4, 5), (1, 4))
     jac_sparsity = jac_sparsity.reshape(n_samp * n_rcp * n_ag, n_samp * n_ab * n_ag)
-    jac_sparsity = np.pad(jac_sparsity, ((0, 0), (0, 1)), constant_values=1) # cheeky scaling factor
     jac_sparsity = coo_matrix(jac_sparsity)
 
     print("")
@@ -188,9 +184,10 @@ def optimizeLoss(
         log_x0,
         args=arrgs,
         verbose=2,
-        ftol=1e-9,
-        gtol=1e-9,
         jac_sparsity=jac_sparsity,
+        ftol=1e-5,
+        gtol=1e-5,
+        xtol=1e-5,
     )
 
     if not fitKa:

@@ -140,9 +140,9 @@ def generate_random_numbers(n, m):
     return np.diff(random_numbers)
 
 
-@pytest.mark.parametrize("n_samp", [8, 32, 256])
+@pytest.mark.parametrize("n_samp", [10, 100, 1000])
 @pytest.mark.parametrize("L0", [1e-9, 1e-5])
-@pytest.mark.parametrize("rcp_high", [1e5, 1e6])
+@pytest.mark.parametrize("rcp_high", [1e2, 1e5, 1e8])
 def test_forward_backward_simple(n_samp, L0, rcp_high):
     # subset of HIgGFs
     ab_types = ["IgG1", "IgG2", "IgG3", "IgG3f"]
