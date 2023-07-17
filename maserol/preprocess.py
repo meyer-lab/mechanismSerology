@@ -80,6 +80,10 @@ def get_affinity(rcp: str, ab_type: str) -> float:
     """
     df = pd.read_csv(PROJ_DIR / "data" / "human-affinities.csv", 
                      delimiter=",", comment="#", index_col=0)
+    
+    if re.search("^IgG[1-4]$", rcp):
+        # subclass-specific detection reagent
+        return df.at[rcp, ab_type]
 
     # figure out of receptor uses iii or 1,2,3 system
     x = re.search("3|2|1|i+", rcp, flags=re.IGNORECASE)
@@ -106,24 +110,15 @@ def get_affinity(rcp: str, ab_type: str) -> float:
 def assembleKav(data: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) -> xr.DataArray:
     """ Assemble affinity matrix for a given dataset. """
     receptors = data.Receptor.values    # work even when data did not go thru prepare_data()
-    igg = [x for x in receptors if (re.match("^igg", x, flags=re.IGNORECASE))]
 
     # assemble matrix
     Kav = xr.DataArray(np.full((receptors.size, len(ab_types)), 10),
                        coords=[receptors, list(ab_types)],
                        dims=["Receptor", "Abs"])
 
-    # fill in all IgG - IgG pair affinity values
-    for ab in ab_types:
-        for ig in igg:
-            if (ab == ig or ab[:-1] == ig):
-                Kav.loc[dict(Receptor=ig, Abs=ab)] = 1e7      # default affinity for anti-IgGx Ab
-
     # fill in remaining affinity values
     for ab in ab_types:
         for r in receptors:
-            if r in igg:
-                continue
             Kav.loc[dict(Receptor=r, Abs=ab)] = get_affinity(r, ab)
     
     Kav.values[np.where(Kav.values<10.0)] = 10

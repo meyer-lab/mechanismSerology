@@ -132,14 +132,6 @@ def test_factor_abundance():
     assert normalized_error(got_abundance, abundance) < 0.01 * normalized_error(baseline, abundance)
 
 
-def generate_random_numbers(n, m):
-    # generate n random numbers that sum to m
-    random_numbers = np.random.rand(n - 1) * m
-    random_numbers.sort()
-    random_numbers = np.concatenate(([0], random_numbers, [m]))
-    return np.diff(random_numbers)
-
-
 @pytest.mark.parametrize("n_samp", [10, 100, 1000])
 @pytest.mark.parametrize("L0", [1e-9, 1e-5])
 @pytest.mark.parametrize("rcp_high", [1e2, 1e5, 1e8])

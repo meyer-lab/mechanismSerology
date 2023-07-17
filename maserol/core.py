@@ -32,7 +32,7 @@ def initializeParams(cube: xr.DataArray, ab_types: Collection=DEFAULT_AB_TYPES) 
         The list of parameters.
     """
     Ka = assembleKav(cube, ab_types).values
-    log_mean = np.mean(np.log10(cube))
+    log_mean = np.mean(np.nan_to_num(np.log10(cube.values + 1))) # deal with 0s
     abundance = np.random.uniform(10 ** (log_mean - 4), 10 ** (log_mean + 2), (cube.sizes["Sample"], len(ab_types), cube.sizes["Antigen"]))
     return [abundance, Ka]
 
@@ -57,12 +57,9 @@ def custom_root(Rtot: np.ndarray, L0: float, KxStar: float, Ka: np.ndarray, f: i
     # quadratic formula
     f0 = (-b + np.sqrt(b**2 + 4 * a * np.sum(KaRT, axis=2))) / 2 / a
 
-    root = newton(phi_res, f0, maxiter=10000, args=(KaRT, fLKa, f))
+    root = newton(phi_res, f0, maxiter=15000, args=(KaRT, fLKa, f))
     
-    # root finding should come up with a positive number
-    # if this assertion fails we need to come up with a workaround
-    # setting to 0 will lead to an inf in modelLoss
-    assert np.all(root > 0) 
+    assert np.all(root >= 0) 
     return root
 
 
@@ -80,12 +77,23 @@ def inferLbound(cube: np.ndarray, Rtot, Ka: np.ndarray, L0=1e-9, KxStar=1e-12, F
     else:
         KxStarAb, KxStarRcp = KxStar, KxStar
 
-    Phi_Ab = custom_root(Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
-    Phi_Fc = custom_root(Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
+    ab_ligands_exist = FcIdx != 0
+    fc_ligands_exist = FcIdx != Ka.shape[0]
 
-    Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi_Ab) ** AB_VALENCY - 1.0)
-    Lbound_Rcp = L0 / KxStarRcp * ((1.0 + Phi_Fc) ** FC_VALENCY - 1.0)
-    return np.concatenate((Lbound_Ab, Lbound_Rcp), axis=1)
+    if ab_ligands_exist:
+        Phi_Ab = custom_root(Rtot, L0, KxStarAb, Ka[:FcIdx], AB_VALENCY)
+    if fc_ligands_exist:
+        Phi_Fc = custom_root(Rtot, L0, KxStarRcp, Ka[FcIdx:], FC_VALENCY)
+
+    if ab_ligands_exist:
+        Lbound_Ab = L0 / KxStarAb * ((1.0 + Phi_Ab) ** AB_VALENCY - 1.0)
+    if fc_ligands_exist:
+        Lbound_Fc = L0 / KxStarRcp * ((1.0 + Phi_Fc) ** FC_VALENCY - 1.0)
+    if not ab_ligands_exist:
+        return Lbound_Fc
+    if not fc_ligands_exist:
+        return Lbound_Ab
+    return np.concatenate((Lbound_Ab, Lbound_Fc), axis=1)
 
 def reshapeParams(log_x: np.ndarray, cube, fitKa: bool=DEFAULT_FIT_KA_VAL, ab_types: Collection=DEFAULT_AB_TYPES, as_xarray: bool=False):
     """ Reshapes factor vector, x, into matrices. Inverse operation of flattenParams(). """
@@ -135,7 +143,7 @@ def modelLoss(log_x: np.ndarray, cube: Union[xr.DataArray, np.ndarray], Ka: np.n
     if isinstance(cube, xr.DataArray):
         cube = np.array(cube)
     Lbound = inferLbound(cube, *(params + ([] if fitKa else [Ka])), L0=L0, KxStar=KxStar, FcIdx=FcIdx)
-    return (np.nan_to_num(np.log(cube), neginf=0) - np.log(Lbound)).flatten()
+    return (np.nan_to_num(np.log(cube) - np.log(Lbound), neginf=0)).flatten()
 
 
 def optimizeLoss(
@@ -146,6 +154,9 @@ def optimizeLoss(
     KxStar=1e-12,
     FcIdx=DEFAULT_FC_IDX_VAL,
     params: List = None,
+    ftol: float = 1e-7,
+    gtol: float = 1e-7,
+    xtol: float = 1e-7,
 ) -> Tuple[np.ndarray, Dict]:
     """Optimization method to minimize modelLoss() output"""
     n_samp, n_rcp, n_ag = data.shape
@@ -175,7 +186,11 @@ def optimizeLoss(
     idx = np.indices(lil_guy.shape)
     jac_sparsity[*idx, *idx] = rcp_ab_block
     jac_sparsity = np.moveaxis(jac_sparsity, (4, 5), (1, 4))
-    jac_sparsity = jac_sparsity.reshape(n_samp * n_rcp * n_ag, n_samp * n_ab * n_ag)
+    n_out = n_samp * n_rcp * n_ag
+    n_in = n_samp * n_ab * n_ag
+    jac_sparsity = jac_sparsity.reshape(n_out, n_in)
+    if fitKa:
+        jac_sparsity = np.hstack((jac_sparsity, np.ones((n_out, n_rcp * n_ab))))
     jac_sparsity = coo_matrix(jac_sparsity)
 
     print("")
@@ -185,9 +200,9 @@ def optimizeLoss(
         args=arrgs,
         verbose=2,
         jac_sparsity=jac_sparsity,
-        ftol=1e-5,
-        gtol=1e-5,
-        xtol=1e-5,
+        ftol=ftol,
+        gtol=gtol,
+        xtol=xtol,
     )
 
     if not fitKa:
