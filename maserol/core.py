@@ -77,6 +77,8 @@ def inferLbound(cube: np.ndarray, Rtot, Ka: np.ndarray, L0=1e-9, KxStar=1e-12, F
     else:
         KxStarAb, KxStarRcp = KxStar, KxStar
 
+    # If only either IgG or Fc detection reagents are being used to fit, we only
+    # need to compute Lbound for one valency
     ab_ligands_exist = FcIdx != 0
     fc_ligands_exist = FcIdx != Ka.shape[0]
 
