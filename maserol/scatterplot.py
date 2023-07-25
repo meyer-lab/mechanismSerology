@@ -11,8 +11,6 @@ from .core import (
     reshape_params,
     optimize_loss,
     DEFAULT_AB_TYPES,
-
-
 )
 from .figures.common import getSetup
 
