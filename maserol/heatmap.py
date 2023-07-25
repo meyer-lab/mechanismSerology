@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from matplotlib.tri import Triangulation
 from .figures.common import getSetup
 from .preprocess import HIgGs, HIgGFs, prepare_data
-from .core import reshape_params, assemble_Ka, DEFAULT_AB_TYPES, DEFAULT_FIT_KA_VAL
+from .core import reshape_params, assemble_Ka, DEFAULT_AB_TYPES
 
 
 def plotOneHeatmap(data, title, color, abs, ax, annot=False):
