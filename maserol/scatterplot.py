@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib
 import seaborn as sns
 from .preprocess import makeRcpAgLabels, HIgGs, assembleKav, prepare_data
-from .core import inferLbound, reshapeParams, optimizeLoss, DEFAULT_FIT_KA_VAL
+from .core import inferLbound, reshapeParams, optimizeLoss, DEFAULT_AB_TYPES, DEFAULT_FC_IDX_VAL, DEFAULT_FIT_KA_VAL
 from .figures.common import getSetup
 
 
@@ -27,7 +27,7 @@ def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
     f = sns.scatterplot(x=x,
                         y=y, 
                         hue=receptor_labels[valid_idx],
-                        style=antigen_labels[valid_idx],
+                        # style=antigen_labels[valid_idx],
                         ax=ax, s=70, alpha=0.5)
     f.legend(title="Receptor | Antigen", bbox_to_anchor=(1, 1), borderaxespad=0)
     f.set_xlabel("Actual", fontsize=12)
@@ -49,30 +49,29 @@ def plotOptimize(data: xarray.DataArray, fitKa=False,
         new_p.append(ctx["init_params"][-1])
     final_lbound = inferLbound(cube, *new_p)
 
-    init_scaler = np.random.rand(1) * 2
-    final_scaler = x_opt[-1]
-    init_lbound = np.log(init_lbound) + init_scaler
-    final_lbound = np.log(final_lbound) + final_scaler
+    init_lbound = np.log10(init_lbound)
+    final_lbound = np.log10(final_lbound)
 
     axs, f = getSetup((13, 5), (1, 2))
+    cube_log = np.log10(cube)
     sns.set(style="darkgrid", font_scale=1)
-    initial_f = plotPrediction(cube, init_lbound, axs[0], logscale=False)
+    initial_f = plotPrediction(cube_log, init_lbound, axs[0], logscale=False)
     initial_f.set_title("Initial", fontsize=13)
-    new_f = plotPrediction(cube, final_lbound, axs[1], logscale=False)
+    new_f = plotPrediction(cube_log, final_lbound, axs[1], logscale=False)
     new_f.set_title("After Abundance Fit", fontsize=13)
 
     # Add R numbers onto plot
-    f.text(0.05, 0.1, gen_R_labels(cube, init_lbound), fontsize=12)
-    f.text(0.55, 0.1, gen_R_labels(cube, final_lbound), fontsize=12)
+    cube_flat = cube_log.values.flatten()
+    valid_idx = np.where(cube_flat > 0)
+    f.text(0.05, 0.1, gen_R_labels(cube_flat[valid_idx], init_lbound.flatten()[valid_idx]), fontsize=12)
+    f.text(0.55, 0.1, gen_R_labels(cube_flat[valid_idx], final_lbound.flatten()[valid_idx]), fontsize=12)
     return f
 
 
-def gen_R_labels(cube, lbound):
+def gen_R_labels(cube_flat, lbound_flat):
     """ Make a long string on the R breakdowns for plotting purpose """
     retstr = ""
-    cube_flat = np.ravel(cube)
-    valid_idx = np.where(cube_flat > 0)
-    rtot = np.corrcoef(cube_flat[valid_idx], np.ravel(lbound)[valid_idx])[0, 1]
+    rtot = np.corrcoef(cube_flat, lbound_flat)[0, 1]
     retstr += '$r_{total}$' + r'= {:.2f}'.format(rtot) + '\n'
     return retstr
 
@@ -114,7 +113,7 @@ def plotLbound(data: xarray.DataArray, lbound: Union[xarray.DataArray, np.ndarra
     return f
 
 
-def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], fitKa=DEFAULT_FIT_KA_VAL) -> np.ndarray:
+def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], fitKa=DEFAULT_FIT_KA_VAL, FcIdx=DEFAULT_FC_IDX_VAL, **opt_kwargs) -> np.ndarray:
     """
     Trains the model, leaving out the receptors specified by rec.
 
@@ -128,12 +127,14 @@ def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], fitKa=DEFAUL
     if isinstance(rec, str):
         rec = [rec]
     idx = np.where(np.logical_not(np.isin(data.Receptor.values, rec)))
+    # recompute FcIdx with the remaining receptors
+    FcIdx_sub = sum(1 for i in idx[0] if i < FcIdx)
     data_no_rec = data.isel(Receptor=idx[0])
-    opt_x, _ = optimizeLoss(data_no_rec, fitKa=fitKa)
-    params = reshapeParams(opt_x, data, fitKa=fitKa)
+    opt_x, _ = optimizeLoss(data_no_rec, fitKa=fitKa, FcIdx=FcIdx_sub, **opt_kwargs)
+    params = reshapeParams(opt_x, data, fitKa=fitKa, ab_types=opt_kwargs.get("ab_types", DEFAULT_AB_TYPES))
     if not fitKa:
-        params.append(assembleKav(data).values)
-    lbound = inferLbound(data, *params)
+        params.append(assembleKav(data, ab_types=opt_kwargs.get("ab_types", DEFAULT_AB_TYPES)).values)
+    lbound = inferLbound(data, *params, FcIdx=FcIdx)
     return lbound
 
 
