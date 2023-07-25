@@ -4,7 +4,8 @@ import numpy as np
 import xarray as xr
 from sklearn.preprocessing import normalize
 
-from .core import reshapeParams, optimizeLoss, DEFAULT_AB_TYPES, factorAbundance
+from maserol.core import reshapeParams, optimizeLoss, DEFAULT_AB_TYPES
+from maserol.decompose import factorAbundance
 
 def resample(cube : xr.DataArray, replace=True):
     '''

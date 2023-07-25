@@ -1,11 +1,14 @@
+from typing import Collection
+
 import numpy as np
-import xarray
+import xarray as xr
 import seaborn as sns
+
 from matplotlib import pyplot as plt
 from matplotlib.tri import Triangulation
 from .figures.common import getSetup
 from .preprocess import HIgGs, HIgGFs, prepare_data
-from .core import reshapeParams, assembleKav, DEFAULT_FIT_KA_VAL
+from .core import reshapeParams, assembleKav, DEFAULT_AB_TYPES, DEFAULT_FIT_KA_VAL
 
 
 def plotOneHeatmap(data, title, color, abs, ax, annot=False):
@@ -51,7 +54,7 @@ def plot_deviation_heatmap(mean_matrix, std_matrix, absf, ylabels):
     return fig
 
 
-def plot_3D_heatmap(cube : xarray.DataArray):
+def plot_3D_heatmap(cube : xr.DataArray):
     '''
     Creates 3D heatmap visualization for data in 'cube'.
     '''
@@ -131,3 +134,11 @@ def removed_weights_subj_ag(cube, subjects, antigens, absf):
     sns.despine(left=True, bottom=True)
     fig.tight_layout()
     return fig
+
+def plot_Ka(cube, ab_types=DEFAULT_AB_TYPES, ax=None): 
+    Ka = assembleKav(cube, ab_types)
+    ax = sns.heatmap(np.log10(Ka), ax=ax)
+    ax.set_title("log10 Ka")
+    ax.set_xticklabels(list(ab_types))
+    ax.set_yticklabels(cube.Receptor.values, rotation=0)
+    return ax

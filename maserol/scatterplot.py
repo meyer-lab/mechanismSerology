@@ -1,3 +1,4 @@
+import copy
 from typing import Collection, Mapping, Optional, Union, List
 
 import xarray
@@ -5,7 +6,7 @@ import numpy as np
 import matplotlib
 import seaborn as sns
 from .preprocess import makeRcpAgLabels, HIgGs, assembleKav, prepare_data
-from .core import inferLbound, reshapeParams, optimizeLoss, DEFAULT_AB_TYPES, DEFAULT_FC_IDX_VAL, DEFAULT_FIT_KA_VAL
+from .core import inferLbound, reshapeParams, optimizeLoss, DEFAULT_AB_TYPES, DEFAULT_FIT_KA_VAL
 from .figures.common import getSetup
 
 
@@ -35,19 +36,16 @@ def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
     return f
 
 
-def plotOptimize(data: xarray.DataArray, fitKa=False,
-                 ab_types=HIgGs):
+def plotOptimize(data: xarray.DataArray, L0: np.ndarray, KxStar: np.ndarray, f: np.ndarray, ab_types: tuple[str] = HIgGs):
     """ Run optimizeLoss(), and compare scatterplot before and after """
     cube = prepare_data(data)
-    x_opt, ctx = optimizeLoss(cube, fitKa=fitKa,
-                                        ab_types=ab_types)
+    Ka = assembleKav(cube, ab_types).values
+    x_opt, ctx = optimizeLoss(cube, L0, KxStar, f, ab_types=ab_types)
 
-    init_lbound = inferLbound(cube, *ctx["init_params"])
+    init_lbound = inferLbound(cube, ctx["init_params"][0], Ka, L0, KxStar, f)
 
-    new_p = reshapeParams(x_opt, cube, fitKa=fitKa, ab_types=ab_types)
-    if not fitKa:
-        new_p.append(ctx["init_params"][-1])
-    final_lbound = inferLbound(cube, *new_p)
+    new_p = reshapeParams(x_opt, cube, ab_types=ab_types)
+    final_lbound = inferLbound(cube, new_p[0], Ka, L0, KxStar, f)
 
     init_lbound = np.log10(init_lbound)
     final_lbound = np.log10(final_lbound)
@@ -113,7 +111,7 @@ def plotLbound(data: xarray.DataArray, lbound: Union[xarray.DataArray, np.ndarra
     return f
 
 
-def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], fitKa=DEFAULT_FIT_KA_VAL, FcIdx=DEFAULT_FC_IDX_VAL, **opt_kwargs) -> np.ndarray:
+def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], **opt_kwargs) -> np.ndarray:
     """
     Trains the model, leaving out the receptors specified by rec.
 
@@ -128,13 +126,16 @@ def LRcpO(data: xarray.DataArray, rec: Union[Collection[str], str], fitKa=DEFAUL
         rec = [rec]
     idx = np.where(np.logical_not(np.isin(data.Receptor.values, rec)))
     # recompute FcIdx with the remaining receptors
-    FcIdx_sub = sum(1 for i in idx[0] if i < FcIdx)
     data_no_rec = data.isel(Receptor=idx[0])
-    opt_x, _ = optimizeLoss(data_no_rec, fitKa=fitKa, FcIdx=FcIdx_sub, **opt_kwargs)
-    params = reshapeParams(opt_x, data, fitKa=fitKa, ab_types=opt_kwargs.get("ab_types", DEFAULT_AB_TYPES))
-    if not fitKa:
-        params.append(assembleKav(data, ab_types=opt_kwargs.get("ab_types", DEFAULT_AB_TYPES)).values)
-    lbound = inferLbound(data, *params, FcIdx=FcIdx)
+    opt_kwargs_sub = copy.deepcopy(opt_kwargs)
+    opt_kwargs_sub["L0"] = opt_kwargs_sub["L0"][idx]
+    opt_kwargs_sub["KxStar"] = opt_kwargs_sub["KxStar"][idx]
+    opt_kwargs_sub["f"] = opt_kwargs_sub["f"][idx]
+    opt_x, _ = optimizeLoss(data_no_rec, **opt_kwargs_sub, ftol=1e-7, xtol=1e-7, gtol=1e-7)
+    ab_types = opt_kwargs_sub.get("ab_types", DEFAULT_AB_TYPES)
+    Rtot = reshapeParams(opt_x, data, ab_types=ab_types)[0]
+    Ka = assembleKav(data, ab_types).values
+    lbound = inferLbound(data, Rtot, Ka, opt_kwargs["L0"], opt_kwargs["KxStar"], opt_kwargs["f"])
     return lbound
 
 
