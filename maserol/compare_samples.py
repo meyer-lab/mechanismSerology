@@ -6,9 +6,9 @@ import pandas as pd
 import xarray as xr
 from matplotlib.figure import Figure
 
-from maserol.core import inferLbound
+from maserol.core import infer_Lbound
 from maserol.figures.common import getSetup
-from maserol.preprocess import assembleKav, construct_options
+from maserol.preprocess import assemble_Ka, assemble_options
 
 
 def lbound_cube_to_df(cube: xr.DataArray) -> pd.DataFrame:
@@ -25,7 +25,12 @@ def lbound_cube_to_df(cube: xr.DataArray) -> pd.DataFrame:
 
     df = cube.to_dataframe(name="abundance").reset_index()
     df["rcp_antigen"] = df["Receptor"].astype(str) + "_" + df["Antigen"].astype(str)
-    return df.pivot(values='abundance', index='Sample', columns='rcp_antigen').reset_index().rename_axis(None, axis=1).copy()
+    return (
+        df.pivot(values="abundance", index="Sample", columns="rcp_antigen")
+        .reset_index()
+        .rename_axis(None, axis=1)
+        .copy()
+    )
 
 
 def rcp_cube_to_df(cube: xr.DataArray) -> pd.DataFrame:
@@ -68,9 +73,11 @@ def construct_lbound_rcp_df(cube: xr.DataArray, Rtot: xr.DataArray, **opt_opts):
       pd.DataFrame with Rtot data.
     """
     ab_types = Rtot.Antibody.values
-    Ka = assembleKav(cube, ab_types=ab_types)
-    opts = opt_opts or construct_options(cube, ab_types) 
-    Lbound_nd = inferLbound(cube.values, Rtot.values, Ka.values, opts["L0"], opts["KxStar"], opts["f"])
+    Ka = assemble_Ka(cube, ab_types=ab_types)
+    opts = opt_opts or assemble_options(cube, ab_types)
+    Lbound_nd = infer_Lbound(
+        cube.values, Rtot.values, Ka.values, opts["L0"], opts["KxStar"], opts["f"]
+    )
     Lbound = cube.copy()
     Lbound.values = Lbound_nd
     df_detection = lbound_cube_to_df(cube)
@@ -90,7 +97,14 @@ def construct_lbound_rcp_df(cube: xr.DataArray, Rtot: xr.DataArray, **opt_opts):
     return df
 
 
-def plot_lbound(samples: List, antigen: str, cube: xr.DataArray, Rtot: xr.DataArray, ax=None, sample_labels: List[str]=None):
+def plot_lbound(
+    samples: List,
+    antigen: str,
+    cube: xr.DataArray,
+    Rtot: xr.DataArray,
+    ax=None,
+    sample_labels: List[str] = None,
+):
     """
     Plots actual lbound vs inferred lbound as bar graph.
 
@@ -103,7 +117,7 @@ def plot_lbound(samples: List, antigen: str, cube: xr.DataArray, Rtot: xr.DataAr
       sample_labels: same length as samples. How to show each sample on the
         legend. If not passed, the legend will show 'Sample <i>'
       FcIdx: index at which Fc detection reagents appear in cube.
-    
+
     Returns:
       matplotlib axis on which plot is shown
     """
@@ -142,7 +156,11 @@ def plot_lbound(samples: List, antigen: str, cube: xr.DataArray, Rtot: xr.DataAr
 
 
 def plot_rcp(
-    samples: List, antigen: str, Rtot: xr.DataArray, ax: Optional[plt.axis]=None, sample_labels: Optional[List[str]]=None
+    samples: List,
+    antigen: str,
+    Rtot: xr.DataArray,
+    ax: Optional[plt.axis] = None,
+    sample_labels: Optional[List[str]] = None,
 ):
     """
     Plots ab abundances as bar plot.
@@ -154,7 +172,7 @@ def plot_rcp(
       ax: axis to plot on
       sample_labels: same length as samples. How to show each sample on the
         legend. If not passed, the legend will show 'Sample <i>'
-    
+
     Returns:
       matplotlib axis on which plot is shown
     """
@@ -175,7 +193,13 @@ def plot_rcp(
     ax.set_title("Fitted Ab Abundances")
 
 
-def plot_sample_fit(samples: List, antigen: str, cube: xr.DataArray, Rtot: xr.DataArray, sample_labels=None):
+def plot_sample_fit(
+    samples: List,
+    antigen: str,
+    cube: xr.DataArray,
+    Rtot: xr.DataArray,
+    sample_labels=None,
+):
     """
     Shows plot_lbound and plot_rcp in adjacent plots. See those functions for
     details.
@@ -188,7 +212,7 @@ def plot_sample_fit(samples: List, antigen: str, cube: xr.DataArray, Rtot: xr.Da
       sample_labels: same length as samples. How to show each sample on the
         legend. If not passed, the legend will show 'Sample <i>'
       FcIdx: index at which Fc detection reagents appear in cube.
-    
+
     Returns:
       matplotlib figure on which plots are shown
     """

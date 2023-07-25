@@ -3,6 +3,7 @@ import xarray as xr
 
 from maserol.decompose import factorAbundance, reconstructAbundance
 
+
 def test_factor_abundance():
     n_comps = 1
     n_sample = 400
@@ -15,11 +16,13 @@ def test_factor_abundance():
     abundance_xr = xr.DataArray(
         abundance,
         dims=("Sample", "Antibody", "Antigen"),
-        coords=(np.arange(n_sample), np.arange(n_ab), np.arange(n_ag))
+        coords=(np.arange(n_sample), np.arange(n_ab), np.arange(n_ag)),
     )
-    got_sample_facs, got_ag_facs = factorAbundance(abundance_xr, n_comps, as_xarray=False)
+    got_sample_facs, got_ag_facs = factorAbundance(
+        abundance_xr, n_comps, as_xarray=False
+    )
 
-    def normalized_error(x1, x2): 
+    def normalized_error(x1, x2):
         return np.linalg.norm(x1 - x2) / np.linalg.norm(x2)
 
     want_sample_mean = np.mean(sample_facs)
@@ -35,9 +38,13 @@ def test_factor_abundance():
     assert np.isclose(np.mean(got_sample_facs), np.mean(sample_facs))
 
     # assert that the factors we got from factorAbundance are somewhat close to the factors we used to construct our original tensor
-    assert normalized_error(got_sample_facs, sample_facs) < 0.6 * normalized_error(baseline, sample_facs)
+    assert normalized_error(got_sample_facs, sample_facs) < 0.6 * normalized_error(
+        baseline, sample_facs
+    )
 
     got_abundance = reconstructAbundance(got_sample_facs, got_ag_facs)
     baseline = np.random.rand(*abundance.shape) * np.mean(abundance)
     # assert that the reconstruction error is small
-    assert normalized_error(got_abundance, abundance) < 0.01 * normalized_error(baseline, abundance)
+    assert normalized_error(got_abundance, abundance) < 0.01 * normalized_error(
+        baseline, abundance
+    )

@@ -2,6 +2,7 @@ import numpy as np
 import xarray as xr
 from sklearn.decomposition import NMF
 
+
 def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
     """
     Factors full-rank abundance tensor into two tensors.
@@ -16,7 +17,9 @@ def factorAbundance(abundance: xr.DataArray, n_comps: int, as_xarray=True):
         1. Sample factors, with shape (n_samples, n_abs, n_comps)
         2. Ag factors, with shape (n_ag, n_abs, n_comps)
     """
-    assert isinstance(abundance, xr.DataArray), "Abundance must be passed as DataArray for factorization"
+    assert isinstance(
+        abundance, xr.DataArray
+    ), "Abundance must be passed as DataArray for factorization"
     n_abs = len(abundance.Antibody)
     sample_facs = np.zeros((len(abundance.Sample), n_abs, n_comps))
     ag_facs = np.zeros((len(abundance.Antigen), n_abs, n_comps))

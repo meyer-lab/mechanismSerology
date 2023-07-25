@@ -1,13 +1,14 @@
 import numpy as np
 import seaborn as sns
 
-from maserol.core import optimizeLoss, reshapeParams
+from maserol.core import optimize_loss, reshape_params
+
 
 def plot_ab_aggs(cube, abs, runs=6, ax=None):
     abundance_list = []
     for _ in range(runs):
-        x_opt, _ = optimizeLoss(cube, ab_types=abs)
-        abundance, = reshapeParams(x_opt, cube, ab_types=abs, as_xarray=True)
+        x_opt, _ = optimize_loss(cube, ab_types=abs)
+        (abundance,) = reshape_params(x_opt, cube, ab_types=abs, as_xarray=True)
         abundance_list.append(abundance)
     abundance = np.mean(np.array(abundance_list), axis=0)
     ab_abunds = np.sum(np.sum(abundance, axis=2), axis=0)

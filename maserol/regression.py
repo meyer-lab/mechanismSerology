@@ -2,22 +2,33 @@ from typing import Optional
 import numpy as np
 import seaborn as sns
 from sklearn.base import BaseEstimator
-from sklearn.linear_model import ElasticNet, ElasticNetCV, LogisticRegression, LogisticRegressionCV
+from sklearn.linear_model import (
+    ElasticNet,
+    ElasticNetCV,
+    LogisticRegression,
+    LogisticRegressionCV,
+)
 from sklearn.metrics import confusion_matrix, roc_curve, roc_auc_score
-from sklearn.model_selection import GridSearchCV, KFold, RepeatedStratifiedKFold, cross_val_predict, cross_validate
+from sklearn.model_selection import (
+    GridSearchCV,
+    KFold,
+    RepeatedStratifiedKFold,
+    cross_val_predict,
+    cross_validate,
+)
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, scale
 
 from tensordata.zohar import pbsSubtractOriginal
 
 
 def regression(x, y, scale_x: Optional[int] = None, l1_ratio=0.7):
-    """ 
+    """
     Runs regression with cross-validation.
 
     Args:
         x: array of shape (n_samples * n_features)
         y: array of shape (n_samples, )
-        scale_x: if not None, will scale x along the 
+        scale_x: if not None, will scale x along the
 
     Returns: model predictions, model, x, y
     """
@@ -25,9 +36,22 @@ def regression(x, y, scale_x: Optional[int] = None, l1_ratio=0.7):
         x = scale(x, axis=scale_x)
     cv = KFold(n_splits=10, shuffle=True)
     if y.dtype == int:
-        estCV = LogisticRegressionCV(penalty="elasticnet", solver="saga", cv=cv, l1_ratios=[l1_ratio], n_jobs=-1, max_iter=1000000)
+        estCV = LogisticRegressionCV(
+            penalty="elasticnet",
+            solver="saga",
+            cv=cv,
+            l1_ratios=[l1_ratio],
+            n_jobs=-1,
+            max_iter=1000000,
+        )
         estCV.fit(x, y)
-        model = LogisticRegression(C=estCV.C_[0], penalty="elasticnet", solver="saga", l1_ratio=l1_ratio, max_iter=1000000)
+        model = LogisticRegression(
+            C=estCV.C_[0],
+            penalty="elasticnet",
+            solver="saga",
+            l1_ratio=l1_ratio,
+            max_iter=1000000,
+        )
     else:
         assert y.dtype == float
         y = scale(y)
@@ -36,8 +60,9 @@ def regression(x, y, scale_x: Optional[int] = None, l1_ratio=0.7):
         model = ElasticNet(alpha=estCV.alpha_, l1_ratio=l1_ratio, max_iter=1000000)
     model = model.fit(x, y)
     y_pred = cross_val_predict(model, x, y, cv=cv, n_jobs=-1)
-    assert np.any(model.coef_) # check if high l1 ratio zeroed the coefficients
+    assert np.any(model.coef_)  # check if high l1 ratio zeroed the coefficients
     return y_pred, model, x, y
+
 
 def get_labels_zohar(multiclass=True):
     data_full = pbsSubtractOriginal()
@@ -56,8 +81,18 @@ def get_labels_zohar(multiclass=True):
     label_encoder = LabelEncoder()
     sample_class_enc = label_encoder.fit_transform(sample_class)
     return sample_class_enc, label_encoder
-    
-def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None, label=None, palette=None, auc_label=True):
+
+
+def plot_roc(
+    x,
+    y,
+    model: BaseEstimator,
+    label_encoder: LabelEncoder,
+    ax=None,
+    label=None,
+    palette=None,
+    auc_label=True,
+):
     probs = model.predict_proba(x)
     n_classes = probs.shape[1]
     if n_classes != 2:
@@ -79,25 +114,43 @@ def plot_roc(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None, l
         fpr = np.append(fpr, fpr_c)
         tpr = np.append(tpr, tpr_c)
         labels = np.append(labels, np.full(fpr_c.shape, label or c))
-    f = sns.lineplot(x=fpr, y=tpr, hue=labels, ci=None, ax=ax, palette=palette or "bright")
+    f = sns.lineplot(
+        x=fpr, y=tpr, hue=labels, ci=None, ax=ax, palette=palette or "bright"
+    )
     sns.lineplot(x=[0, 1], y=[0, 1], linestyle="--", color="k", ax=ax)
     if auc_label:
         add_auc_label(scores, classes, f)
     f.set(xlabel="False Positive Rate", ylabel="True Positive Rate")
     return f
 
+
 def add_auc_label(scores, labels, ax):
-    text = "AUC:\n" + "\n".join([f"{c}: {score.round(2)}" for c, score in zip(labels, scores)])
+    text = "AUC:\n" + "\n".join(
+        [f"{c}: {score.round(2)}" for c, score in zip(labels, scores)]
+    )
     ax.text(0.6, 0.05, text)
 
-def plot_confusion_matrix(x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None):
+
+def plot_confusion_matrix(
+    x, y, model: BaseEstimator, label_encoder: LabelEncoder, ax=None
+):
     y_pred = model.predict(x)
     cm = confusion_matrix(y, y_pred)
     cm_norm = confusion_matrix(y, y_pred, normalize="true")
     labels = label_encoder.inverse_transform(np.arange(cm.shape[0]))
-    f = sns.heatmap(cm_norm, xticklabels=labels, yticklabels=labels, ax=ax, annot=cm, fmt="g", vmin=0, vmax=1)
+    f = sns.heatmap(
+        cm_norm,
+        xticklabels=labels,
+        yticklabels=labels,
+        ax=ax,
+        annot=cm,
+        fmt="g",
+        vmin=0,
+        vmax=1,
+    )
     f.set(xlabel="Predicted Class", ylabel="Actual Class")
     return f
+
 
 def plot_regression_weights(model, ab_types, ax=None):
     """
@@ -105,27 +158,31 @@ def plot_regression_weights(model, ab_types, ax=None):
     """
     coefs = np.squeeze(model.coef_)
     f = sns.barplot(x=list(ab_types), y=coefs, palette="bright", ax=ax)
-    f.axhline(0, color='k', clip_on=False, linestyle='--')
+    f.axhline(0, color="k", clip_on=False, linestyle="--")
     f.set(xlabel="Component", ylabel="Component Weight")
     sns.despine(left=False, bottom=False)
     return f
 
+
 def get_crossval_info(model, X, y, splits=10, repeats=10):
-    '''
+    """
     Crossvalidates regression using 'model'.
-    '''
+    """
     cv = RepeatedStratifiedKFold(n_splits=splits, n_repeats=repeats, random_state=1)
     return cross_validate(model, X, y, cv=cv, return_estimator=True, n_jobs=2)
 
+
 def hyperparameter_tuning(model, grid, X, y, splits=10, repeats=10):
-    '''
+    """
     Runs automatic hyperparameter tuning on classification models with 'model' and parameters specificed by 'grid'.
     Returns model with best results.
-    '''
+    """
     cv = RepeatedStratifiedKFold(n_splits=splits, n_repeats=repeats, random_state=1)
-    gridSearch = GridSearchCV(estimator=model, param_grid=grid, n_jobs=-1, cv =cv, scoring="accuracy")
+    gridSearch = GridSearchCV(
+        estimator=model, param_grid=grid, n_jobs=-1, cv=cv, scoring="accuracy"
+    )
     gridResult = gridSearch.fit(X, y)
-    
+
     print("Best: %f using %s" % (gridResult.best_score_, gridResult.best_params_))
 
-    return gridResult.best_estimator_  
+    return gridResult.best_estimator_
