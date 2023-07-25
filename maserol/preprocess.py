@@ -19,7 +19,7 @@ CONFIGS_PATH = PROJ_DIR / "data_configs.yaml"
 HIgGs = ("IgG1", "IgG2", "IgG3", "IgG4")
 HIgGFs = ("IgG1", "IgG1f", "IgG2", "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f")
 
-DEFAULT_AB_TYPES = HIgGFs
+DEFAULT_AB_TYPES = HIgGs
 
 def prepare_data(data: xr.DataArray, remove_rcp=None, data_id=None):
     """
@@ -129,4 +129,28 @@ def makeRcpAgLabels(data: xr.DataArray):
     data_flat = data.stack(label=["Sample", "Receptor", "Antigen"])["label"]
     return np.array([x.Receptor.values for x in data_flat]), \
            np.array([x.Antigen.values for x in data_flat])
+
+
+def construct_options(data: xr.DataArray, ab_types=HIgGs, IgG_L0: float = 1e-9, Fc_L0: float = 1e-9, IgG_KxStar: float = 1e-12, Fc_KxStar: float = 1e-12):
+    IgG_re = re.compile('^IgG[1-4]$')
+    n_rcp = data.sizes["Receptor"]
+    L0 = np.full(n_rcp, 1e-9)
+    KxStar = np.full(n_rcp, 1e-12)
+    for i in range(n_rcp):
+        if IgG_re.search(data.Receptor.values[i]):
+            L0[i] = IgG_L0
+            KxStar[i] = IgG_KxStar
+        else:
+            L0[i] = Fc_L0
+            KxStar[i] = Fc_KxStar
+    f = np.full(n_rcp, 4)
+    for i in range(n_rcp):
+        if IgG_re.search(data.Receptor.values[i]):
+            f[i] = 2
+    return {
+        "L0": L0,
+        "KxStar": KxStar,
+        "f": f,
+        "ab_types": ab_types,
+    }
 
