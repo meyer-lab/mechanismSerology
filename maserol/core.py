@@ -7,6 +7,7 @@ from typing import Collection, Dict, List, Optional, Tuple, Union
 # Extended Python
 import numpy as np
 import xarray as xr
+from fast_soft_sort.numpy_ops import soft_rank
 from scipy.optimize import least_squares, newton
 from scipy.sparse import coo_matrix
 
@@ -72,7 +73,15 @@ def model_loss(
         data[:, intersample_detections, :], Lbound[:, intersample_detections, :]
     ).flatten()
 
-    inter_loss = inter_loss * data.shape[1] / np.sum(intersample_detections) * 3
+    inter_loss = (
+        inter_loss
+        * data.shape[1]
+        / np.sum(intersample_detections)
+        * data.shape[0]
+        * data.shape[2]
+        * 2e1
+    )
+
     return np.concatenate((intra_loss, inter_loss))
 
 
@@ -341,15 +350,8 @@ def intersample_loss(data: np.ndarray, Lbound: np.ndarray) -> np.ndarray:
     """
     n_samp, n_rcp, n_ag = data.shape
     cube_to_matrix = lambda x: np.moveaxis(x, 2, 1).reshape(n_samp * n_ag, n_rcp)
-    matrix_to_cube = lambda x: np.moveaxis(x.reshape(n_samp, n_ag, n_rcp), 1, 2)
-    data, Lbound = cube_to_matrix(data), cube_to_matrix(Lbound)
-    ordered_idx = np.argsort(data, axis=0)
-    Lbound_ordered = Lbound[ordered_idx, np.arange(n_rcp)]
-    diffs = np.diff(np.log(Lbound_ordered), axis=0)
-    diffs[diffs > 0] = 0
-    loss = np.zeros_like(Lbound)
-    loss[ordered_idx[:-1], np.arange(n_rcp)] = diffs
-    loss = matrix_to_cube(loss)
+    data, Lbound = np.log(cube_to_matrix(data)), np.log(cube_to_matrix(Lbound))
+    loss = 1 - np.array([spearman(data[:, i], Lbound[:, i]) for i in range(n_rcp)])
     return loss
 
 
@@ -395,36 +397,7 @@ def assemble_jac_sparsity(
         n_samp * n_intra_rcp * n_ag, n_samp * n_ab * n_ag
     )
 
-    # intersample jac sparsity
-    rcp_ab_block = np.ones((n_inter_rcp, n_ab), dtype=int)
-    jac_sparsity_inter = np.zeros(
-        (n_samp * n_ag, n_samp * n_ag, n_inter_rcp, n_ab), dtype=int
-    )
-    jac_sparsity_inter[
-        np.arange(n_samp * n_ag), np.arange(n_samp * n_ag)
-    ] = rcp_ab_block
-    data_mat = np.moveaxis(data.values[:, intersample_detections, :], 2, 1).reshape(
-        n_samp * n_ag, n_inter_rcp
-    )
-    ordered_idx = np.argsort(data_mat, axis=0)
-
-    # Every pair of adjacent entries in ordered_idx should depend on each
-    # other
-    for sa_idx in range(n_samp * n_ag - 1):
-        for rcp_idx in range(n_inter_rcp):
-            jac_sparsity_inter[
-                ordered_idx[sa_idx], ordered_idx[sa_idx + 1], rcp_idx
-            ] = np.ones(n_ab, dtype=int)
-            jac_sparsity_inter[
-                ordered_idx[sa_idx + 1], ordered_idx[sa_idx], rcp_idx
-            ] = np.ones(n_ab, dtype=int)
-    jac_sparsity_inter = jac_sparsity_inter.reshape(
-        (n_samp, n_ag, n_samp, n_ag, n_inter_rcp, n_ab)
-    )
-    jac_sparsity_inter = np.moveaxis(jac_sparsity_inter, (4, 5), (1, 4))
-    jac_sparsity_inter = jac_sparsity_inter.reshape(
-        n_samp * n_inter_rcp * n_ag, n_samp * n_ab * n_ag
-    )
+    jac_sparsity_inter = np.ones((n_inter_rcp, n_samp * n_ab * n_ag))
 
     jac_sparsity = np.vstack((jac_sparsity_intra, jac_sparsity_inter))
 
@@ -435,3 +408,14 @@ def assemble_jac_sparsity(
         )
 
     return coo_matrix(jac_sparsity)
+
+
+def spearman(a: np.ndarray, b: np.ndarray):
+    n = a.size
+    return 1 - 6 * np.sum(
+        (
+            soft_rank(a, regularization_strength=1.5)
+            - soft_rank(b, regularization_strength=1.5)
+        )
+        ** 2
+    ) / n / (n**2 - 1)
