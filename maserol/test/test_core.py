@@ -43,7 +43,7 @@ def test_inferLbound_matches_valentbind():
 
     # maserol implementation of binding model
     cube = np.zeros((n_subj, n_rcp, n_ag))
-    msRes = infer_Lbound(cube, Rtot, Ka, L0, KxStar, f)
+    msRes = infer_Lbound(Rtot, Ka, L0, KxStar, f)
 
     # valentbind implementation of binding model
     vbRes = np.zeros((n_subj, n_rcp, n_ag))
@@ -86,7 +86,6 @@ def test_inferLbound_monotonicity():
     )
     Ka = assemble_Ka(cube, ab_types)
     Lbound = infer_Lbound(
-        cube.values,
         Rtot.values,
         Ka.values,
         np.full(rcp.size, 1e-9),
@@ -158,7 +157,7 @@ def test_forward_backward_simple(n_samp, L0, rcp_high):
         ("Sample", "Receptor", "Antigen"),
     )
     Ka = assemble_Ka(cube, ab_types)
-    cube.values = infer_Lbound(cube.values, Rtot.values, Ka.values, L0, KxStar, f)
+    cube.values = infer_Lbound(Rtot.values, Ka.values, L0, KxStar, f)
     x_opt, ctx = optimize_loss(cube, L0, KxStar, f, tuple(ab_types))
     assert ctx["opt"].status > 0
     Rtot_inferred_flat = np.exp(x_opt[: np.prod(Rtot.size)])
@@ -187,3 +186,32 @@ def test_fit_Ka():
     mask[fitKa] = 0
     fitKa_not = np.where(mask)
     assert (Ka_after.values[fitKa_not] == Ka.values[fitKa_not]).all()
+
+
+def test_intersample_fit():
+    ab_types = ("IgG1",)
+    rcp = ("IgG1",)
+    Rtot = np.arange(1e5, 1e6, 100, dtype=float)[:, np.newaxis, np.newaxis]
+    Ka = np.array([[1e9]])
+    L0 = np.array([1e-9])
+    KxStar = np.array([1e-12])
+    f = np.array([2])
+    Lbound = infer_Lbound(Rtot, Ka, L0, KxStar, f)
+    # dividing Lbound by uniform factor should leave loss at 0
+    Lbound /= 1e3
+    cube = xr.DataArray(
+        Lbound,
+        (np.arange(Rtot.shape[0]), list(rcp), np.arange(Rtot.shape[2])),
+        ("Sample", "Receptor", "Antigen"),
+    )
+    x_opt = optimize_loss(
+        cube,
+        L0,
+        KxStar,
+        f,
+        ab_types,
+        intersample_detections=np.array([True]),
+        params=[Rtot, Ka],
+    )[0]
+    Rtot_final = reshape_params(x_opt, cube, ab_types=ab_types)
+    assert np.isclose(Rtot, Rtot_final, rtol=1e-9).all()

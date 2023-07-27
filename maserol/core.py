@@ -27,6 +27,7 @@ def model_loss(
     L0: np.ndarray,
     KxStar: np.ndarray,
     f: np.ndarray,
+    intersample_detections: np.ndarray[bool],
     ab_types: tuple[str],
     fitKa: Optional[Union[tuple, bool]] = False,
 ) -> np.ndarray:
@@ -40,6 +41,8 @@ def model_loss(
       L0: 1D array of size n_rcp
       KxStar: 1D array of size n_rcp
       f: 1D array of size n_rcp
+      intersample_detections: boolean mask indicating which detection reagents
+        should be treated as intersample information.
       ab_types: tuple containing the antibody types (length n_ab)
 
     Returns:
@@ -55,13 +58,25 @@ def model_loss(
         params = params[:-1]
     if isinstance(data, xr.DataArray):
         data = np.array(data)
-    Lbound = infer_Lbound(data, *(params + [Ka]), L0, KxStar, f)
-    res = (np.nan_to_num(np.log(data) - np.log(Lbound), neginf=0, posinf=0)).flatten()
-    return res
+    Lbound = infer_Lbound(*(params + [Ka]), L0, KxStar, f)
+
+    intra_loss = (
+        np.nan_to_num(
+            np.log(data[:, ~intersample_detections, :])
+            - np.log(Lbound[:, ~intersample_detections, :]),
+            neginf=0,
+            posinf=0,
+        )
+    ).flatten()
+    inter_loss = intersample_loss(
+        data[:, intersample_detections, :], Lbound[:, intersample_detections, :]
+    ).flatten()
+
+    inter_loss = inter_loss * data.shape[1] / np.sum(intersample_detections) * 3
+    return np.concatenate((intra_loss, inter_loss))
 
 
 def infer_Lbound(
-    cube: np.ndarray,
     Rtot: np.ndarray,
     Ka: np.ndarray,
     L0: np.ndarray,
@@ -73,8 +88,7 @@ def infer_Lbound(
     abundances, Rtot. See (4.14) in binding model paper.
 
     Args:
-      cube: Raw data of shape (n_samp, n_rcp, n_ag)
-      Rtot: Antibody abundances of shape (n_samp * n_ag, n_ab)
+      Rtot: Antibody abundances of shape (n_samp, n_ab, n_ag)
       Ka: Affinities of shape (n_rcp, n_ab)
       L0: 1D array of size n_rcp
       KxStar: 1D array of size n_rcp
@@ -84,7 +98,6 @@ def infer_Lbound(
       The amount of each ligand bound for each sample and antigen. Same size as
       cube.
     """
-    Rtot = Rtot.reshape((cube.shape[0], Rtot.shape[1], cube.shape[2]))
     Phi = custom_root(Rtot, L0, KxStar, Ka, f)
     return (
         L0[:, np.newaxis]
@@ -174,6 +187,7 @@ def optimize_loss(
     ab_types: Optional[tuple[str]] = HIgGs,
     fitKa: Optional[Union[tuple, bool]] = False,
     params: Optional[List] = None,
+    intersample_detections: Optional[np.ndarray[bool]] = None,
     ftol: float = 1e-7,
     gtol: float = 1e-7,
     xtol: float = 1e-7,
@@ -191,6 +205,8 @@ def optimize_loss(
       fitKa: Either a bool (False: treat Ka as fixed, True: optimize Ka) or a
         tuple of indices into the Ka array which specify specific affinities to
         fit.
+      intersample_detections: boolean mask indicating which detection reagents
+        should be treated as intersample information.
       params: starting parameters (Rtot, Ka) to use
       ftol: optimization tolerance: see scipy.optimize.least_squares
       gtol: optimization tolerance: see scipy.optimize.least_squares
@@ -220,30 +236,13 @@ def optimize_loss(
 
     log_x0 = flatten_params(*params)
 
-    arrgs = (
-        data.values,
-        Ka,
-        L0,
-        KxStar,
-        f,
-        ab_types,
-        fitKa,
+    intersample_detections = (
+        intersample_detections
+        if intersample_detections is not None
+        else np.zeros(n_rcp, dtype=bool)
     )
 
-    # Setup a matrix characterizing the block sparsity of the Jacobian
-    rcp_ab_block = np.ones((n_rcp, n_ab), dtype=int)
-    jac_sparsity = np.zeros((n_samp, n_ag, n_samp, n_ag, n_rcp, n_ab), dtype=int)
-    samp_ag = np.zeros((n_samp, n_ag), dtype=int)
-    idx = np.indices(samp_ag.shape)
-    jac_sparsity[*idx, *idx] = rcp_ab_block
-    jac_sparsity = np.moveaxis(jac_sparsity, (4, 5), (1, 4))
-    n_out = n_samp * n_rcp * n_ag
-    n_in = n_samp * n_ab * n_ag
-    jac_sparsity = jac_sparsity.reshape(n_out, n_in)
-    if fitKa:
-        Ka_len = np.size(params[-1])
-        jac_sparsity = np.hstack((jac_sparsity, np.ones((n_out, Ka_len))))
-    jac_sparsity = coo_matrix(jac_sparsity)
+    arrgs = (data.values, Ka, L0, KxStar, f, intersample_detections, ab_types, fitKa)
 
     print("")
     opt = least_squares(
@@ -251,7 +250,9 @@ def optimize_loss(
         log_x0,
         args=arrgs,
         verbose=2,
-        jac_sparsity=jac_sparsity,
+        jac_sparsity=assemble_jac_sparsity(
+            data, ab_types, intersample_detections, params, fitKa
+        ),
         ftol=ftol,
         gtol=gtol,
         xtol=xtol,
@@ -277,7 +278,7 @@ def reshape_params(
     n_ab = len(ab_types)
 
     non_ka_params_len = abundance_len = n_subj * n_ag * n_ab
-    abundance = x[:abundance_len].reshape((n_subj * n_ag, n_ab))
+    abundance = x[:abundance_len].reshape((n_subj, n_ab, n_ag))
     if as_xarray:
         assert isinstance(
             data, xr.DataArray
@@ -324,3 +325,113 @@ def initialize_params(
         (data.sizes["Sample"], len(ab_types), data.sizes["Antigen"]),
     )
     return [abundance, Ka]
+
+
+def intersample_loss(data: np.ndarray, Lbound: np.ndarray) -> np.ndarray:
+    """
+    Computes the loss based on the relative difference of detection reagents
+    between samples in data.
+
+    Args:
+      data: Raw data
+      Lbound: Inferred Lbound
+
+    Returns:
+      loss (in the same shape as Lbound)
+    """
+    n_samp, n_rcp, n_ag = data.shape
+    cube_to_matrix = lambda x: np.moveaxis(x, 2, 1).reshape(n_samp * n_ag, n_rcp)
+    matrix_to_cube = lambda x: np.moveaxis(x.reshape(n_samp, n_ag, n_rcp), 1, 2)
+    data, Lbound = cube_to_matrix(data), cube_to_matrix(Lbound)
+    ordered_idx = np.argsort(data, axis=0)
+    Lbound_ordered = Lbound[ordered_idx, np.arange(n_rcp)]
+    diffs = np.diff(np.log(Lbound_ordered), axis=0)
+    diffs[diffs > 0] = 0
+    loss = np.zeros_like(Lbound)
+    loss[ordered_idx[:-1], np.arange(n_rcp)] = diffs
+    loss = matrix_to_cube(loss)
+    return loss
+
+
+def assemble_jac_sparsity(
+    data: xr.DataArray,
+    ab_types: Tuple,
+    intersample_detections: np.ndarray[bool],
+    params: List,
+    fitKa: Union[tuple, bool],
+):
+    """
+    Create Jacobian sparsity matrix for optimization.
+
+    Args:
+      data: Raw data
+      ab_types: Antibody types
+      intersample_detections: boolean mask indicating which detection reagents
+        should be treated as intersample information.
+      params: parameters used in optimization (before flattening)
+      fitKa: fitKa option (see optimize_loss)
+
+    Returns: Jacobian sparsity matrix.
+    """
+    n_samp, n_rcp, n_ag = data.shape
+    n_ab = len(ab_types)
+
+    n_inter_rcp = np.sum(intersample_detections)
+    n_intra_rcp = n_rcp - n_inter_rcp
+
+    # intrasample jac sparsity
+    rcp_ab_block = np.ones((n_intra_rcp, n_ab), dtype=int)
+    jac_sparsity_intra = np.zeros(
+        (n_samp * n_ag, n_samp * n_ag, n_intra_rcp, n_ab), dtype=int
+    )
+    jac_sparsity_intra[
+        np.arange(n_samp * n_ag), np.arange(n_samp * n_ag)
+    ] = rcp_ab_block
+    jac_sparsity_intra = jac_sparsity_intra.reshape(
+        n_samp, n_ag, n_samp, n_ag, n_intra_rcp, n_ab
+    )
+    jac_sparsity_intra = np.moveaxis(jac_sparsity_intra, (4, 5), (1, 4))
+    jac_sparsity_intra = jac_sparsity_intra.reshape(
+        n_samp * n_intra_rcp * n_ag, n_samp * n_ab * n_ag
+    )
+
+    # intersample jac sparsity
+    rcp_ab_block = np.ones((n_inter_rcp, n_ab), dtype=int)
+    jac_sparsity_inter = np.zeros(
+        (n_samp * n_ag, n_samp * n_ag, n_inter_rcp, n_ab), dtype=int
+    )
+    jac_sparsity_inter[
+        np.arange(n_samp * n_ag), np.arange(n_samp * n_ag)
+    ] = rcp_ab_block
+    data_mat = np.moveaxis(data.values[:, intersample_detections, :], 2, 1).reshape(
+        n_samp * n_ag, n_inter_rcp
+    )
+    ordered_idx = np.argsort(data_mat, axis=0)
+
+    # Every pair of adjacent entries in ordered_idx should depend on each
+    # other
+    for sa_idx in range(n_samp * n_ag - 1):
+        for rcp_idx in range(n_inter_rcp):
+            jac_sparsity_inter[
+                ordered_idx[sa_idx], ordered_idx[sa_idx + 1], rcp_idx
+            ] = np.ones(n_ab, dtype=int)
+            jac_sparsity_inter[
+                ordered_idx[sa_idx + 1], ordered_idx[sa_idx], rcp_idx
+            ] = np.ones(n_ab, dtype=int)
+    jac_sparsity_inter = jac_sparsity_inter.reshape(
+        (n_samp, n_ag, n_samp, n_ag, n_inter_rcp, n_ab)
+    )
+    jac_sparsity_inter = np.moveaxis(jac_sparsity_inter, (4, 5), (1, 4))
+    jac_sparsity_inter = jac_sparsity_inter.reshape(
+        n_samp * n_inter_rcp * n_ag, n_samp * n_ab * n_ag
+    )
+
+    jac_sparsity = np.vstack((jac_sparsity_intra, jac_sparsity_inter))
+
+    if fitKa:
+        Ka_len = np.size(params[-1])
+        jac_sparsity = np.hstack(
+            (jac_sparsity, np.ones((n_samp * n_rcp * n_ag, Ka_len)))
+        )
+
+    return coo_matrix(jac_sparsity)

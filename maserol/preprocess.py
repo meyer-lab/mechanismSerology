@@ -165,6 +165,7 @@ def assemble_options(
     Fc_L0: float = 1e-9,
     IgG_KxStar: float = 1e-12,
     Fc_KxStar: float = 1e-12,
+    IgG_intersample: bool = True,
 ):
     """
     Helper function for constructing parameters used in optimization.
@@ -184,14 +185,17 @@ def assemble_options(
     n_rcp = data.sizes["Receptor"]
     L0 = np.full(n_rcp, 1e-9)
     KxStar = np.full(n_rcp, 1e-12)
+    f = np.full(n_rcp, 4)
+    intersample_detections = np.full(n_rcp, False)
     for i in range(n_rcp):
         if IgG_re.search(data.Receptor.values[i]):
             L0[i] = IgG_L0
             KxStar[i] = IgG_KxStar
+            if IgG_intersample:
+                intersample_detections[i] = True
         else:
             L0[i] = Fc_L0
             KxStar[i] = Fc_KxStar
-    f = np.full(n_rcp, 4)
     for i in range(n_rcp):
         if IgG_re.search(data.Receptor.values[i]):
             f[i] = 2
@@ -200,4 +204,5 @@ def assemble_options(
         "KxStar": KxStar,
         "f": f,
         "ab_types": ab_types,
+        "intersample_detections": intersample_detections,
     }

@@ -31,7 +31,7 @@ def genForwardSim(noise=0.5, n_sample=1000, n_antigen=5):
 
     Ka = assemble_Ka(cube, tuple(ab_types))
     cube.values = infer_Lbound(
-        cube.values, Rtot.values, Ka.values, L0=L0, KxStar=KxStar, FcIdx=len(ab_types)
+        Rtot.values, Ka.values, L0=L0, KxStar=KxStar, FcIdx=len(ab_types)
     )
     # add a Gaussian noise to measurements
     cube.values = cube + cube * np.random.randn(*cube.shape) * noise

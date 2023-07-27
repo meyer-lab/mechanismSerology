@@ -10,7 +10,8 @@ from maserol.scatterplot import plotOptimize
 
 def makeFigure():
     cube_zohar = prepare_data(zohar())
-    opts = assemble_options(cube_zohar)
-    f = plotOptimize(cube_zohar, **opts)
+    cube_zohar = cube_zohar[: cube_zohar.shape[0] // 10]
+    opts = assemble_options(cube_zohar, IgG_intersample=True)
+    f = plotOptimize(cube_zohar, opts)
     f.text(0.35, 1, "Zohar Optimization")
     return f

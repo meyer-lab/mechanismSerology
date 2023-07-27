@@ -76,7 +76,7 @@ def construct_lbound_rcp_df(cube: xr.DataArray, Rtot: xr.DataArray, **opt_opts):
     Ka = assemble_Ka(cube, ab_types=ab_types)
     opts = opt_opts or assemble_options(cube, ab_types)
     Lbound_nd = infer_Lbound(
-        cube.values, Rtot.values, Ka.values, opts["L0"], opts["KxStar"], opts["f"]
+        Rtot.values, Ka.values, opts["L0"], opts["KxStar"], opts["f"]
     )
     Lbound = cube.copy()
     Lbound.values = Lbound_nd

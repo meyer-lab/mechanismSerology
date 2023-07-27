@@ -1,5 +1,5 @@
 import copy
-from typing import Collection, Mapping, Optional, Union, List
+from typing import Collection, Mapping, Optional, Union, List, Dict
 
 import xarray
 import numpy as np
@@ -47,20 +47,22 @@ def plotPrediction(data: xarray.DataArray, lbound, ax=None, logscale=True):
 
 def plotOptimize(
     data: xarray.DataArray,
-    L0: np.ndarray,
-    KxStar: np.ndarray,
-    f: np.ndarray,
-    ab_types: tuple[str] = HIgGs,
+    opt_opts: Dict,
 ):
     """Run optimizeLoss(), and compare scatterplot before and after"""
+    ab_types = opt_opts["ab_types"]
     cube = prepare_data(data)
     Ka = assemble_Ka(cube, ab_types).values
-    x_opt, ctx = optimize_loss(cube, L0, KxStar, f, ab_types=ab_types)
+    x_opt, ctx = optimize_loss(cube, **opt_opts)
 
-    init_lbound = infer_Lbound(cube, ctx["init_params"][0], Ka, L0, KxStar, f)
+    init_lbound = infer_Lbound(
+        ctx["init_params"][0], Ka, opt_opts["L0"], opt_opts["KxStar"], opt_opts["f"]
+    )
 
     new_p = reshape_params(x_opt, cube, ab_types=ab_types)
-    final_lbound = infer_Lbound(cube, new_p[0], Ka, L0, KxStar, f)
+    final_lbound = infer_Lbound(
+        new_p[0], Ka, opt_opts["L0"], opt_opts["KxStar"], opt_opts["f"]
+    )
 
     init_lbound = np.log10(init_lbound)
     final_lbound = np.log10(final_lbound)
@@ -159,7 +161,7 @@ def plotLbound(
 
 
 def LRcpO(
-    data: xarray.DataArray, rec: Union[Collection[str], str], **opt_kwargs
+    data: xarray.DataArray, rec: Union[Collection[str], str], **opt_opts
 ) -> np.ndarray:
     """
     Trains the model, leaving out the receptors specified by rec.
@@ -176,24 +178,23 @@ def LRcpO(
     idx = np.where(np.logical_not(np.isin(data.Receptor.values, rec)))
     # recompute FcIdx with the remaining receptors
     data_no_rec = data.isel(Receptor=idx[0])
-    opt_kwargs_sub = copy.deepcopy(opt_kwargs)
+    opt_kwargs_sub = copy.deepcopy(opt_opts)
     opt_kwargs_sub["L0"] = opt_kwargs_sub["L0"][idx]
     opt_kwargs_sub["KxStar"] = opt_kwargs_sub["KxStar"][idx]
     opt_kwargs_sub["f"] = opt_kwargs_sub["f"][idx]
-    opt_x, _ = optimize_loss(
-        data_no_rec, **opt_kwargs_sub, ftol=1e-7, xtol=1e-7, gtol=1e-7
-    )
+    opt_kwargs_sub["intersample_detections"] = opt_kwargs_sub["intersample_detections"][
+        idx
+    ]
+    opt_x, _ = optimize_loss(data_no_rec, **opt_kwargs_sub)
     ab_types = opt_kwargs_sub.get("ab_types", DEFAULT_AB_TYPES)
     Rtot = reshape_params(opt_x, data, ab_types=ab_types)[0]
     Ka = assemble_Ka(data, ab_types).values
-    lbound = infer_Lbound(
-        data, Rtot, Ka, opt_kwargs["L0"], opt_kwargs["KxStar"], opt_kwargs["f"]
-    )
+    lbound = infer_Lbound(Rtot, Ka, opt_opts["L0"], opt_opts["KxStar"], opt_opts["f"])
     return lbound
 
 
 def plotLRcpO(
-    data: xarray.DataArray, rec: Union[Collection[str], str], **opt_kwargs
+    data: xarray.DataArray, rec: Union[Collection[str], str], **opt_opts
 ) -> matplotlib.axes.Axes:
     """
     Trains the model on data that excludes receptor(s) specified by rec. Plots
@@ -211,7 +212,7 @@ def plotLRcpO(
     """
     if isinstance(rec, str):
         rec = [rec]
-    lbound = LRcpO(data, rec, **opt_kwargs)
+    lbound = LRcpO(data, rec, **opt_opts)
 
     palette_list = sns.color_palette("bright", data.Receptor.values.shape[0])
     palette = {r: color for r, color in zip(data.Receptor.values, palette_list)}
