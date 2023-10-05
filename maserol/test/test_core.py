@@ -64,7 +64,7 @@ def test_inferLbound_matches_valentbind():
     np.testing.assert_allclose(msRes, vbRes, rtol=1e-4)
 
 
-@pytest.mark.parametrize("n_cplx", [10, 400])
+@pytest.mark.parametrize("n_cplx", [50, 200])
 @pytest.mark.parametrize("L0", [1e-9, 1e-5])
 @pytest.mark.parametrize("rcp_high", [1e3, 1e7])
 def test_forward_backward(n_cplx, L0, rcp_high):

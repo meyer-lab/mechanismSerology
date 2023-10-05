@@ -120,7 +120,7 @@ def LLigO(
     Lbound = infer_Lbound(
         data_no_lig,
         params["Rtot"],
-        Ka,
+        Ka if Ka is not None else assemble_Ka(data_no_lig, rcps).values,
         opt_kwargs_sub["L0"],
         opt_kwargs_sub["KxStar"],
         opt_kwargs_sub["f"],
