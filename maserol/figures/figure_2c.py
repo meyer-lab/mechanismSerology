@@ -23,7 +23,10 @@ def makeFigure():
                 {
                     "noise": np.full(n_iter, noise),
                     "r2": [
-                        r2_score(np.log10(Rtot.values.flatten()), np.log10(Rtot_inferred.flatten()))
+                        r2_score(
+                            np.log10(Rtot.values.flatten()),
+                            np.log10(Rtot_inferred.flatten()),
+                        )
                         for Rtot, Rtot_inferred in Rtot_pairs
                     ],
                 }
