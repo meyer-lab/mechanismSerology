@@ -1,17 +1,16 @@
-"""
-Core function for serology mechanistic tensor factorization
-"""
 # Base Python
-from typing import Collection, Dict, List, Optional, Tuple, Union
+from copy import deepcopy
+from typing import Collection, Dict, List, Tuple, Union
+import warnings
 
 # Extended Python
 import numpy as np
 import xarray as xr
 from scipy.optimize import least_squares, newton
-from scipy.sparse import coo_matrix
+
 
 # Current Package
-from .preprocess import assemble_Ka, HIgGs, DEFAULT_AB_TYPES
+from .preprocess import assemble_Ka, HIgGs, DEFAULT_RCPS
 
 
 """
@@ -19,49 +18,128 @@ This implementation relies on the multivalent binding model paper:
 https://www.sciencedirect.com/science/article/pii/S002555642100122X. 
 """
 
+PARAM_ORDER = ("Rtot", "logistic_params")
+
 
 def model_loss(
     log_x: np.ndarray,
-    data: Union[xr.DataArray, np.ndarray],
+    data: xr.DataArray,
     Ka: np.ndarray,
     L0: np.ndarray,
     KxStar: np.ndarray,
     f: np.ndarray,
-    ab_types: tuple[str],
-    fitKa: Optional[Union[tuple, bool]] = False,
+    logistic_ligands: np.ndarray[bool],
+    rcp_inequalities: np.ndarray[float],
+    residual_mask: np.ndarray[bool],
+    rcps: tuple[str],
 ) -> np.ndarray:
     """
-    Computes the loss, comparing model output and actual measurements
-
     Args:
-      log_x: 1D array with model parameters
-      data: Raw data of shape (n_samp, n_rcp, n_ag)
-      Ka: Affinities of shape (n_rcp, n_ab)
-      L0: 1D array of size n_rcp
-      KxStar: 1D array of size n_rcp
-      f: 1D array of size n_rcp
-      ab_types: tuple containing the antibody types (length n_ab)
+      log_x: 1D array with model parameters.
+      data, Ka, L0, KxStar, f, logistic_ligands, rcp_inequalities, residual_mask,
+        rcps: see parameters with the same name in `optimize_loss` docstring.
 
     Returns:
-      The loss
+      The loss: a 1D array of nonnegative floats
     """
-    params = reshape_params(log_x, data, ab_types=ab_types, fitKa=fitKa)
-    if fitKa:
-        if isinstance(fitKa, tuple):
-            Ka = np.copy(Ka)
-            Ka[fitKa] = params[-1]
-        else:
-            Ka = params[-1]
-        params = params[:-1]
-    if isinstance(data, xr.DataArray):
-        data = np.array(data)
-    Lbound = infer_Lbound(data, *(params + [Ka]), L0, KxStar, f)
-    res = (np.nan_to_num(np.log(data) - np.log(Lbound), neginf=0, posinf=0)).flatten()
-    return res
+    assert isinstance(data, xr.DataArray)
+
+    params = reshape_params(
+        log_x,
+        data,
+        logistic_ligands,
+        rcps=rcps,
+    )
+
+    Lbound = infer_Lbound(
+        data,
+        params["Rtot"],
+        Ka,
+        L0,
+        KxStar,
+        f,
+        logistic_ligands,
+        params["logistic_params"],
+    )
+
+    Lbound_residuals = (
+        np.where(
+            residual_mask,
+            np.nan_to_num(
+                (np.log(Lbound) - np.log(data.values)),
+                neginf=0,
+                posinf=0,
+            ),
+            0,
+        )
+    ).flatten()
+
+    inequality_regularization = (
+        np.maximum(
+            np.sum(
+                rcp_inequalities[:, 1, :] * np.log(params["Rtot"][:, np.newaxis, :]),
+                axis=-1,
+            )
+            - np.sum(
+                rcp_inequalities[:, 0, :] * np.log(params["Rtot"][:, np.newaxis, :]),
+                axis=-1,
+            ),
+            0,
+        ).flatten()
+        * 10
+    )
+
+    logistic_slope_regularization = (
+        np.maximum(params["logistic_params"][3] - 1.0, 0).flatten() ** 2
+        * params["Rtot"].shape[0]
+        * data.shape[1]
+        / n_logistic_ligands(logistic_ligands)
+    )
+
+    return np.concatenate(
+        (Lbound_residuals, inequality_regularization, logistic_slope_regularization)
+    )
 
 
 def infer_Lbound(
-    cube: np.ndarray,
+    data: xr.DataArray,
+    Rtot: np.ndarray,
+    Ka: np.ndarray,
+    L0: np.ndarray,
+    KxStar: np.ndarray,
+    f: np.ndarray,
+    logistic_ligands: np.ndarray,
+    logistic_params: np.ndarray,
+):
+    """
+    Infer ligand abundances from receptor abundances.
+
+    Args:
+        data: see `optimize_loss` docstring.
+        Rtot: array of shape (n_cplx, n_rcp) containing receptor abundances.
+        Ka, L0, KxStar, f, logistic_ligands: see `optimize_loss` docstring.
+        logistic_params: array of shape (4, n_logistic_ligands) containing
+            parameters for logistic binding curves
+
+    Returns:
+        Lbound: array of shape (n_cplx, n_lig)
+    """
+    Lbound = np.zeros(data.shape)
+    logist_lig_map = logistic_ligand_map(logistic_ligands)
+    Lbound[:, ~logist_lig_map] = infer_Lbound_mv(
+        Rtot,
+        Ka[~logist_lig_map],
+        L0[~logist_lig_map],
+        KxStar[~logist_lig_map],
+        f[~logist_lig_map],
+    )
+    Lbound[:, logist_lig_map] = infer_Lbound_logistic(
+        Rtot, logistic_params, logistic_ligands
+    )
+    return Lbound
+
+
+def infer_Lbound_mv(
     Rtot: np.ndarray,
     Ka: np.ndarray,
     L0: np.ndarray,
@@ -69,28 +147,153 @@ def infer_Lbound(
     f: np.ndarray,
 ):
     """
-    Infers the amount of bound ligand (detection reagent) from the antibody
-    abundances, Rtot. See (4.14) in binding model paper.
+    Infer ligand abundances from receptor abundances using multivalent binding
+    model. See (4.14) in binding model paper.
 
     Args:
-      cube: Raw data of shape (n_samp, n_rcp, n_ag)
-      Rtot: Antibody abundances of shape (n_samp * n_ag, n_ab)
-      Ka: Affinities of shape (n_rcp, n_ab)
-      L0: 1D array of size n_rcp
-      KxStar: 1D array of size n_rcp
-      f: 1D array of size n_rcp
+        Rtot: see `infer_Lbound`.
+        Ka: matrix of shape (n_lig, n_rcp). Where n_lig may be smaller than n_lig in `infer_Lbound`.
+        L0, KxStar, f: subset of L0, KxStar, f as seen in `infer_Lbound`
+          containing entries only for the ligands which are to be inferred by
+          multivalent binding model.
 
     Returns:
-      The amount of each ligand bound for each sample and antigen. Same size as
-      cube.
+        Lbound array of shape (n_cplx, n_lig).
     """
-    Rtot = Rtot.reshape((cube.shape[0], Rtot.shape[1], cube.shape[2]))
-    Phi = custom_root(Rtot, L0, KxStar, Ka, f)
-    return (
-        L0[:, np.newaxis]
-        / KxStar[:, np.newaxis]
-        * ((1.0 + Phi) ** f[:, np.newaxis] - 1.0)
+    Phi = find_root_scipy(Rtot, L0, KxStar, Ka, f)
+    return L0 / KxStar * ((1.0 + Phi) ** f - 1.0)
+
+
+def infer_Lbound_logistic(
+    Rtot: np.ndarray,
+    logistic_params: np.ndarray,
+    logistic_ligands: np.ndarray,
+):
+    """
+    Infer ligand abundances using 4-parameter logistic curves (i.e. hill curve).
+
+    Args:
+        Rtot, logistic_params, logistic_ligands: see `infer_Lbound`.
+
+    Returns:
+        Lbound array of shape (n_cplx, n_lig).
+    """
+    assert np.all(
+        np.abs(logistic_params[3]) < 3e1
+    ), "Exponent overflow in logistic function"
+
+    Lbound = logistic_params[1] + (logistic_params[0] - logistic_params[1]) / (
+        1
+        + (
+            (Rtot @ logistic_ligands[np.any(logistic_ligands != 0, axis=1)].T)
+            / logistic_params[2]
+        )
+        ** logistic_params[3]
     )
+    return Lbound
+
+
+def find_root_custom(
+    Rtot: np.ndarray,
+    L0: np.ndarray,
+    KxStar: np.ndarray,
+    Ka: np.ndarray,
+    f: np.ndarray,
+) -> np.ndarray:
+    """
+    Find Phi given Rtot by finding roots of mass balance equation (see binding
+    model paper 4.12) using custom implementation of Newton-Raphson method. This
+    was useful when we used autodiff (transcribed to jax or pytorch).
+
+    Args:
+        Rtot, L0, KxStar, Ka, f: see `infer_Lbound`.
+
+    Returns:
+        Phi: array of shape (n_cplx, n_lig)
+    """
+    n_cplx, n_rcp = Rtot.shape
+    (n_lig,) = L0.shape
+
+    # Generate initial guess by using f = 2 and assuming phi are similar for each receptor
+    a = L0[:, None] * f[:, None] * (1 + n_rcp)
+    b = L0[:, None] * f[:, None] + 1 / Ka
+    c = -KxStar[:, None] * Rtot[:, None, :]
+    phi = -b + np.sqrt(b**2 - 4 * a * c) / 2 / a
+    assert np.all(phi > 0)
+    # jacobian of mass balance
+    jac = np.zeros((n_cplx, n_lig, n_rcp, n_rcp), dtype=np.double)
+
+    # Gauss's method
+    tol = 1e-9
+    for _ in range(200):
+        # mass balance
+        mass_bal = (
+            phi / Ka
+            + L0[:, None]
+            * f[:, None]
+            * phi
+            * ((1 + np.sum(phi, axis=2)) ** (f - 1))[:, :, None]
+            - KxStar[:, None] * Rtot[:, None, :]
+        )
+        if np.all(mass_bal < tol):
+            break
+        for i in range(n_rcp):
+            for j in range(n_rcp):
+                if i == j:
+                    jac[:, :, i, j] = 1 / Ka[:, i] + L0 * f * (
+                        (1 + np.sum(phi, axis=2)) ** (f - 1)
+                        + phi[:, :, i] * (f - 1) * (1 + np.sum(phi, axis=2)) ** (f - 2)
+                    )
+                else:
+                    jac[:, :, i, j] = (
+                        L0
+                        * f
+                        * phi[:, :, i]
+                        * (f - 1)
+                        * (1 + np.sum(phi, axis=2)) ** (f - 2)
+                    )
+        jac_inv = np.linalg.inv(jac)
+        phi = phi - np.einsum("clij,clj->cli", jac_inv, mass_bal)
+
+    if not np.all(mass_bal < tol):
+        warnings.warn("Phi computation did not converge")
+
+    assert np.all(phi >= 0)
+
+    return np.sum(phi, axis=2)
+
+
+def find_root_scipy(
+    Rtot: np.ndarray, L0: np.ndarray, KxStar: np.ndarray, Ka: np.ndarray, f: np.ndarray
+) -> np.ndarray:
+    """
+    Find Phi given Rtot by finding roots of mass balance equation (see binding
+    model paper 4.12) using scipy implementation of Newton-Raphson method.
+
+    Args:
+        Rtot: see `infer_Lbound`.
+        L0, KxStar, Ka, f: see `optimize_loss`.
+
+    Returns:
+        Phi: array of shape (n_cplx, n_lig).
+    """
+
+    # Precalculate these quantities for speed
+    KaRT = Ka[np.newaxis, :, :] * Rtot[:, np.newaxis, :] * KxStar[:, np.newaxis]
+    fLKa = f[:, np.newaxis] * L0[:, np.newaxis] * Ka[np.newaxis, :, :]
+
+    # Solve for an initial guess by using f = 2
+    a = np.sum(fLKa, axis=2)
+    b = 1 + a
+    # quadratic formula
+    f0 = (-b + np.sqrt(b**2 + 4 * a * np.sum(KaRT, axis=2))) / 2 / a
+
+    root = newton(
+        lambda *args: phi(*args) - args[0], f0, maxiter=10000, args=(KaRT, fLKa, f)
+    )
+
+    root[root < 0] = 0
+    return root
 
 
 def phi(
@@ -100,70 +303,21 @@ def phi(
     Updates the value of Phi.
 
     Args:
-      Phi: Existing value of Phi of shape (n_samp, n_rcp, n_ag)
-      KaRT: Product of Ka, Rtot, KxStar of shape (n_samp, n_rcp, n_ab, n_ag)
-      fLKa: Product of f, L0, Ka of shape (1, n_rcp, n_ab, 1)
-      f: 1D array of valencies of size n_rcp
+      Phi: Existing value of Phi of shape (n_cplx, n_lig)
+      KaRT: Product of Ka, Rtot, KxStar of shape (n_cplx, n_lig, n_lig)
+      fLKa: Product of f, L0, Ka of shape (1, n_lig, n_lig, 1)
+      f: see `optimize_loss`.
 
     Returns:
-      Phi of shape (n_samp, n_rcp, n_ag)
+      Phi of shape (n_cplx, n_lig).
     """
-    # n_samp * n_rcp * n_ag
+    # n_cplx * n_rcp
     Phi_temp = np.sum(
-        KaRT
-        / (
-            1.0
-            + fLKa
-            * (1.0 + Phi[:, :, np.newaxis, :]) ** (f[:, np.newaxis, np.newaxis] - 1)
-        ),
+        KaRT / (1.0 + fLKa * (1.0 + Phi[:, :, np.newaxis]) ** (f[:, np.newaxis] - 1)),
         axis=2,
     )
     assert Phi_temp.shape == Phi.shape
     return Phi_temp
-
-
-def custom_root(
-    Rtot: np.ndarray, L0: np.ndarray, KxStar: np.ndarray, Ka: np.ndarray, f: np.ndarray
-) -> np.ndarray:
-    """
-    Computes Phi from Rtot using mass balance and numerical optimization.
-
-    Args:
-      Rtot: Antibody abundances of shape (n_samp, n_ab, n_ag)
-      L0: 1D array of size n_rcp
-      KxStar: 1D array of size n_rcp
-      Ka: Matrix of shape (n_rcp, n_ab)
-      f: 1D array of size n_rcp
-
-    Returns:
-      Phi of shape (n_samp, n_rcp, n_ag)
-    """
-    # Precalculate these quantities for speed
-    # n_samp * n_rcp * n_ab * n_ag
-    KaRT = (
-        Ka[np.newaxis, :, :, np.newaxis]
-        * Rtot[:, np.newaxis, :, :]
-        * KxStar[:, np.newaxis, np.newaxis]
-    )
-    # 1 * n_rcp * n_ab * 1
-    fLKa = (
-        f[:, np.newaxis, np.newaxis]
-        * L0[:, np.newaxis, np.newaxis]
-        * Ka[np.newaxis, :, :, np.newaxis]
-    )
-
-    # Solve for an initial guess by using f = 2
-    a = np.sum(fLKa, axis=2)
-    b = 1 + a
-    # quadratic formula
-    f0 = (-b + np.sqrt(b**2 + 4 * a * np.sum(KaRT, axis=2))) / 2 / a
-
-    root = newton(
-        lambda *args: phi(*args) - args[0], f0, maxiter=15000, args=(KaRT, fLKa, f)
-    )
-
-    assert np.all(root >= 0)
-    return root
 
 
 def optimize_loss(
@@ -171,94 +325,113 @@ def optimize_loss(
     L0: np.ndarray,
     KxStar: np.ndarray,
     f: np.ndarray,
-    ab_types: Optional[tuple[str]] = HIgGs,
-    fitKa: Optional[Union[tuple, bool]] = False,
-    params: Optional[List] = None,
-    ftol: float = 1e-7,
-    gtol: float = 1e-7,
-    xtol: float = 1e-7,
+    rcps: tuple[str] = HIgGs,
+    logistic_ligands: np.ndarray[bool] = None,
+    rcp_inequalities: np.ndarray[float] = None,
+    residual_mask: np.ndarray[bool] = None,
+    tol: float = 1e-6,
+    Ka: np.ndarray[float] = None,
 ) -> Tuple[np.ndarray, Dict]:
     """
-    Infers the antibody abundances given the systems serology data in the data
-    parameter.
+    Infer the receptor abundances given the ligand abundances specified in `data`.
 
     Args:
-      data: DataArray with systems serology measurements. Shape: (n_samp, n_rcp, n_ag)
-      L0: 1D array of size n_rcp. Concentration of each ligand.
-      KxStar: 1D array of size n_rcp. KxStar (for detailed balance correction) of each ligand.
-      f: 1D array of size n_rcp. valency of each ligand.
-      ab_types: ab types to fit the data
-      fitKa: Either a bool (False: treat Ka as fixed, True: optimize Ka) or a
-        tuple of indices into the Ka array which specify specific affinities to
-        fit.
-      params: starting parameters (Rtot, Ka) to use
-      ftol: optimization tolerance: see scipy.optimize.least_squares
-      gtol: optimization tolerance: see scipy.optimize.least_squares
-      xtol: optimization tolerance: see scipy.optimize.least_squares
+        data: DataArray with systems serology measurements. Shape: (n_cplx,
+          n_lig), where n_cplx is the number of immune complexes and n_lig is the
+          number of ligands.
+        L0: array of size (n_lig,) specifying the concentrations of each ligand
+          in solution.
+        KxStar: array of size (n_lig,) specifying the difference between free
+          and multivalent binding affinity.
+        f: array of size (n_lig,) specifying the valency of each ligand.
+        rcps: Receptor (i.e. antibody) types to infer the abundance of.
+        params: Initial parameters to use. If not provided, these will be
+          randomly initialized.
+        logistic_ligands: matrix of size (n_lig, n_rcp). Each row corresponds to
+          the coefficients in the weighted sum of the receptors in that row. The
+          weighted sum is then passed as input to the logistic curve, the output
+          of which is the ligand abundance.
+        rcp_inequalities: Array for which each element represents a
+          regularization term based on the difference in abundance of 2 or more
+          receptors. Array is size (number of constraints, 2, n_rcp). The
+          penalty is the weighted sum specified by the coefficients in the 2nd
+          axis of the 2nd dimension minus the weighted sum specified by the
+          coefficients in the 1st axis of the 2nd dimension.
+        residual_mask: Array with shape like data specifying, where 1 indicates
+          that the corresponding entry in data is used in the optimization, and 0
+          means the value is neglected.
+        tol: Optimization tolerance. Used as gtol, xtol, ftol in
+          scipy.optimize.least_squares.
 
     Returns:
-      (x, ctx) where x are the parameters achieved in the optimization (see
-      reshape_params), and ctx is a dictionary containing additional context
-      about the optimization.
+        (x, ctx) where x are the parameters resulting from the optimization
+        (flattened and logged), and ctx is a dictionary containing additional
+        context about the optimization.
     """
-    n_samp, n_rcp, n_ag = data.shape
-    n_ab = len(ab_types)
-    assert L0.shape == (n_rcp,), "L0 wrong shape"
-    assert KxStar.shape == (n_rcp,), "KxStar wrong shape"
-    assert f.shape == (n_rcp,), "f wrong shape"
+    n_cplx, n_lig = data.shape
+    n_rcp = len(rcps)
+    assert np.all(data.values >= 0), "data must be nonnegative"
+    assert L0.shape == (n_lig,), "L0 wrong shape"
+    assert KxStar.shape == (n_lig,), "KxStar wrong shape"
+    assert f.shape == (n_lig,), "f wrong shape"
+
+    logistic_ligands = (
+        logistic_ligands
+        if logistic_ligands is not None
+        else np.zeros((n_lig * n_rcp), dtype=bool)
+    )
+
+    rcp_inequalities = (
+        rcp_inequalities
+        if rcp_inequalities is not None
+        else np.zeros((0, 2, n_rcp), dtype=float)
+    )
+
+    residual_mask = (
+        residual_mask if residual_mask is not None else np.ones_like(data, dtype=bool)
+    )
 
     if params is None:
-        params = initialize_params(data, ab_types=ab_types)
-    Ka = params[-1]
-    if fitKa:
-        if isinstance(fitKa, tuple):
-            # fit specific elements of Ka
-            params[-1] = params[-1][fitKa]
-        # if fitKa is True, fit the entire Ka matrix
-    else:
-        params = params[:-1]
+        params = initialize_params(
+            data,
+            logistic_ligands,
+            rcps=rcps,
+        )
 
-    log_x0 = flatten_params(*params)
+    assert params["Rtot"].shape[0] == n_cplx
 
     arrgs = (
-        data.values,
-        Ka,
+        data,
+        Ka or assemble_Ka(data, rcps).values,
         L0,
         KxStar,
         f,
-        ab_types,
-        fitKa,
+        logistic_ligands,
+        rcp_inequalities,
+        residual_mask,
+        rcps,
     )
-
-    # Setup a matrix characterizing the block sparsity of the Jacobian
-    rcp_ab_block = np.ones((n_rcp, n_ab), dtype=int)
-    jac_sparsity = np.zeros((n_samp, n_ag, n_samp, n_ag, n_rcp, n_ab), dtype=int)
-    samp_ag = np.zeros((n_samp, n_ag), dtype=int)
-    idx = np.indices(samp_ag.shape)
-    jac_sparsity[*idx, *idx] = rcp_ab_block
-    jac_sparsity = np.moveaxis(jac_sparsity, (4, 5), (1, 4))
-    n_out = n_samp * n_rcp * n_ag
-    n_in = n_samp * n_ab * n_ag
-    jac_sparsity = jac_sparsity.reshape(n_out, n_in)
-    if fitKa:
-        Ka_len = np.size(params[-1])
-        jac_sparsity = np.hstack((jac_sparsity, np.ones((n_out, Ka_len))))
-    jac_sparsity = coo_matrix(jac_sparsity)
 
     print("")
     opt = least_squares(
         model_loss,
-        log_x0,
+        flatten_params(params),
         args=arrgs,
         verbose=2,
-        jac_sparsity=jac_sparsity,
-        ftol=ftol,
-        gtol=gtol,
-        xtol=xtol,
+        jac_sparsity=assemble_jac_sparsity(
+            data,
+            rcps,
+            logistic_ligands,
+            rcp_inequalities,
+            params,
+        ),
+        bounds=assemble_bounds(data, rcps, logistic_ligands),
+        x_scale=assemble_x_scale(data, rcps, logistic_ligands),
+        ftol=tol,
+        gtol=tol,
+        xtol=tol,
     )
 
-    if not fitKa:
-        params.append(Ka)
     ctx = {"opt": opt, "init_params": params}
     ret = (opt.x, ctx)
     return ret
@@ -267,60 +440,226 @@ def optimize_loss(
 def reshape_params(
     log_x: np.ndarray,
     data,
-    fitKa: Optional[Union[tuple, bool]] = False,
-    ab_types: Collection = DEFAULT_AB_TYPES,
-    as_xarray: bool = False,
+    logistic_ligands: np.ndarray[bool],
+    rcps: Collection = DEFAULT_RCPS,
 ):
-    """Reshapes vector, x, into matrices. Inverse operation of flatten_params()."""
-    x = np.exp(log_x)
-    n_subj, n_rec, n_ag = data.shape
-    n_ab = len(ab_types)
+    """
+    Reshapes and scales up x.
+    """
+    params = {}
+    n_cplx, n_lig = data.shape
+    n_rcp = len(rcps)
 
-    non_ka_params_len = abundance_len = n_subj * n_ag * n_ab
-    abundance = x[:abundance_len].reshape((n_subj * n_ag, n_ab))
-    if as_xarray:
-        assert isinstance(
-            data, xr.DataArray
-        ), "data parameter must be an xarray.DataArray"
-        abundance = abundance.reshape((n_subj, n_ab, n_ag))
-        abundance = xr.DataArray(
-            abundance,
-            (data.Sample.values, list(ab_types), data.Antigen.values),
-            ("Sample", "Antibody", "Antigen"),
-        )
-    retVal = [abundance]
+    idx = 0
+    for param_name in PARAM_ORDER:
+        idx_end = idx
+        if param_name == "Rtot":
+            idx_end = idx + n_cplx * n_rcp
+            params["Rtot"] = log_x[idx:idx_end].reshape((n_cplx, n_rcp))
+        if param_name == "logistic_params":
+            n_logist_lig = n_logistic_ligands(logistic_ligands)
+            idx_end = idx + n_logist_lig * 4
+            params["logistic_params"] = log_x[idx:idx_end].reshape((4, n_logist_lig))
+        idx = idx_end
 
-    if fitKa:  # retrieve Ka from x as well
-        if isinstance(fitKa, tuple):
-            # return fitted affinities as 1d array
-            ka_len = len(fitKa[0])
-            Ka = x[non_ka_params_len : non_ka_params_len + ka_len]
-        else:
-            # return entire Ka matrix
-            ka_len = n_rec * n_ab
-            Ka = x[non_ka_params_len : non_ka_params_len + ka_len].reshape(n_rec, n_ab)
-            if as_xarray:
-                Ka = xr.DataArray(
-                    Ka, (data.Receptor.values, list(ab_types)), ("Receptor", "Antibody")
-                )
-        retVal.append(Ka)
-    return retVal
+    return scale_up_params(params)
 
 
-def flatten_params(*args):
-    """Flatten into a parameter vector. Inverse operation of reshape_params().
-    Order: (r_subj, r_ag) / abund, Ka"""
-    return np.log(np.concatenate([a.flatten() for a in args]))
+def flatten_params(params: Dict):
+    """
+    Scales down and flattens params.
+    """
+    params = scale_down_params(params)
+    return np.concatenate([params[k].flatten() for k in PARAM_ORDER if k in params])
 
 
 def initialize_params(
-    data: xr.DataArray, ab_types: Collection = DEFAULT_AB_TYPES
-) -> List:
-    Ka = assemble_Ka(data, ab_types).values
+    data: xr.DataArray,
+    logistic_ligands: np.ndarray[bool],
+    rcps: Collection = DEFAULT_RCPS,
+) -> Dict:
+    """
+    Randomly initializes parameters using distributions informed by data.
+    """
+    params = {}
+
     log_mean = np.mean(np.nan_to_num(np.log10(data.values + 1)))  # deal with 0s
-    abundance = np.random.uniform(
+
+    Rtot = np.random.uniform(
         10 ** (log_mean - 4),
         10 ** (log_mean + 2),
-        (data.sizes["Sample"], len(ab_types), data.sizes["Antigen"]),
+        (data.sizes["Complex"], len(rcps)),
     )
-    return [abundance, Ka]
+    params["Rtot"] = Rtot
+
+    n_logist_lig = n_logistic_ligands(logistic_ligands)
+    logist_lig_map = logistic_ligand_map(logistic_ligands)
+    logistic_params = np.zeros((4, n_logist_lig))
+    logistic_params[0] = np.min(data[:, logist_lig_map], axis=0) + 1e-2
+    logistic_params[1] = np.max(data[:, logist_lig_map], axis=0)
+    logistic_params[2] = np.random.uniform(
+        10 ** (log_mean + 3), 10 ** (log_mean + 5), n_logist_lig
+    )
+    logistic_params[3] = np.random.uniform(1e-1, 1, n_logist_lig)
+    params["logistic_params"] = logistic_params
+
+    return params
+
+
+def scale_down_params(params: Dict):
+    params = deepcopy(params)
+    params["Rtot"] = np.log(params["Rtot"])
+    # don't take log of logistic curve inflection slope
+    params["logistic_params"][:3] = np.log(params["logistic_params"][:3])
+    return params
+
+
+def scale_up_params(params: Dict):
+    params = deepcopy(params)
+    params["Rtot"] = np.exp(params["Rtot"])
+    params["logistic_params"][:3] = np.exp(params["logistic_params"][:3])
+    return params
+
+
+def assemble_jac_sparsity(
+    data: xr.DataArray,
+    rcps: Tuple,
+    logistic_ligands: np.ndarray[bool],
+    rcp_inequalities: np.ndarray[float],
+    params: List,
+):
+    """
+    Create Jacobian sparsity matrix for optimization.
+
+    Args:
+      data: Raw data
+      rcps: Antibody types
+      intersample_detections: boolean mask indicating which detection reagents
+        should be treated as intersample information.
+      params: parameters used in optimization (before flattening)
+
+    Returns: Jacobian sparsity matrix.
+    """
+    n_cplx, n_lig = data.shape
+    n_rcp = len(rcps)
+    n_logist_lig = n_logistic_ligands(logistic_ligands)
+    logist_lig_map = logistic_ligand_map(logistic_ligands)
+
+    # receptor abundance dependencies for a single complex
+    lig_rcp_block = np.zeros((n_lig, n_rcp), dtype=int)
+
+    # ligand abundances which follow multivalent binding depend on all receptors
+    lig_rcp_block[~logist_lig_map] = np.ones((n_lig - n_logist_lig, n_rcp))
+
+    # ligand abundances which follow a logistic binding curve only depend on the
+    # inputs for the binding curve
+    lig_rcp_block |= logistic_ligands
+
+    # tile single-complex dependencies across all complexes
+    jac_sparsity = np.zeros((n_cplx, n_cplx, n_lig, n_rcp), dtype=int)
+    jac_sparsity[np.arange(n_cplx), np.arange(n_cplx)] = lig_rcp_block
+    jac_sparsity = np.moveaxis(jac_sparsity, 2, 1)
+    jac_sparsity = jac_sparsity.reshape(n_cplx * n_lig, n_cplx * n_rcp)
+
+    # logistic parameter dependencies for a single complex
+    logistic_block_flat = np.zeros((n_lig, n_logist_lig), dtype=bool)
+    logistic_block_flat[logist_lig_map, np.arange(n_logist_lig)] = 1
+    logistic_block = np.zeros((n_lig, n_logist_lig, 4), dtype=int)
+    logistic_block[logistic_block_flat] = np.array([1, 1, 1, 1])
+    logistic_block = logistic_block.swapaxes(1, 2).reshape((n_lig, n_logist_lig * 4))
+
+    # tile single-complex dependencies across all complexes
+    jac_sparsity = np.hstack((jac_sparsity, np.tile(logistic_block, (n_cplx, 1))))
+
+    inequality_dependencies = rcp_inequalities[:, 0].astype(bool) | rcp_inequalities[
+        :, 1
+    ].astype(bool)
+    n_inequalities = rcp_inequalities.shape[0]
+    inequality_sparsity = np.zeros((n_cplx, n_cplx, n_inequalities, n_rcp), dtype=int)
+    inequality_sparsity[np.arange(n_cplx), np.arange(n_cplx)] = inequality_dependencies
+    inequality_sparsity = np.hstack(
+        (
+            inequality_sparsity.swapaxes(1, 2).reshape(
+                n_cplx * n_inequalities, n_cplx * n_rcp
+            ),
+            np.zeros((n_cplx * n_inequalities, n_logist_lig * 4)),
+        )
+    )
+    jac_sparsity = np.vstack((jac_sparsity, inequality_sparsity))
+
+    jac_sparsity_logistic_slope = np.zeros(
+        (n_logist_lig, n_cplx * n_rcp + n_logist_lig * 4), dtype=int
+    )
+    jac_sparsity_logistic_slope[
+        np.arange(n_logist_lig),
+        np.arange(n_cplx * n_rcp + n_logist_lig * 3, n_cplx * n_rcp + n_logist_lig * 4),
+    ] = 1
+    jac_sparsity = np.vstack((jac_sparsity, jac_sparsity_logistic_slope))
+
+    return jac_sparsity
+
+
+def logistic_ligand_map(logistic_ligands: np.ndarray) -> int:
+    return np.sum(logistic_ligands, axis=1) != 0
+
+
+def n_logistic_ligands(logistic_ligands: np.ndarray) -> int:
+    return np.sum(logistic_ligand_map(logistic_ligands))
+
+
+def assemble_x_scale(data, rcps, logistic_ligands):
+    n_cplx, n_lig = data.shape
+    n_rcp = len(rcps)
+    params = []
+    for param_name in PARAM_ORDER:
+        if param_name == "Rtot":
+            params.append(np.ones((n_cplx, n_rcp)))
+        if param_name == "logistic_params":
+            params.append(
+                np.full(
+                    (n_logistic_ligands(logistic_ligands), 4),
+                    np.array([5e-1, 5e-1, 1e-1, 3e-1]),  # empirical
+                ).T
+            )
+    return np.concatenate([param.flatten() for param in params])
+
+
+def assemble_bounds(data, rcps, logistic_ligands):
+    n_cplx, n_lig = data.shape
+    n_rcp = len(rcps)
+    lower = []
+    upper = []
+    for param_name in PARAM_ORDER:
+        if param_name == "Rtot":
+            lower.append(np.full((n_cplx, n_rcp), -np.Inf))
+            upper.append(np.full((n_cplx, n_rcp), np.Inf))
+        if param_name == "logistic_params":
+            # min value of logistic curve maximum is the maximum of the observed
+            # max value of logistic curve minimum is the minimum of the observed
+            n_logist_lig = n_logistic_ligands(logistic_ligands)
+            min_signal = np.min(data[:, logistic_ligand_map(logistic_ligands)], axis=0)
+            max_signal = np.max(data[:, logistic_ligand_map(logistic_ligands)], axis=0)
+            lower_ll = np.full((4, n_logist_lig), -np.Inf)
+            upper_ll = np.full((4, n_logist_lig), np.Inf)
+            upper_ll[0] = np.log(min_signal + 2e-2)  # account for possible 0
+            lower_ll[1] = np.log(max_signal)
+            lower_ll[-1] = 0
+            lower.append(lower_ll)
+            upper.append(upper_ll)
+    bounds = (
+        np.concatenate([param.flatten() for param in lower]),
+        np.concatenate([param.flatten() for param in upper]),
+    )
+    assert bounds[0].size == bounds[1].size
+    return bounds
+
+
+def Rtot_to_xarray(Rtot: np.ndarray, data: xr.DataArray, rcps: List):
+    return xr.DataArray(
+        Rtot,
+        coords={
+            "Complex": data.Complex,
+            "Receptor": rcps,
+        },
+        dims=["Complex", "Receptor"],
+    )
