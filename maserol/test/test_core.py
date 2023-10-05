@@ -22,13 +22,12 @@ def test_initialize(n_rcp):
     data = prepare_data(zohar())
     opts = assemble_options(data, HIgGs[:n_rcp])
     n_cplx, n_lig = data.shape
-    ps = initialize_params(data, opts["logistic_ligands"], opts["rcps"], fitKa=True)
+    ps = initialize_params(data, opts["logistic_ligands"], opts["rcps"])
     assert ps["Rtot"].shape == (n_cplx, n_rcp)
     assert ps["logistic_params"].shape == (
         4,
         n_logistic_ligands(opts["logistic_ligands"]),
     )
-    assert ps["Ka"].shape == (n_lig, n_rcp)
 
 
 def test_inferLbound_matches_valentbind():

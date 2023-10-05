@@ -168,7 +168,6 @@ def assemble_options(
         "f": f,
         "rcps": rcps,
         "logistic_ligands": logistic_ligands,
-        "fitKa": False,
     }
 
 

@@ -12,7 +12,6 @@ from .core import (
     reshape_params,
     optimize_loss,
     DEFAULT_RCPS,
-    get_postopt_Ka,
     initialize_params,
     logistic_ligand_map,
 )
@@ -22,23 +21,18 @@ from .figures.common import getSetup
 def plot_optimize(
     data: xarray.DataArray,
     opt_opts: Dict,
-    params=None,
 ):
     """Run optimize_loss(), and show inferred vs actual Lbound"""
     rcps = opt_opts["rcps"]
     Ka = assemble_Ka(data, rcps).values
-    x_opt, ctx = optimize_loss(data, params=params, **opt_opts)
+    x_opt, ctx = optimize_loss(data, **opt_opts)
 
     params = reshape_params(
         x_opt,
         data,
         opt_opts["logistic_ligands"],
         rcps=rcps,
-        fitKa=opt_opts["fitKa"],
     )
-
-    if opt_opts["fitKa"]:
-        Ka = get_postopt_Ka(Ka, params[2], opt_opts["fitKa"])
 
     Lbound = infer_Lbound(
         data,
@@ -120,15 +114,7 @@ def LLigO(
     opt_kwargs_sub["KxStar"] = opt_kwargs_sub["KxStar"][idx]
     opt_kwargs_sub["f"] = opt_kwargs_sub["f"][idx]
     opt_kwargs_sub["logistic_ligands"] = opt_kwargs_sub["logistic_ligands"][idx]
-    params = initialize_params(
-        data_no_lig, opt_kwargs_sub["logistic_ligands"], opt_opts["rcps"]
-    )
-    if Ka is None:
-        Ka = assemble_Ka(data, opt_opts["rcps"])[idx].values
-    else:
-        Ka = Ka[idx]
-        params[2] = Ka
-    opt_x, _ = optimize_loss(data_no_lig, **opt_kwargs_sub, params=params)
+    opt_x, _ = optimize_loss(data_no_lig, **opt_kwargs_sub)
     rcps = opt_kwargs_sub.get("rcps", DEFAULT_RCPS)
     params = reshape_params(opt_x, data, opt_kwargs_sub["logistic_ligands"], rcps=rcps)
     Lbound = infer_Lbound(

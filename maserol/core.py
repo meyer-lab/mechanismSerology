@@ -391,15 +391,6 @@ def optimize_loss(
         residual_mask if residual_mask is not None else np.ones_like(data, dtype=bool)
     )
 
-    if params is None:
-        params = initialize_params(
-            data,
-            logistic_ligands,
-            rcps=rcps,
-        )
-
-    assert params["Rtot"].shape[0] == n_cplx
-
     arrgs = (
         data,
         Ka or assemble_Ka(data, rcps).values,
@@ -415,7 +406,13 @@ def optimize_loss(
     print("")
     opt = least_squares(
         model_loss,
-        flatten_params(params),
+        flatten_params(
+            initialize_params(
+                data,
+                logistic_ligands,
+                rcps=rcps,
+            )
+        ),
         args=arrgs,
         verbose=2,
         jac_sparsity=assemble_jac_sparsity(
@@ -423,7 +420,6 @@ def optimize_loss(
             rcps,
             logistic_ligands,
             rcp_inequalities,
-            params,
         ),
         bounds=assemble_bounds(data, rcps, logistic_ligands),
         x_scale=assemble_x_scale(data, rcps, logistic_ligands),
@@ -432,7 +428,7 @@ def optimize_loss(
         xtol=tol,
     )
 
-    ctx = {"opt": opt, "init_params": params}
+    ctx = {"opt": opt}
     ret = (opt.x, ctx)
     return ret
 
@@ -526,7 +522,6 @@ def assemble_jac_sparsity(
     rcps: Tuple,
     logistic_ligands: np.ndarray[bool],
     rcp_inequalities: np.ndarray[float],
-    params: List,
 ):
     """
     Create Jacobian sparsity matrix for optimization.
