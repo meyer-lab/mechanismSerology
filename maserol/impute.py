@@ -54,14 +54,17 @@ def assemble_residual_mask_3d(data: xr.DataArray, ligand_missingness: Dict):
     return mask.values
 
 
-def impute_missing_ms(tensor, residual_mask):
+def impute_missing_ms(tensor, residual_mask, opts=None):
     """
     Imputes the values corresponding to the indices for which residual_mask ==j
     False using mechanistic serology.
     """
-    opts = assemble_options(tensor)
+    default_opts = assemble_options(tensor)
+    default_opts["tol"] = 1e-5
+    if opts is not None:
+        default_opts.update(opts)
+    opts = default_opts
     opts["residual_mask"] = residual_mask
-    opts["tol"] = 1e-5
     ax, Lbound, params = plot_optimize(tensor, opts)
     plt.clf()
     return Lbound
@@ -103,7 +106,9 @@ def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
     ax.annotate(f"r = {r:.2f}", xy=(0.8, 0.1), xycoords="axes fraction")
 
 
-def run_repeated_imputation(tensor, imputer, ligs=None, missingness=0.1, runs=5):
+def run_repeated_imputation(
+    tensor, imputer, ligs=None, missingness=0.1, runs=5, imputer_name=None
+):
     """
     Run imputation one or more times for all of the ligands in `ligs`. Returns
     pd.DataFrame with results from each run.
@@ -117,9 +122,12 @@ def run_repeated_imputation(tensor, imputer, ligs=None, missingness=0.1, runs=5)
             df.loc[len(df)] = [
                 # name of function (accessible through func if
                 # functools.partial)
-                imputer.__name__
-                if hasattr(imputer, "__name__")
-                else imputer.func.__name__,
+                imputer_name
+                or (
+                    imputer.__name__
+                    if hasattr(imputer, "__name__")
+                    else imputer.func.__name__
+                ),
                 r2_score(actual, Lbound),
                 np.corrcoef(actual, Lbound)[0, 1],
                 lig,
