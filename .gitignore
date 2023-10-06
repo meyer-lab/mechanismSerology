@@ -146,3 +146,9 @@ output
 *.png
 
 .vscode/*
+
+archived/
+
+*.pdf
+
+*.afdesign
