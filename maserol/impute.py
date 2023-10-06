@@ -2,6 +2,7 @@ from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import xarray as xr
 from sklearn.metrics import r2_score
@@ -100,3 +101,28 @@ def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
     ax = sns.scatterplot(x=x, y=y, ax=ax)
     r = np.corrcoef(x, y)[0][1]
     ax.annotate(f"r = {r:.2f}", xy=(0.8, 0.1), xycoords="axes fraction")
+
+
+def run_repeated_imputation(tensor, imputer, ligs=None, missingness=0.1, runs=5):
+    """
+    Run imputation one or more times for all of the ligands in `ligs`. Returns
+    pd.DataFrame with results from each run.
+    """
+    df = pd.DataFrame(columns=["Method", "r2", "r", "Ligand", "Missingness"])
+    for lig in ligs or tensor.Ligand.values:
+        for _ in range(runs):
+            residual_mask = assemble_residual_mask(tensor, {lig: missingness})
+            actual = np.log10(tensor.values[~residual_mask])
+            Lbound = np.log10(imputer(tensor, residual_mask)[~residual_mask])
+            df.loc[len(df)] = [
+                # name of function (accessible through func if
+                # functools.partial)
+                imputer.__name__
+                if hasattr(imputer, "__name__")
+                else imputer.func.__name__,
+                r2_score(actual, Lbound),
+                np.corrcoef(actual, Lbound)[0, 1],
+                lig,
+                missingness,
+            ]
+    return df
