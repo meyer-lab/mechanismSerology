@@ -121,10 +121,11 @@ def assemble_options(
     data: xr.DataArray,
     rcps=DEFAULT_RCPS,
     IgG_L0: float = 1e-9,
-    Fc_L0: float = 1e-9,
+    FcR_L0: float = 1e-9,
     IgG_KxStar: float = 1e-12,
-    Fc_KxStar: float = 1e-12,
+    FcR_KxStar: float = 1e-12,
     IgG_logistic: bool = True,
+    FcR_f: int = 4,
 ):
     """
     Helper function for constructing parameters used in optimization.
@@ -144,14 +145,14 @@ def assemble_options(
     IgG_re = re.compile("^IgG[1-4]$")
     L0 = np.full(n_lig, 1e-9)
     KxStar = np.full(n_lig, 1e-12)
-    f = np.full(n_lig, 4)
+    f = np.full(n_lig, FcR_f)
     for i in range(n_lig):
         if IgG_re.search(data.Ligand.values[i]):
             L0[i] = IgG_L0
             KxStar[i] = IgG_KxStar
         else:
-            L0[i] = Fc_L0
-            KxStar[i] = Fc_KxStar
+            L0[i] = FcR_L0
+            KxStar[i] = FcR_KxStar
     for i in range(n_lig):
         if IgG_re.search(data.Ligand.values[i]):
             f[i] = 2
