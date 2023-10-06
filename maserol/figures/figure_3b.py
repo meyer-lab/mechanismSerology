@@ -14,6 +14,11 @@ from maserol.preprocess import prepare_data
 from maserol.figures.common import getSetup
 
 
+# make larger for paper
+LIGS = ["FcR2A"]
+RUNS = 1
+
+
 def makeFigure():
     tensor_3d_zohar = (
         zohar()
@@ -34,7 +39,7 @@ def makeFigure():
     ]
     tensors = [tensor_2d_zohar_sub, tensor_3d_zohar_sub, tensor_2d_zohar_sub]
     df = pd.concat(
-        run_repeated_imputation(tensor, imputer, ligs=["FcR2A"], runs=3)
+        run_repeated_imputation(tensor, imputer, ligs=LIGS, runs=RUNS)
         for tensor, imputer in zip(tensors, imputers)
     )
     axes, fig = getSetup((7, 6), (1, 1))
