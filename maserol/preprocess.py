@@ -3,81 +3,36 @@ import re
 from pathlib import Path
 from typing import Collection
 
-import yaml
 import numpy as np
 import pandas as pd
 import xarray as xr
 
+from tensordata.kaplonek import MGH4D
+
 
 class AffinityNotFoundException(Exception):
-    def __init__(self, receptor: str, ab_type: str):
-        super().__init__(f"Receptor: {receptor}, Antibody Type: {ab_type}")
+    def __init__(self, ligand: str, receptor: str):
+        super().__init__(f"Ligand: {ligand}, Receptor: {receptor}")
 
 
 PROJ_DIR = Path(__file__).parent
-CONFIGS_PATH = PROJ_DIR / "data_configs.yaml"
 
 # standard Ab subclasses
 HIgGs = ("IgG1", "IgG2", "IgG3", "IgG4")
 # Ab subclasses with fucosylated counterparts
 HIgGFs = ("IgG1", "IgG1f", "IgG2", "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f")
+# IgG1 and IgG3 fucosylated
+IgG1_3 = ("IgG1", "IgG1f", "IgG3", "IgG3f")
 
-DEFAULT_AB_TYPES = HIgGs
+DEFAULT_RCPS = IgG1_3
 
 
-def prepare_data(data: xr.DataArray, remove_rcp=None, data_id=None):
+def prepare_data(data: xr.DataArray, ligs=None):
     """
-    Transposes data to be in ("Sample", "Receptor", "Antigen") order
-    and omits any data not pertaining to IgG or FcgR.
-
-    data_id is declared in data_configs.yaml. Pass the data_id into this
-    function to have the operations for this data_id in data_configs.yaml be
-    applied to the dataset
+    Reshapes data into matrix of size (n_cplx, n_lig), where n_cplx = n_sample x
+    n_ag - missing.
     """
     assert len(data.dims) == 3, "Data must be 3 dimensional"
-    # Make the modes in the right order
-    if "Subject" in data.dims:
-        data = data.rename({"Subject": "Sample"})
-    data = data.transpose("Sample", "Receptor", "Antigen")
-
-    wanted_receptors = data.Receptor.values
-    if data_id is None:
-        # Receptors: only keep those with "IgGx" or "FcgRx"
-        wanted_receptors = [
-            x for x in wanted_receptors if re.match("^igg", x, flags=re.IGNORECASE)
-        ] + [
-            x
-            for x in wanted_receptors
-            if re.match("fc[gr]*", x, flags=re.IGNORECASE) and x != "FcRalpha"
-        ]
-        if remove_rcp != None:
-            for r in remove_rcp:
-                wanted_receptors.remove(r)
-        data = data.sel(Receptor=wanted_receptors)
-    else:
-        with open(CONFIGS_PATH, "r") as f:
-            configs = yaml.load(f, yaml.Loader)
-        config = configs.get(data_id)
-        if config is not None:
-            trans = config.get("translations")
-            if trans is not None:
-                rcp_trans = trans.get("rcp", {})
-                ag_trans = trans.get("ag", {})
-                data["Receptor"] = [
-                    rcp_trans.get(rcp, rcp) for rcp in data["Receptor"].values
-                ]
-                data["Antigen"] = [
-                    ag_trans.get(ag, ag) for ag in data["Antigen"].values
-                ]
-            include = config.get("include")
-            if include is not None:
-                rcp_include = include.get("rcp")
-                ag_include = include.get("ag")
-                if rcp_include is not None:
-                    data = data.sel(Receptor=rcp_include)
-                if ag_include is not None:
-                    data = data.sel(Antigen=ag_include)
-
     # Antigens: remove those with all missing values
     missing_ag = []
     for antigen in data.Antigen:
@@ -85,13 +40,28 @@ def prepare_data(data: xr.DataArray, remove_rcp=None, data_id=None):
             np.isfinite(data.sel(Antigen=antigen))
         ):  # only nan values for antigen
             missing_ag.append(antigen.values)
-    data = data.drop_sel(Antigen=missing_ag)
-    return data
+    if "Subject" in data.dims:
+        data = data.rename({"Subject": "Sample"})
+    data = (
+        data.drop_sel(Antigen=missing_ag)
+        .rename({"Receptor": "Ligand"})
+        .stack(Complex=("Sample", "Antigen"))
+        .transpose("Complex", "Ligand")
+    )
+    ligs = ligs or [
+        lig
+        for lig in data.Ligand.values
+        if re.match("^igg|fc[gr]*", lig, flags=re.IGNORECASE) and lig != "FcRalpha"
+    ]
+    data = data.sel(
+        Ligand=ligs,
+    )
+    return data[np.all((data.values != 0) & ~np.isnan(data.values), axis=1)]
 
 
-def get_affinity(rcp: str, ab_type: str) -> float:
+def get_affinity(lig: str, rcp: str) -> float:
     """
-    Given a receptor and an antibody, retreives their affinity value.
+    Given a ligand and receptors, retreives their affinity value.
     """
     df = pd.read_csv(
         PROJ_DIR / "data" / "human-affinities.csv",
@@ -100,12 +70,12 @@ def get_affinity(rcp: str, ab_type: str) -> float:
         index_col=0,
     )
 
-    if re.search("^IgG[1-4]$", rcp):
+    if re.search("^IgG[1-4]$", lig):
         # subclass-specific detection reagent
-        return df.at[rcp, ab_type]
+        return df.at[lig, rcp]
 
     # figure out of receptor uses iii or 1,2,3 system
-    x = re.search("3|2|1|i+", rcp, flags=re.IGNORECASE)
+    x = re.search("3|2|1|i+", lig, flags=re.IGNORECASE)
     if x is not None:
         match = x.group()
         if match == "1" or match.lower() == "i":
@@ -117,87 +87,103 @@ def get_affinity(rcp: str, ab_type: str) -> float:
 
         # search for receptor match in affinities dataArray
         for r in list(df.index):
-            r_regex = "fc[gr]*" + num + rcp[x.end() : :]
+            r_regex = "fc[gr]*" + num + lig[x.end() : :]
             if re.match(r_regex, r, flags=re.IGNORECASE):
-                return df.at[r, ab_type]
+                return df.at[r, rcp]
     try:
-        return df.at[rcp, ab_type]
+        return df.at[lig, rcp]
     except KeyError:
-        raise AffinityNotFoundException(rcp, ab_type)
+        raise AffinityNotFoundException(lig, rcp)
 
 
-def assemble_Ka(
-    data: xr.DataArray, ab_types: Collection = DEFAULT_AB_TYPES
-) -> xr.DataArray:
+def assemble_Ka(data: xr.DataArray, rcps: Collection = DEFAULT_RCPS) -> xr.DataArray:
     """Assemble affinity matrix for a given dataset."""
-    receptors = (
-        data.Receptor.values
-    )  # work even when data did not go thru prepare_data()
+    ligs = data.Ligand.values  # work even when data did not go thru prepare_data()
 
     # assemble matrix
-    Kav = xr.DataArray(
-        np.full((receptors.size, len(ab_types)), 10),
-        coords=[receptors, list(ab_types)],
-        dims=["Receptor", "Abs"],
+    Ka = xr.DataArray(
+        np.full((ligs.size, len(rcps)), 10),
+        coords=[ligs, list(rcps)],
+        dims=["Ligand", "Receptor"],
     )
 
     # fill in remaining affinity values
-    for ab in ab_types:
-        for r in receptors:
-            Kav.loc[dict(Receptor=r, Abs=ab)] = get_affinity(r, ab)
+    for rcp in rcps:
+        for l in ligs:
+            Ka.loc[dict(Ligand=l, Receptor=rcp)] = get_affinity(l, rcp)
 
-    Kav.values[np.where(Kav.values < 10.0)] = 10
-    Kav.values = Kav.values.astype("float")
-    return Kav
-
-
-def make_rcp_ag_labels(data: xr.DataArray):
-    data_flat = data.stack(label=["Sample", "Receptor", "Antigen"])["label"]
-    return np.array([x.Receptor.values for x in data_flat]), np.array(
-        [x.Antigen.values for x in data_flat]
-    )
+    Ka.values[np.where(Ka.values < 10.0)] = 10
+    Ka.values = Ka.values.astype("float")
+    return Ka
 
 
 def assemble_options(
     data: xr.DataArray,
-    ab_types=HIgGs,
+    rcps=DEFAULT_RCPS,
     IgG_L0: float = 1e-9,
     Fc_L0: float = 1e-9,
     IgG_KxStar: float = 1e-12,
     Fc_KxStar: float = 1e-12,
+    IgG_logistic: bool = True,
 ):
     """
     Helper function for constructing parameters used in optimization.
 
     Args:
-      data: Raw data
-      ab_types: Antibody types
-      IgG_L0: L0 to use for IgG (subclass) detection reagents
-      Fc_L0: L0 to use for FcR detection reagents
-      IgG_KxStar: KxStar to use for IgG detection reagents
-      Fc_KxStar: KxStar to use for FcR detection reagents
+        data, rcps: see `optimize_loss`.
+        IgG_L0: L0 to use for IgG (subclass) detection reagents
+        Fc_L0: L0 to use for FcR detection reagents
+        IgG_KxStar: KxStar to use for IgG detection reagents
+        Fc_KxStar: KxStar to use for FcR detection reagents
 
     Returns:
-      Dictionary with keys {"L0", "KxStar", "f", "ab_types"}
+      Dictionary with `optimize_loss` params.
     """
+    n_lig = data.sizes["Ligand"]
+    n_rcp = len(rcps)
     IgG_re = re.compile("^IgG[1-4]$")
-    n_rcp = data.sizes["Receptor"]
-    L0 = np.full(n_rcp, 1e-9)
-    KxStar = np.full(n_rcp, 1e-12)
-    for i in range(n_rcp):
-        if IgG_re.search(data.Receptor.values[i]):
+    L0 = np.full(n_lig, 1e-9)
+    KxStar = np.full(n_lig, 1e-12)
+    f = np.full(n_lig, 4)
+    for i in range(n_lig):
+        if IgG_re.search(data.Ligand.values[i]):
             L0[i] = IgG_L0
             KxStar[i] = IgG_KxStar
         else:
             L0[i] = Fc_L0
             KxStar[i] = Fc_KxStar
-    f = np.full(n_rcp, 4)
-    for i in range(n_rcp):
-        if IgG_re.search(data.Receptor.values[i]):
+    for i in range(n_lig):
+        if IgG_re.search(data.Ligand.values[i]):
             f[i] = 2
+    logistic_ligands = np.full((n_lig, n_rcp), False)
+    if IgG_logistic:
+        for i in range(n_lig):
+            logistic_ligands[i] = np.array(
+                [data.Ligand.values[i] in rcp for rcp in rcps]
+            )
+
     return {
         "L0": L0,
         "KxStar": KxStar,
         "f": f,
-        "ab_types": ab_types,
+        "rcps": rcps,
+        "logistic_ligands": logistic_ligands,
     }
+
+
+def get_kaplonek_mgh_data():
+    mgh_4d = MGH4D()["Serology"]
+
+    tensors = [10 ** mgh_4d.isel(Time=i) for i in range(mgh_4d.sizes["Time"])]
+
+    for tensor in tensors:
+        tensor.values[tensor.values == 1] = 0
+        tensor.coords["Subject"] = [
+            f"{sample}_{tensor.Time.values}" for sample in tensor.Subject.values
+        ]
+
+    tensors = [
+        prepare_data(tensor, ligs=["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"])
+        for tensor in tensors
+    ]
+    return xr.concat(tensors, dim="Complex")
