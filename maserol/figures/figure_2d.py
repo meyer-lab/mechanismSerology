@@ -8,20 +8,23 @@ from maserol.figures.common import getSetup
 from maserol.forward_backward import forward_backward
 
 
+N_ITER = 1
+STEPS = 3
+
+
 def makeFigure():
     axes, fig = getSetup((3.5, 2.7), (1, 1))
 
-    noises = np.linspace(0, 1, 5)
-    n_iter = 3
+    noises = np.linspace(0, 0.35, STEPS)
 
     dfs = []
 
     for noise in noises:
-        Rtot_pairs = [forward_backward(Ka_noise_std=noise) for _ in range(n_iter)]
+        Rtot_pairs = [forward_backward(Ka_noise_std=noise) for _ in range(N_ITER)]
         dfs.append(
             pd.DataFrame(
                 {
-                    "noise": np.full(n_iter, noise),
+                    "noise": np.full(N_ITER, noise),
                     "r2": [
                         r2_score(
                             np.log10(Rtot.values.flatten()),

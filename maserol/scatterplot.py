@@ -12,7 +12,6 @@ from .core import (
     reshape_params,
     optimize_loss,
     DEFAULT_RCPS,
-    initialize_params,
     logistic_ligand_map,
 )
 from .figures.common import getSetup
@@ -24,7 +23,9 @@ def plot_optimize(
 ):
     """Run optimize_loss(), and show inferred vs actual Lbound"""
     rcps = opt_opts["rcps"]
-    Ka = assemble_Ka(data, rcps).values
+    Ka = assemble_Ka(
+        data.Ligand.values, rcps, logistic_ligands=opt_opts["logistic_ligands"]
+    ).values
     x_opt, ctx = optimize_loss(data, **opt_opts)
 
     params = reshape_params(
@@ -106,13 +107,16 @@ def LLigO(
     """
     if isinstance(lig, str):
         lig = [lig]
+    mv_idx = ~np.isin(
+        data.Ligand.values[~logistic_ligand_map(opt_opts["logistic_ligands"])], lig
+    )
     idx = ~np.isin(data.Ligand.values, lig)
     # recompute FcIdx with the remaining receptors
     data_no_lig = data.isel(Ligand=idx)
     opt_kwargs_sub = copy.deepcopy(opt_opts)
-    opt_kwargs_sub["L0"] = opt_kwargs_sub["L0"][idx]
-    opt_kwargs_sub["KxStar"] = opt_kwargs_sub["KxStar"][idx]
-    opt_kwargs_sub["f"] = opt_kwargs_sub["f"][idx]
+    opt_kwargs_sub["L0"] = opt_kwargs_sub["L0"][mv_idx]
+    opt_kwargs_sub["KxStar"] = opt_kwargs_sub["KxStar"][mv_idx]
+    opt_kwargs_sub["f"] = opt_kwargs_sub["f"][mv_idx]
     opt_kwargs_sub["logistic_ligands"] = opt_kwargs_sub["logistic_ligands"][idx]
     opt_x, _ = optimize_loss(data_no_lig, **opt_kwargs_sub)
     rcps = opt_kwargs_sub.get("rcps", DEFAULT_RCPS)
@@ -120,7 +124,11 @@ def LLigO(
     Lbound = infer_Lbound(
         data_no_lig,
         params["Rtot"],
-        Ka if Ka is not None else assemble_Ka(data_no_lig, rcps).values,
+        Ka
+        if Ka is not None
+        else assemble_Ka(
+            data_no_lig.Ligand.values, rcps, opt_kwargs_sub["logistic_ligands"]
+        ).values,
         opt_kwargs_sub["L0"],
         opt_kwargs_sub["KxStar"],
         opt_kwargs_sub["f"],
@@ -165,6 +173,10 @@ def plot_LLigO(
     )
     ax.set_title(f"All - {', '.join(lig)}", fontsize=15)
 
+    lig_idx = np.isin(data.Ligand.values, lig)
+    lig_idx_mv = np.isin(
+        data.Ligand.values[~logistic_ligand_map(opt_opts["logistic_ligands"])], lig
+    )
     if np.any(
         (data.Ligand.values == lig[0])
         & logistic_ligand_map(opt_opts["logistic_ligands"])
@@ -175,7 +187,6 @@ def plot_LLigO(
             == logistic_ligand_map(opt_opts["logistic_ligands"])
         )
 
-        lig_idx = np.isin(data.Ligand.values, lig)
         rcp_idx = np.zeros((len(lig), len(opt_opts["rcps"])), dtype=bool)
 
         for io, l in enumerate(data.Ligand.values):
@@ -188,14 +199,13 @@ def plot_LLigO(
                 rcp_idx[ii] = np.isin(np.array(opt_opts["rcps"]), lig)
         inferred = params["Rtot"] @ rcp_idx.T
     else:
-        Ka = assemble_Ka(data, opt_opts["rcps"]).values
-        lig_idx = np.isin(data.Ligand.values, lig)
+        Ka = assemble_Ka(data.Ligand.values[lig_idx], opt_opts["rcps"]).values
         inferred = infer_Lbound_mv(
             params["Rtot"],
-            Ka[lig_idx],
-            opt_opts["L0"][lig_idx],
-            opt_opts["KxStar"][lig_idx],
-            opt_opts["f"][lig_idx],
+            Ka,
+            opt_opts["L0"][lig_idx_mv],
+            opt_opts["KxStar"][lig_idx_mv],
+            opt_opts["f"][lig_idx_mv],
         )
 
     ax = sns.scatterplot(

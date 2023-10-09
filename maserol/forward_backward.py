@@ -1,7 +1,7 @@
 import numpy as np
 import xarray as xr
 
-from maserol.core import infer_Lbound_mv, optimize_loss, reshape_params
+from maserol.core import infer_Lbound_mv, infer_Lbound, optimize_loss, reshape_params
 from maserol.preprocess import assemble_Ka, assemble_options
 
 
@@ -31,15 +31,23 @@ def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
     data = xr.DataArray(
         np.zeros((n_cplx, n_lig)), (Rtot.Complex.values, lig), ("Complex", "Ligand")
     )
-    Ka = assemble_Ka(data, rcps)
-    opts = assemble_options(data, rcps)
-    opts["tol"] = tol
 
-    forward_Ka = Ka.values * np.maximum(
-        1 + np.random.normal(scale=Ka_noise_std, size=Ka.shape), 0
+    forward_opts = assemble_options(data, rcps, IgG_logistic=False)
+    backward_opts = assemble_options(data, rcps, IgG_logistic=True)
+    backward_opts["tol"] = tol
+
+    forward_Ka = np.ones((n_lig, n_rcp), dtype=float)
+    forward_Ka[4:] = assemble_Ka(data.Ligand.values[4:], rcps).values
+    forward_Ka[np.arange(4), np.arange(4)] = 1e7
+    forward_Ka *= np.maximum(
+        1 + np.random.normal(scale=Ka_noise_std, size=forward_Ka.shape), 0
     )
     data.values = infer_Lbound_mv(
-        Rtot.values, forward_Ka, opts["L0"], opts["KxStar"], opts["f"]
+        Rtot.values,
+        forward_Ka,
+        forward_opts["L0"],
+        forward_opts["KxStar"],
+        forward_opts["f"],
     )
 
     # lognormal
@@ -48,8 +56,8 @@ def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
     # normal
     data.values *= np.maximum(1 + np.random.normal(scale=noise_std, size=data.shape), 0)
 
-    x_opt, ctx = optimize_loss(data, **opts)
+    x_opt, ctx = optimize_loss(data, **backward_opts)
     assert ctx["opt"].status > 0
-    params = reshape_params(x_opt, data, opts["logistic_ligands"], rcps=rcps)
+    params = reshape_params(x_opt, data, backward_opts["logistic_ligands"], rcps=rcps)
 
     return Rtot, params["Rtot"]

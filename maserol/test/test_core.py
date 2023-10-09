@@ -9,6 +9,7 @@ from valentbind.model import polyc
 from maserol.core import (
     initialize_params,
     infer_Lbound_mv,
+    infer_Lbound,
     assemble_Ka,
     n_logistic_ligands,
     reshape_params,
@@ -68,19 +69,18 @@ def test_inferLbound_matches_valentbind():
 @pytest.mark.parametrize("L0", [1e-9, 1e-5])
 @pytest.mark.parametrize("rcp_high", [1e3, 1e7])
 def test_forward_backward(n_cplx, L0, rcp_high):
-    rcps = ["IgG1", "IgG2", "IgG3", "IgG3f"]
-    ligs = [
-        "IgG1",
-        "IgG2",
-        "IgG3",
-        "FcgRIIB-232I",
-        "FcgRIIIA-158F",
-        "FcgRIIIA-158V",
-        "FcgRIIIB",
-    ]
-    f = np.array([2, 2, 2, 4, 4, 4, 4])
-    L0 = np.full(len(ligs), 1e-9)
-    KxStar = np.full(len(ligs), 1e-12)
+    rcps = np.array(["IgG1", "IgG2", "IgG3", "IgG3f"])
+    ligs = np.array(
+        [
+            "IgG1",
+            "IgG2",
+            "IgG3",
+            "FcgRIIB-232I",
+            "FcgRIIIA-158F",
+            "FcgRIIIA-158V",
+            "FcgRIIIB",
+        ]
+    )
     Rtot = xr.DataArray(
         np.random.uniform(high=rcp_high, size=(n_cplx, len(rcps))),
         [np.arange(n_cplx), list(rcps)],
@@ -91,10 +91,28 @@ def test_forward_backward(n_cplx, L0, rcp_high):
         (Rtot.Complex.values, ligs),
         ("Complex", "Ligand"),
     )
-    Ka = assemble_Ka(data, rcps)
-    data.values = infer_Lbound_mv(Rtot.values, Ka.values, L0, KxStar, f)
-    opts = assemble_options(data, rcps)
-    x_opt, ctx = optimize_loss(data, **opts)
+    Ka = np.ones((len(ligs), len(rcps)))
+    Ka[3:] = assemble_Ka(ligs[3:], rcps).values
+    Ka[[0, 1, 2, 2], [0, 1, 2, 3]] = 10**7
+
+    forward_opts = assemble_options(data, rcps, IgG_logistic=False)
+    backward_opts = assemble_options(data, rcps, IgG_logistic=True)
+
+    data.values = infer_Lbound_mv(
+        Rtot.values, Ka, forward_opts["L0"], forward_opts["KxStar"], forward_opts["f"]
+    )
+    x_opt, ctx = optimize_loss(
+        data,
+        backward_opts["L0"],
+        backward_opts["KxStar"],
+        backward_opts["f"],
+        rcps,
+        backward_opts["logistic_ligands"],
+        Ka=Ka[3:],
+    )
+
     assert ctx["opt"].status > 0
-    params = reshape_params(x_opt, data, opts["logistic_ligands"])
+
+    params = reshape_params(x_opt, data, backward_opts["logistic_ligands"], rcps)
+
     assert np.corrcoef(Rtot.values.flatten(), params["Rtot"].flatten())[0][1] > 0.95

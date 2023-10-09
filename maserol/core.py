@@ -10,7 +10,13 @@ from scipy.optimize import least_squares, newton
 
 
 # Current Package
-from .preprocess import assemble_Ka, HIgGs, DEFAULT_RCPS
+from .preprocess import (
+    assemble_Ka,
+    HIgGs,
+    DEFAULT_RCPS,
+    logistic_ligand_map,
+    n_logistic_ligands,
+)
 
 
 """
@@ -128,10 +134,10 @@ def infer_Lbound(
     logist_lig_map = logistic_ligand_map(logistic_ligands)
     Lbound[:, ~logist_lig_map] = infer_Lbound_mv(
         Rtot,
-        Ka[~logist_lig_map],
-        L0[~logist_lig_map],
-        KxStar[~logist_lig_map],
-        f[~logist_lig_map],
+        Ka,
+        L0,
+        KxStar,
+        f,
     )
     Lbound[:, logist_lig_map] = infer_Lbound_logistic(
         Rtot, logistic_params, logistic_ligands
@@ -371,15 +377,23 @@ def optimize_loss(
     n_cplx, n_lig = data.shape
     n_rcp = len(rcps)
     assert np.all(data.values >= 0), "data must be nonnegative"
-    assert L0.shape == (n_lig,), "L0 wrong shape"
-    assert KxStar.shape == (n_lig,), "KxStar wrong shape"
-    assert f.shape == (n_lig,), "f wrong shape"
+    n_mv_ligs = n_lig - n_logistic_ligands(logistic_ligands)
+    assert L0.shape == n_mv_ligs, "L0 wrong shape"
+    assert KxStar.shape == n_mv_ligs, "KxStar wrong shape"
+    assert f.shape == n_mv_ligs, "f wrong shape"
 
     logistic_ligands = (
         logistic_ligands
         if logistic_ligands is not None
         else np.zeros((n_lig * n_rcp), dtype=bool)
     )
+
+    Ka = (
+        Ka
+        if Ka is not None
+        else assemble_Ka(data.Ligand.values, rcps, logistic_ligands).values
+    )
+    assert Ka.shape[0] == n_mv_ligs, "Ka wrong shape"
 
     rcp_inequalities = (
         rcp_inequalities
@@ -393,7 +407,7 @@ def optimize_loss(
 
     arrgs = (
         data,
-        Ka or assemble_Ka(data, rcps).values,
+        Ka,
         L0,
         KxStar,
         f,
@@ -471,7 +485,7 @@ def flatten_params(params: Dict):
 
 def initialize_params(
     data: xr.DataArray,
-    logistic_ligands: np.ndarray[bool],
+    logistic_ligands: np.ndarray,
     rcps: Collection = DEFAULT_RCPS,
 ) -> Dict:
     """
@@ -592,14 +606,6 @@ def assemble_jac_sparsity(
     jac_sparsity = np.vstack((jac_sparsity, jac_sparsity_logistic_slope))
 
     return jac_sparsity
-
-
-def logistic_ligand_map(logistic_ligands: np.ndarray) -> int:
-    return np.sum(logistic_ligands, axis=1) != 0
-
-
-def n_logistic_ligands(logistic_ligands: np.ndarray) -> int:
-    return np.sum(logistic_ligand_map(logistic_ligands))
 
 
 def assemble_x_scale(data, rcps, logistic_ligands):
