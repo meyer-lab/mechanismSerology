@@ -1,7 +1,7 @@
 """ Import binding affinities. """
 import re
 from pathlib import Path
-from typing import Collection
+from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -96,21 +96,26 @@ def get_affinity(lig: str, rcp: str) -> float:
         raise AffinityNotFoundException(lig, rcp)
 
 
-def assemble_Ka(data: xr.DataArray, rcps: Collection = DEFAULT_RCPS) -> xr.DataArray:
+def assemble_Ka(
+    ligs: Iterable, rcps: Iterable = DEFAULT_RCPS, logistic_ligands=None
+) -> xr.DataArray:
     """Assemble affinity matrix for a given dataset."""
-    ligs = data.Ligand.values  # work even when data did not go thru prepare_data()
+
+    assert len(ligs.shape) == 1, "ligs should be 1d"
+    if logistic_ligands is not None:
+        ligs = ligs[~logistic_ligand_map(logistic_ligands)]
 
     # assemble matrix
     Ka = xr.DataArray(
-        np.full((ligs.size, len(rcps)), 10),
+        np.full((ligs.size, len(rcps)), 10, dtype=float),
         coords=[ligs, list(rcps)],
         dims=["Ligand", "Receptor"],
     )
 
     # fill in remaining affinity values
-    for rcp in rcps:
+    for r in rcps:
         for l in ligs:
-            Ka.loc[dict(Ligand=l, Receptor=rcp)] = get_affinity(l, rcp)
+            Ka.loc[dict(Ligand=l, Receptor=r)] = get_affinity(l, r)
 
     Ka.values[np.where(Ka.values < 10.0)] = 10
     Ka.values = Ka.values.astype("float")
@@ -125,6 +130,7 @@ def assemble_options(
     IgG_KxStar: float = 1e-12,
     FcR_KxStar: float = 1e-12,
     IgG_logistic: bool = True,
+    IgG_f: int = 2,
     FcR_f: int = 4,
 ):
     """
@@ -142,27 +148,28 @@ def assemble_options(
     """
     n_lig = data.sizes["Ligand"]
     n_rcp = len(rcps)
-    IgG_re = re.compile("^IgG[1-4]$")
-    L0 = np.full(n_lig, 1e-9)
-    KxStar = np.full(n_lig, 1e-12)
+    is_IgG = np.array(
+        [bool(re.search("^IgG[1-4]$", lig)) for lig in data.Ligand.values]
+    )
+    L0 = np.full(n_lig, FcR_L0)
+    L0[is_IgG] = IgG_L0
+    KxStar = np.full(n_lig, FcR_KxStar)
+    KxStar[is_IgG] = IgG_KxStar
     f = np.full(n_lig, FcR_f)
-    for i in range(n_lig):
-        if IgG_re.search(data.Ligand.values[i]):
-            L0[i] = IgG_L0
-            KxStar[i] = IgG_KxStar
-        else:
-            L0[i] = FcR_L0
-            KxStar[i] = FcR_KxStar
-    for i in range(n_lig):
-        if IgG_re.search(data.Ligand.values[i]):
-            f[i] = 2
+    f[is_IgG] = IgG_f
     logistic_ligands = np.full((n_lig, n_rcp), False)
+
     if IgG_logistic:
         for i in range(n_lig):
             logistic_ligands[i] = np.array(
+                # rcp name includes ligand name (e.g. IgG1 ligand includes IgG1
+                # and IgG1f receptors)
                 [data.Ligand.values[i] in rcp for rcp in rcps]
             )
-
+        mvl = ~logistic_ligand_map(logistic_ligands)
+        L0 = L0[mvl]
+        KxStar = KxStar[mvl]
+        f = f[mvl]
     return {
         "L0": L0,
         "KxStar": KxStar,
@@ -188,3 +195,11 @@ def get_kaplonek_mgh_data():
         for tensor in tensors
     ]
     return xr.concat(tensors, dim="Complex")
+
+
+def logistic_ligand_map(logistic_ligands: np.ndarray) -> int:
+    return np.sum(logistic_ligands, axis=1) != 0
+
+
+def n_logistic_ligands(logistic_ligands: np.ndarray) -> int:
+    return np.sum(logistic_ligand_map(logistic_ligands))
