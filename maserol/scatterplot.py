@@ -88,8 +88,8 @@ def plot_Lbound(
         ax=ax,
         palette=palette,
     )
-    ax.set_xlabel("Actual", fontsize=12)
-    ax.set_ylabel("Inferred", fontsize=12)
+    ax.set_xlabel("Actual", fontsize=9)
+    ax.set_ylabel("Inferred", fontsize=9)
     ax.legend(title="Ligand", bbox_to_anchor=(1, 1), borderaxespad=0)
     return ax
 
@@ -161,7 +161,7 @@ def plot_LLigO(
     palette_list = sns.color_palette("bright", data.Ligand.values.shape[0])
     palette = {r: color for r, color in zip(data.Ligand.values, palette_list)}
 
-    axes, plot = getSetup((16, 6), (1, 2))
+    axes, plot = getSetup((8, 3.5), (1, 2))
     all_minus_lig = [l for l in data.Ligand.values if l not in lig]
 
     ax = plot_Lbound(
@@ -171,7 +171,7 @@ def plot_LLigO(
         ax=axes[0],
         palette=palette,
     )
-    ax.set_title(f"All - {', '.join(lig)}", fontsize=15)
+    ax.set_title(f"Fitting all except {', '.join(lig)}", fontsize=12)
 
     lig_idx = np.isin(data.Ligand.values, lig)
     lig_idx_mv = np.isin(
@@ -214,8 +214,8 @@ def plot_LLigO(
         hue=np.concatenate([np.full(data.shape[0], l) for l in lig]),
         ax=axes[1],
     )
-    ax.set_title(f"{', '.join(lig)}", fontsize=15)
-    ax.set_xlabel("Actual", fontsize=12)
-    ax.set_ylabel("Inferred", fontsize=12)
+    ax.set_title(f"Imputed values for unseen {', '.join(lig)}", fontsize=12)
+    ax.set_xlabel("Actual", fontsize=9)
+    ax.set_ylabel("Inferred", fontsize=9)
 
     return plot, Lbound, params
