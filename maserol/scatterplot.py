@@ -15,6 +15,8 @@ from .core import (
     logistic_ligand_map,
 )
 from .figures.common import getSetup
+from sklearn.metrics import r2_score
+from scipy.stats import pearsonr
 
 
 def plot_optimize(
@@ -47,17 +49,21 @@ def plot_optimize(
     )
 
     axes, fig = getSetup((8, 6), (1, 1))
-    ax = plot_Lbound(data, Lbound, data.Ligand.values, ax=axes[0])
+    ax = plot_Lbound(
+        data, Lbound, data.Ligand.values, ax=axes[0], with_r2=True, with_fit_line=True
+    )
 
     return fig, Lbound, params
 
 
 def plot_Lbound(
     data: xarray.DataArray,
-    lbound: Union[xarray.DataArray, np.ndarray],
+    Lbound: Union[xarray.DataArray, np.ndarray],
     lig: Union[Collection[str], str],
     ax=None,
     palette: Optional[Union[List, Mapping]] = None,
+    with_r2=False,
+    with_fit_line=False,
 ) -> matplotlib.axes.Axes:
     """
     Plots the lbound predictions vs their actual values on a scatter plot.
@@ -65,31 +71,36 @@ def plot_Lbound(
     Args:
         data: Prepared data as DataArray
         lbound: Predicted lbound as numpy array or DataArray
-        rec: Receptor(s) to plot
-        ax: Pre-existing axes for the plot
+        lig: Ligands to plot
 
     Returns:
-      matplotlib axes for the created plot
+      matplotlib axis for the created plot
     """
     if isinstance(lig, str):
         lig = [lig]
     idx = np.isin(data.Ligand.values, lig)
     data_filtered_flat = data.isel(Ligand=idx).values.swapaxes(0, 1).flatten()
-    lbound_filtered_flat = lbound[:, idx].swapaxes(0, 1).flatten()
-    assert lbound_filtered_flat.shape == data_filtered_flat.shape
+    Lbound_filtered_flat = Lbound[:, idx].swapaxes(0, 1).flatten()
+    assert Lbound_filtered_flat.shape == data_filtered_flat.shape
     labels = np.concatenate(
         [np.full(data.sizes["Complex"], l) for l in data.Ligand.values[idx]]
     )
+    actual = np.log10(data_filtered_flat)
+    inferred = np.log10(Lbound_filtered_flat)
     ax = sns.scatterplot(
-        x=np.log10(data_filtered_flat),
-        y=np.log10(lbound_filtered_flat),
+        x=actual,
+        y=inferred,
         hue=labels,
         alpha=0.7,
         ax=ax,
         palette=palette,
     )
-    ax.set_xlabel("Actual", fontsize=12)
-    ax.set_ylabel("Inferred", fontsize=12)
+    if with_r2:
+        add_r2_label(ax, actual, inferred)
+    if with_fit_line:
+        add_slope_1_line(ax, actual, inferred)
+    ax.set_xlabel("Actual", fontsize=9)
+    ax.set_ylabel("Inferred", fontsize=9)
     ax.legend(title="Ligand", bbox_to_anchor=(1, 1), borderaxespad=0)
     return ax
 
@@ -161,7 +172,7 @@ def plot_LLigO(
     palette_list = sns.color_palette("bright", data.Ligand.values.shape[0])
     palette = {r: color for r, color in zip(data.Ligand.values, palette_list)}
 
-    axes, plot = getSetup((16, 6), (1, 2))
+    axes, plot = getSetup((8, 3.5), (1, 2))
     all_minus_lig = [l for l in data.Ligand.values if l not in lig]
 
     ax = plot_Lbound(
@@ -171,7 +182,7 @@ def plot_LLigO(
         ax=axes[0],
         palette=palette,
     )
-    ax.set_title(f"All - {', '.join(lig)}", fontsize=15)
+    ax.set_title(f"Fitting all except {', '.join(lig)}", fontsize=12)
 
     lig_idx = np.isin(data.Ligand.values, lig)
     lig_idx_mv = np.isin(
@@ -208,14 +219,38 @@ def plot_LLigO(
             opt_opts["f"][lig_idx_mv],
         )
 
+    actual = np.log10(data.sel(Ligand=lig).values.swapaxes(1, 0)).flatten()
+    inferred = np.log10(inferred.swapaxes(1, 0)).flatten()
     ax = sns.scatterplot(
-        x=np.log10(data.sel(Ligand=lig).values.swapaxes(1, 0)).flatten(),
-        y=np.log10(inferred.swapaxes(1, 0)).flatten(),
+        x=actual,
+        y=inferred,
         hue=np.concatenate([np.full(data.shape[0], l) for l in lig]),
         ax=axes[1],
     )
-    ax.set_title(f"{', '.join(lig)}", fontsize=15)
-    ax.set_xlabel("Actual", fontsize=12)
-    ax.set_ylabel("Inferred", fontsize=12)
+    add_r2_label(axes[1], actual, inferred)
+    add_slope_1_line(axes[1], actual, inferred)
+    ax.set_title(f"Predicted binding of {', '.join(lig)}", fontsize=12)
+    ax.set_xlabel("Actual", fontsize=9)
+    ax.set_ylabel("Inferred", fontsize=9)
 
     return plot, Lbound, params
+
+
+def add_r2_label(ax, actual, inferred):
+    r2 = r2_score(actual, inferred)
+    pearson = pearsonr(actual, inferred)[0]
+    ax.text(
+        0.95,
+        0.05,
+        r"$\mathit{r}$=" + str(round(pearson, 2)),
+        verticalalignment="bottom",
+        horizontalalignment="right",
+        size=15,
+        transform=ax.transAxes,
+    )
+
+
+def add_slope_1_line(ax, actual, inferred):
+    low = min(np.min(actual), np.min(inferred))
+    high = max(np.max(actual), np.max(inferred))
+    ax.plot([low, high], [low, high], "k--", alpha=0.5)
