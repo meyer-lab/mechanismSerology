@@ -16,6 +16,7 @@ from .core import (
 )
 from .figures.common import getSetup
 from sklearn.metrics import r2_score
+from scipy.stats import pearsonr
 
 
 def plot_optimize(
@@ -228,7 +229,7 @@ def plot_LLigO(
     )
     add_r2_label(axes[1], actual, inferred)
     add_slope_1_line(axes[1], actual, inferred)
-    ax.set_title(f"Imputed values for unseen {', '.join(lig)}", fontsize=12)
+    ax.set_title(f"Predicted binding of {', '.join(lig)}", fontsize=12)
     ax.set_xlabel("Actual", fontsize=9)
     ax.set_ylabel("Inferred", fontsize=9)
 
@@ -237,12 +238,14 @@ def plot_LLigO(
 
 def add_r2_label(ax, actual, inferred):
     r2 = r2_score(actual, inferred)
+    pearson = pearsonr(actual, inferred)[0]
     ax.text(
         0.95,
         0.05,
-        r"$\mathrm{r}^2$=" + str(round(r2, 2)),
+        r"$\mathit{r}$=" + str(round(pearson, 2)),
         verticalalignment="bottom",
         horizontalalignment="right",
+        size=15,
         transform=ax.transAxes,
     )
 
