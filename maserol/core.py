@@ -267,6 +267,7 @@ def optimize_loss(
     residual_mask: np.ndarray[bool] = None,
     tol: float = 1e-6,
     Ka: np.ndarray[float] = None,
+    return_reshaped_params=False,
 ) -> Tuple[np.ndarray, Dict]:
     """
     Infer the receptor abundances given the ligand abundances specified in `data`.
@@ -373,7 +374,12 @@ def optimize_loss(
     )
 
     ctx = {"opt": opt}
-    ret = (opt.x, ctx)
+    params = (
+        reshape_params(opt.x, data, logistic_ligands, rcps)
+        if return_reshaped_params
+        else opt.x
+    )
+    ret = (params, ctx)
     return ret
 
 
