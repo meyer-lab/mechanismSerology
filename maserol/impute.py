@@ -99,9 +99,23 @@ def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
     """Plots imputed vs actual."""
     assert tensor.shape == Lbound.shape
     test_mask = ~residual_mask
+    print(tensor.shape)
     y = np.log10(tensor.values[test_mask])
     x = np.log10(Lbound[test_mask])
-    ax = sns.scatterplot(x=x, y=y, ax=ax)
+
+    df = pd.DataFrame(
+        {
+            "Imputed": x,
+            "Actual": y,
+        }
+    )
+    _, lig_idx = np.where(test_mask)
+    multi_lig = len(set(lig_idx)) > 1
+    if multi_lig:
+        df["Ligand"] = np.array([tensor.Ligand.values[i] for i in lig_idx])
+    ax = sns.scatterplot(
+        data=df, x="Imputed", y="Actual", hue="Ligand" if multi_lig else None, ax=ax
+    )
     r = np.corrcoef(x, y)[0][1]
     ax.annotate(f"r = {r:.2f}", xy=(0.8, 0.1), xycoords="axes fraction")
 
@@ -133,4 +147,22 @@ def run_repeated_imputation(
                 lig,
                 missingness,
             ]
+    return df
+
+
+def gen_imputation_df(tensor, Lbound, residual_mask):
+    """Generates a dataframe containing only the imputed values and the corresponding ligand"""
+    assert tensor.shape == Lbound.shape and Lbound.shape == residual_mask.shape
+    impute_mask = ~residual_mask
+    actual = tensor.values[impute_mask]
+    imputed = Lbound[impute_mask]
+    df = pd.DataFrame(
+        {
+            "Imputed": imputed,
+            "Actual": actual,
+            "Ligand": np.array(
+                [tensor.Ligand.values[i] for i in np.where(impute_mask)[1]]
+            ),
+        }
+    )
     return df

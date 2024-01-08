@@ -1,9 +1,8 @@
-import numpy as np
-import pandas as pd
 import seaborn as sns
 from tensordata.alter import load_file, data as alter
 
-from maserol.core import Rtot_to_df, optimize_loss
+from maserol.preprocess import Rtot_to_df
+from maserol.core import optimize_loss
 from maserol.preprocess import assemble_options, prepare_data
 
 

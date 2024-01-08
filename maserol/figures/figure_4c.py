@@ -3,7 +3,8 @@ import pandas as pd
 import seaborn as sns
 from tensordata.alter import load_file, data as alter
 
-from maserol.core import Rtot_to_xarray, optimize_loss, reshape_params
+from maserol.preprocess import Rtot_to_xarray
+from maserol.core import optimize_loss
 from maserol.preprocess import assemble_options, prepare_data
 from maserol.figures.common import getSetup
 

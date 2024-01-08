@@ -1,7 +1,7 @@
 """ Import binding affinities. """
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, List, Union
 
 import numpy as np
 import pandas as pd
@@ -203,3 +203,36 @@ def logistic_ligand_map(logistic_ligands: np.ndarray) -> int:
 
 def n_logistic_ligands(logistic_ligands: np.ndarray) -> int:
     return np.sum(logistic_ligand_map(logistic_ligands))
+
+
+def Rtot_to_xarray(Rtot: np.ndarray, data: xr.DataArray, rcps: List):
+    return xr.DataArray(
+        Rtot,
+        coords={
+            "Complex": data.Complex,
+            "Receptor": rcps,
+        },
+        dims=["Complex", "Receptor"],
+    )
+
+
+def Rtot_to_df(
+    Rtot: Union[xr.DataArray, np.ndarray], data: xr.DataArray = None, rcps: List = None
+):
+    if isinstance(Rtot, np.ndarray):
+        assert data is not None, "data required if Rtot is np array"
+        assert rcps is not None, "rcps required if Rtot is np array"
+        Rtot = Rtot_to_xarray(Rtot, data, rcps)
+    Rtot_df = Rtot.to_dataframe(name="Abundance").drop(columns=["Antigen", "Sample"])
+    Rtot_df = Rtot_df.reset_index(level="Receptor").pivot(columns="Receptor")
+    Rtot_df.columns = [col[1] for col in Rtot_df.columns]
+    return Rtot_df
+
+
+def data_to_df(
+    data: xr.DataArray = None,
+):
+    df = data.to_dataframe(name="Abundance").drop(columns=["Antigen", "Sample"])
+    df = df.reset_index(level="Ligand").pivot(columns="Ligand")
+    df.columns = [col[1] for col in df.columns]
+    return df

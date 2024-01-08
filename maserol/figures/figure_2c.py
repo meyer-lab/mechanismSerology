@@ -1,44 +1,16 @@
 import numpy as np
-import pandas as pd
 import seaborn as sns
-
-from sklearn.metrics import r2_score
 
 from maserol.figures.common import getSetup
 from maserol.forward_backward import forward_backward
 
 
-N_ITER = 1
-STEPS = 3
-
-
 def makeFigure():
+    Rtot, Rtot_inferred = forward_backward(0.3)
     axes, fig = getSetup((3.5, 2.7), (1, 1))
-
-    noises = np.linspace(0, 0.35, STEPS)
-
-    dfs = []
-
-    for noise in noises:
-        Rtot_pairs = [forward_backward(noise_std=noise) for _ in range(N_ITER)]
-        dfs.append(
-            pd.DataFrame(
-                {
-                    "noise": np.full(N_ITER, noise),
-                    "r2": [
-                        r2_score(
-                            np.log10(Rtot.values.flatten()),
-                            np.log10(Rtot_inferred.flatten()),
-                        )
-                        for Rtot, Rtot_inferred in Rtot_pairs
-                    ],
-                }
-            )
-        )
-
-    df = pd.concat(dfs).reset_index()
-
-    ax = sns.lineplot(data=df.reset_index(drop=True), x="noise", y="r2", ax=axes[0])
-    ax.set_xlabel("Noise σ")
-    ax.set_ylabel("$r^2$")
+    ax = sns.scatterplot(
+        x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=axes[0]
+    )
+    ax.set_xlabel("log10 Inferred IgG1")
+    ax.set_ylabel("log10 Actual IgG1")
     return fig
