@@ -9,7 +9,6 @@ from maserol.preprocess import assemble_options, prepare_data
 from maserol.figures.common import getSetup
 
 
-
 def makeFigure():
     axes, fig = getSetup((4, 3), (1, 1))
 
@@ -65,9 +64,7 @@ def makeFigure():
         / (df_comb["IgG1"] + df_comb["IgG1f"] + df_comb["IgG3"] + df_comb["IgG3f"])
         * 100
     )
-    sns.scatterplot(
-        data=df_comb, x="F.total", y="F.total Inferred", ax=axes[0]
-    )
+    sns.scatterplot(data=df_comb, x="F.total", y="F.total Inferred", ax=axes[0])
     axes[0].set_xlabel("Measured Fucose Ratio")
     axes[0].set_ylabel("Inferred Fucose Ratio")
     r, p = pearsonr(df_comb["F.total"], df_comb["F.total Inferred"])

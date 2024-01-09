@@ -19,20 +19,16 @@ N_CPLX = 300
 RUNS = 3
 MISSINGNESS = (0.1, 0.99)
 
-# each row and column must have at least RANK nonmissing values 
+# each row and column must have at least RANK nonmissing values
 RANKS = range(1, 3)
 
 
 def makeFigure():
     data = prepare_data(zohar())
     data = data.sel(Ligand=["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"])
-    data = data[
-        np.random.choice(data.shape[0], N_CPLX)
-    ]
+    data = data[np.random.choice(data.shape[0], N_CPLX)]
 
-    imputers = [
-        functools.partial(impute_missing_pca, ncomp=ncomp) for ncomp in RANKS
-    ]
+    imputers = [functools.partial(impute_missing_pca, ncomp=ncomp) for ncomp in RANKS]
 
     axes, fig = getSetup((10, 5 * len(MISSINGNESS)), (len(MISSINGNESS), 1))
 
