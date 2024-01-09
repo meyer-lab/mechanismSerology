@@ -1,15 +1,12 @@
 import pytest
 import numpy as np
 import xarray as xr
-from tensordata.atyeo import data as atyeo
 from tensordata.zohar import data as zohar
-from tensordata.kaplonek import SpaceX4D
 from valentbind.model import polyc
 
 from maserol.core import (
     initialize_params,
     infer_Lbound_mv,
-    infer_Lbound,
     assemble_Ka,
     n_logistic_ligands,
     reshape_params,

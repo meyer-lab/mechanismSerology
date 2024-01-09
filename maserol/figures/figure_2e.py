@@ -20,7 +20,7 @@ def makeFigure():
     dfs = []
 
     for noise in noises:
-        Rtot_pairs = [forward_backward(noise_std=noise) for _ in range(N_ITER)]
+        Rtot_pairs = [forward_backward(Ka_noise_std=noise) for _ in range(N_ITER)]
         dfs.append(
             pd.DataFrame(
                 {

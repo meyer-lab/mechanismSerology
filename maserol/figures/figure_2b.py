@@ -6,7 +6,7 @@ from maserol.forward_backward import forward_backward
 
 
 def makeFigure():
-    Rtot, Rtot_inferred = forward_backward(0.3)
+    Rtot, Rtot_inferred = forward_backward(0)
     axes, fig = getSetup((3.5, 2.7), (1, 1))
     ax = sns.scatterplot(
         x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=axes[0]
