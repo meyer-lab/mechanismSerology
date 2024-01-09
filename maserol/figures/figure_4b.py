@@ -1,12 +1,13 @@
-import numpy as np
 import pandas as pd
 import seaborn as sns
+from scipy.stats import pearsonr
 from tensordata.alter import load_file, data as alter
 
 from maserol.preprocess import Rtot_to_xarray
 from maserol.core import optimize_loss
 from maserol.preprocess import assemble_options, prepare_data
 from maserol.figures.common import getSetup
+
 
 
 def makeFigure():
@@ -17,9 +18,7 @@ def makeFigure():
     data = data.sel(
         Receptor=[
             "FcgRIIa.H131",
-            "FcgRIIa.R131",
             "FcgRIIb",
-            "FcgRIIIa.F158",
             "FcgRIIIa.V158",
             "FcgRIIIb",
             "IgG1",
@@ -43,17 +42,17 @@ def makeFigure():
     )
     glycans = load_file("data-glycan-gp120")
     glycans = glycans.rename(columns={"subject": "Sample"})
+    glycans = glycans[glycans["F.total"] > 0]
 
-    # infer fucose
+    # alternative filtering method
+    # glycans = glycans[glycans["F.total"] + glycans["B.total"] > 80]
+
     rcps = ["IgG1", "IgG1f", "IgG3", "IgG3f"]
     opts = assemble_options(data, rcps=rcps)
     params, _ = optimize_loss(data, **opts, return_reshaped_params=True)
     Rtot = Rtot_to_xarray(params["Rtot"], data, rcps=rcps)
-    Rtot_SF162 = Rtot.sel(
-        Complex=[cplx for cplx in Rtot.Complex.values if cplx[1] == "gp120.SF162"]
-    )
     Rtot_SF162_df = (
-        Rtot_SF162.to_dataframe(name="Abundance")
+        Rtot.to_dataframe(name="Abundance")
         .drop(columns=["Sample", "Antigen"])
         .reset_index()
         .pivot(index="Sample", columns="Receptor", values="Abundance")
@@ -66,23 +65,30 @@ def makeFigure():
         / (df_comb["IgG1"] + df_comb["IgG1f"] + df_comb["IgG3"] + df_comb["IgG3f"])
         * 100
     )
-    # filter out samples which have MS measurements less than 60
-    df_comb_filtered = df_comb[df_comb["F.total"] > 60]
     sns.scatterplot(
-        data=df_comb_filtered, x="F.total", y="F.total Inferred", ax=axes[0]
+        data=df_comb, x="F.total", y="F.total Inferred", ax=axes[0]
     )
-    r = np.corrcoef(df_comb_filtered["F.total"], df_comb_filtered["F.total Inferred"])[
-        0, 1
-    ]
+    axes[0].set_xlabel("Measured Fucose Ratio")
+    axes[0].set_ylabel("Inferred Fucose Ratio")
+    r, p = pearsonr(df_comb["F.total"], df_comb["F.total Inferred"])
     axes[0].set_title(
-        "MS Fucose Ratio vs Inferred Fucose Ratio (filtered by MS fucose ratio > 60)"
+        "Model Inferences vs Capillary Electrophoresis Measurements of IgG Fucosylation"
     )
     axes[0].text(
-        0.95,
+        0.8,
         0.05,
         r"r=" + str(round(r, 2)),
         verticalalignment="bottom",
-        horizontalalignment="right",
+        horizontalalignment="left",
+        transform=axes[0].transAxes,
+    )
+
+    axes[0].text(
+        0.8,
+        0.01,
+        r"p=" + str(round(p, 2)),
+        verticalalignment="bottom",
+        horizontalalignment="left",
         transform=axes[0].transAxes,
     )
     return fig
