@@ -24,7 +24,6 @@ pytest = "^6.2"
 pytest-cov = "^3.0"
 mypy = "^0.991"
 valentbind = {git = "https://github.com/meyer-lab/valentBind.git", branch = "main"}
-ipykernel = "^6.26.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
