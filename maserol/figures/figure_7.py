@@ -10,7 +10,7 @@ from sklearn.metrics import r2_score
 
 from maserol.figures.common import getSetup, add_subplot_labels
 from maserol.impute import assemble_residual_mask, impute_missing_ms
-from maserol.preprocess import assemble_options
+from maserol.preprocess import assemble_options, get_kaplonek_mgh_data
 
 THIS_DIR = Path(__file__).parent
 CACHE_DIR = THIS_DIR.parent / "data" / "cache"
@@ -96,6 +96,7 @@ def prepare_metrics_df(df):
 
 
 def update_cache(n_crligs):
+    data = get_kaplonek_mgh_data()
     data = data[:N_CPLX]
 
     rligs = [l for l in data.Ligand.values if "Fc" in l]
