@@ -91,6 +91,7 @@ def figure_2d(ax):
     ax.set_xlabel("Noise σ")
     ax.set_ylabel("$r^2$")
 
+
 def figure_2e(ax):
     MAX_NOISE = 0.35
     filename = "figure_2e.csv"
@@ -98,7 +99,9 @@ def figure_2e(ax):
         noises = np.linspace(0, MAX_NOISE, STEPS_2E)
         dfs = []
         for noise in noises:
-            Rtot_pairs = [forward_backward(Ka_noise_std=noise) for _ in range(N_ITER_2E)]
+            Rtot_pairs = [
+                forward_backward(Ka_noise_std=noise) for _ in range(N_ITER_2E)
+            ]
             dfs.append(
                 pd.DataFrame(
                     {

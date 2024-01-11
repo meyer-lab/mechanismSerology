@@ -74,9 +74,7 @@ def figure_4b(ax):
     ax.set_xlabel("Measured IgG Fucosylation (%)")
     ax.set_ylabel("Inferred IgG Fucosylation (%)")
     r, p = pearsonr(df_comb["F.total"], df_comb["F.total Inferred"])
-    ax.set_title(
-        "Model Inferences vs CE Measurements of IgG Fucosylation"
-    )
+    ax.set_title("Model Inferences vs CE Measurements of IgG Fucosylation")
     ax.text(
         0.8,
         0.05,

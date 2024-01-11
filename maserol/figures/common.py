@@ -70,6 +70,7 @@ def add_subplot_label(ax, label):
         va="top",
     )
 
+
 def add_subplot_labels(axs):
     """Place subplot labels on figure."""
     for ii, ax in enumerate(axs):

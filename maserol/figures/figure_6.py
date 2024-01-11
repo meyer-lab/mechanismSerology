@@ -15,6 +15,7 @@ THIS_DIR = Path(__file__).parent
 CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 UPDATE_CACHE = False
 
+
 def makeFigure():
     data = alter()["Fc"]
     data = data.sel(
@@ -65,7 +66,6 @@ def makeFigure():
         df.loc[(100681, "gp120.Du156.12"), "class"]
         == subject_class.loc[100681, "class.etuv"]
     )
-
 
     df = df.reset_index()
 

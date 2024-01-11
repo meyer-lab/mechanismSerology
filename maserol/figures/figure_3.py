@@ -6,7 +6,6 @@ import pandas as pd
 import seaborn as sns
 from tensordata.zohar import data as zohar
 
-
 from maserol.figures.common import getSetup, add_subplot_labels
 from maserol.impute import (
     assemble_residual_mask,
