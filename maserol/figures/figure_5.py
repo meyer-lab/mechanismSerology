@@ -21,8 +21,8 @@ def makeFigure():
     axes, fig = getSetup((10, 5), (2, 3), multz={3: 2})
     figure_5a(axes[0])
     figure_5b(axes[3])
-    add_subplot_label(axes[0], 'a')
-    add_subplot_label(axes[3], 'b')
+    add_subplot_label(axes[0], "a")
+    add_subplot_label(axes[3], "b")
     return fig
 
 
