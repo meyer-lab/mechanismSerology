@@ -51,10 +51,11 @@ def figure_3c(ax):
     data = prepare_data(zohar())
     data = data.sel(Ligand=[l for l in data.Ligand.values if l != "IgG2"])
     data = data[:500]
-
+    N_COMP = 1
+    
     imputers = [
         impute_missing_ms,
-        functools.partial(impute_missing_pca, ncomp=1),
+        functools.partial(impute_missing_pca, ncomp=N_COMP),
     ]
 
     filename = "fig_3c_metrics.csv"
@@ -70,6 +71,6 @@ def figure_3c(ax):
     df = df.replace({"impute_missing_pca": "PCA", "impute_missing_ms": "Binding model"})
 
     sns.barplot(data=df, x="Ligand", y="r", hue="Method", ax=ax)
-    ax.set_xlabel("Ligand")
+    ax.set_xlabel("Detection")
     ax.set_ylabel("Imputation Performance (Pearson Correlation)")
     ax.legend(title=None)
