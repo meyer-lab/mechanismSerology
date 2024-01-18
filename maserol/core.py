@@ -34,14 +34,13 @@ def model_loss(
     KxStar: np.ndarray,
     f: np.ndarray,
     logistic_ligands: np.ndarray[bool],
-    rcp_inequalities: np.ndarray[float],
     residual_mask: np.ndarray[bool],
     rcps: tuple[str],
 ) -> np.ndarray:
     """
     Args:
       log_x: 1D array with model parameters.
-      data, Ka, L0, KxStar, f, logistic_ligands, rcp_inequalities, residual_mask,
+      data, Ka, L0, KxStar, f, logistic_ligands, residual_mask,
         rcps: see parameters with the same name in `optimize_loss` docstring.
 
     Returns:
@@ -79,20 +78,6 @@ def model_loss(
         )
     ).flatten()
 
-    inequality_regularization = (
-        np.maximum(
-            np.sum(
-                rcp_inequalities[:, 1, :] * np.log(params["Rtot"][:, np.newaxis, :]),
-                axis=-1,
-            )
-            - np.sum(
-                rcp_inequalities[:, 0, :] * np.log(params["Rtot"][:, np.newaxis, :]),
-                axis=-1,
-            ),
-            0,
-        ).flatten()
-        * 10
-    )
 
     logistic_slope_regularization = (
         np.maximum(params["logistic_params"][3] - 1.0, 0).flatten() ** 2
@@ -102,7 +87,7 @@ def model_loss(
     )
 
     return np.concatenate(
-        (Lbound_residuals, inequality_regularization, logistic_slope_regularization)
+        (Lbound_residuals, logistic_slope_regularization)
     )
 
 
@@ -262,7 +247,6 @@ def optimize_loss(
     f: np.ndarray,
     rcps: tuple[str] = HIgGs,
     logistic_ligands: np.ndarray[bool] = None,
-    rcp_inequalities: np.ndarray[float] = None,
     residual_mask: np.ndarray[bool] = None,
     tol: float = 1e-6,
     Ka: np.ndarray[float] = None,
@@ -287,12 +271,6 @@ def optimize_loss(
           the coefficients in the weighted sum of the receptors in that row. The
           weighted sum is then passed as input to the logistic curve, the output
           of which is the ligand abundance.
-        rcp_inequalities: Array for which each element represents a
-          regularization term based on the difference in abundance of 2 or more
-          receptors. Array is size (number of constraints, 2, n_rcp). The
-          penalty is the weighted sum specified by the coefficients in the 2nd
-          axis of the 2nd dimension minus the weighted sum specified by the
-          coefficients in the 1st axis of the 2nd dimension.
         residual_mask: Array with shape like data specifying, where 1 indicates
           that the corresponding entry in data is used in the optimization, and 0
           means the value is neglected.
@@ -325,11 +303,6 @@ def optimize_loss(
     )
     assert Ka.shape[0] == n_mv_ligs, "Ka wrong shape"
 
-    rcp_inequalities = (
-        rcp_inequalities
-        if rcp_inequalities is not None
-        else np.zeros((0, 2, n_rcp), dtype=float)
-    )
 
     residual_mask = (
         residual_mask if residual_mask is not None else np.ones_like(data, dtype=bool)
@@ -342,7 +315,6 @@ def optimize_loss(
         KxStar,
         f,
         logistic_ligands,
-        rcp_inequalities,
         residual_mask,
         rcps,
     )
@@ -363,7 +335,6 @@ def optimize_loss(
             data,
             rcps,
             logistic_ligands,
-            rcp_inequalities,
         ),
         bounds=assemble_bounds(data, rcps, logistic_ligands),
         x_scale=assemble_x_scale(data, rcps, logistic_ligands),
@@ -470,7 +441,6 @@ def assemble_jac_sparsity(
     data: xr.DataArray,
     rcps: Tuple,
     logistic_ligands: np.ndarray[bool],
-    rcp_inequalities: np.ndarray[float],
 ):
     """
     Create Jacobian sparsity matrix for optimization.
@@ -514,22 +484,6 @@ def assemble_jac_sparsity(
 
     # tile single-complex dependencies across all complexes
     jac_sparsity = np.hstack((jac_sparsity, np.tile(logistic_block, (n_cplx, 1))))
-
-    inequality_dependencies = rcp_inequalities[:, 0].astype(bool) | rcp_inequalities[
-        :, 1
-    ].astype(bool)
-    n_inequalities = rcp_inequalities.shape[0]
-    inequality_sparsity = np.zeros((n_cplx, n_cplx, n_inequalities, n_rcp), dtype=int)
-    inequality_sparsity[np.arange(n_cplx), np.arange(n_cplx)] = inequality_dependencies
-    inequality_sparsity = np.hstack(
-        (
-            inequality_sparsity.swapaxes(1, 2).reshape(
-                n_cplx * n_inequalities, n_cplx * n_rcp
-            ),
-            np.zeros((n_cplx * n_inequalities, n_logist_lig * 4)),
-        )
-    )
-    jac_sparsity = np.vstack((jac_sparsity, inequality_sparsity))
 
     jac_sparsity_logistic_slope = np.zeros(
         (n_logist_lig, n_cplx * n_rcp + n_logist_lig * 4), dtype=int
