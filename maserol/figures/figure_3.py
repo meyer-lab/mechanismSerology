@@ -52,7 +52,7 @@ def figure_3c(ax):
     data = data.sel(Ligand=[l for l in data.Ligand.values if l != "IgG2"])
     data = data[:500]
     N_COMP = 1
-    
+
     imputers = [
         impute_missing_ms,
         functools.partial(impute_missing_pca, ncomp=N_COMP),

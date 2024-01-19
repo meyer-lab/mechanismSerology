@@ -78,7 +78,6 @@ def model_loss(
         )
     ).flatten()
 
-
     logistic_slope_regularization = (
         np.maximum(params["logistic_params"][3] - 1.0, 0).flatten() ** 2
         * params["Rtot"].shape[0]
@@ -86,9 +85,7 @@ def model_loss(
         / n_logistic_ligands(logistic_ligands)
     )
 
-    return np.concatenate(
-        (Lbound_residuals, logistic_slope_regularization)
-    )
+    return np.concatenate((Lbound_residuals, logistic_slope_regularization))
 
 
 def infer_Lbound(
@@ -302,7 +299,6 @@ def optimize_loss(
         else assemble_Ka(data.Ligand.values, rcps, logistic_ligands).values
     )
     assert Ka.shape[0] == n_mv_ligs, "Ka wrong shape"
-
 
     residual_mask = (
         residual_mask if residual_mask is not None else np.ones_like(data, dtype=bool)
