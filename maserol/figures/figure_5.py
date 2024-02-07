@@ -9,11 +9,14 @@ from tensordata.kaplonekVaccineSA import data as get_covid_vaccination_data
 from tensordata.zohar import data as zohar
 
 from maserol.core import optimize_loss
-from maserol.figures.common import getSetup, add_subplot_label
+from maserol.figures.common import (
+    getSetup,
+    add_subplot_label,
+    CACHE_DIR,
+    annotate_mann_whitney,
+)
 from maserol.preprocess import prepare_data, assemble_options, Rtot_to_df
 
-THIS_DIR = Path(__file__).parent
-CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 UPDATE_CACHE = False
 
 
@@ -59,8 +62,7 @@ def figure_5a(ax):
 
     pairs = (("Yes", "No"),)
     annotator = Annotator(ax, pairs, data=df_merged, x="ARDS", y="Fucose Ratio")
-    annotator.configure(test="t-test_ind", text_format="star")
-    annotator.apply_and_annotate()
+    annotate_mann_whitney(annotator)
 
 
 def figure_5b(ax):
@@ -127,8 +129,7 @@ def figure_5b(ax):
     annotator = Annotator(
         ax, pairs, data=df_sub, x="Antigen", y="fucose", hue="infection.status"
     )
-    annotator.configure(test="t-test_ind", text_format="star")
-    annotator.apply_and_annotate()
+    annotate_mann_whitney(annotator)
 
     ax.legend(title=None)
     handles, labels = ax.get_legend_handles_labels()

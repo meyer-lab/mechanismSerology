@@ -1,14 +1,17 @@
 """
 This file contains functions that are used in multiple figures.
 """
+
 import sys
 import time
 import logging
+from pathlib import Path
 from string import ascii_lowercase
 
 import matplotlib
 import seaborn as sns
 from matplotlib import gridspec, pyplot as plt
+from statannotations.Annotator import Annotator
 
 
 matplotlib.rcParams["legend.labelspacing"] = 0.2
@@ -22,6 +25,9 @@ matplotlib.rcParams["legend.handlelength"] = 0.5
 matplotlib.rcParams["legend.framealpha"] = 0.5
 matplotlib.rcParams["legend.markerscale"] = 0.7
 matplotlib.rcParams["legend.borderpad"] = 0.35
+
+THIS_DIR = Path(__file__).parent
+CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 
 
 def getSetup(figsize, gridd, multz=None, empts=None):
@@ -89,3 +95,19 @@ def genFigure():
     ff.savefig(fdir + nameOut + ".svg", dpi=300, bbox_inches="tight", pad_inches=0)
 
     logging.info(f"Figure {sys.argv[1]} is done after {time.time() - start} seconds.")
+
+
+def remove_ns_annotations(annotator: Annotator):
+    """The provided annotator has no way to exclude annotating pairs which are
+    not significant. This prevents those ns annotations from showing."""
+    annotator.annotations = [an for an in annotator.annotations if an.text != "ns"]
+
+
+def annotate_mann_whitney(annotator: Annotator):
+    """Perform Mann-Whitney test and multiple hypothesis correction and annotate."""
+    annotator.configure(
+        test="Mann-Whitney", text_format="star", comparisons_correction="Bonferroni"
+    )
+    annotator.apply_test()
+    remove_ns_annotations(annotator)
+    annotator.annotate()

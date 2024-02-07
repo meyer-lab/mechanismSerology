@@ -5,7 +5,7 @@ import pandas as pd
 import seaborn as sns
 from sklearn.metrics import r2_score
 
-from maserol.figures.common import getSetup, add_subplot_labels
+from maserol.figures.common import getSetup, add_subplot_labels, CACHE_DIR
 from maserol.forward_backward import forward_backward
 
 N_ITER_2D = 3
@@ -13,8 +13,6 @@ STEPS_2D = 4
 N_ITER_2E = 3
 STEPS_2E = 4
 DE_YLIM = (0.4, 1.02)
-THIS_DIR = Path(__file__).parent
-CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 UPDATE_CACHE = {"2b": False, "2c": False, "2d": False, "2e": False}
 
 
@@ -39,13 +37,15 @@ def figure_2b(ax):
     sns.scatterplot(
         x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
     )
+    ax.set_title("Actual vs predicted antibody abundance")
     ax.set_xlabel("log10 Inferred IgG1")
     ax.set_ylabel("log10 Actual IgG1")
 
 
 def figure_2c(ax):
+    noise_std = 0.3
     if UPDATE_CACHE["2c"]:
-        Rtot, Rtot_inferred = forward_backward(0.3)
+        Rtot, Rtot_inferred = forward_backward(noise_std)
         np.savetxt(CACHE_DIR / "figure_2c_Rtot.txt", Rtot.values, "%d")
         np.savetxt(CACHE_DIR / "figure_2c_Rtot_inferred.txt", Rtot_inferred, "%d")
     else:
@@ -54,6 +54,7 @@ def figure_2c(ax):
     sns.scatterplot(
         x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
     )
+    ax.set_title("Actual vs predicted antibody abundance (30% noise)")
     ax.set_xlabel("log10 Inferred IgG1")
     ax.set_ylabel("log10 Actual IgG1")
 
@@ -88,6 +89,7 @@ def figure_2d(ax):
     sns.lineplot(data=df.reset_index(drop=True), x="noise", y="r2", ax=ax)
     ax.set_ylim(DE_YLIM)
     ax.set_xlim((0, MAX_NOISE))
+    ax.set_title("Prediction performance vs detection noise")
     ax.set_xlabel("Noise σ")
     ax.set_ylabel("$r^2$")
 
@@ -124,5 +126,6 @@ def figure_2e(ax):
     sns.lineplot(data=df.reset_index(drop=True), x="noise", y="r2", ax=ax)
     ax.set_ylim(DE_YLIM)
     ax.set_xlim((0, MAX_NOISE))
+    ax.set_title("Prediction performance vs $K_{a}$ noise")
     ax.set_xlabel("Noise σ")
     ax.set_ylabel("$r^2$")

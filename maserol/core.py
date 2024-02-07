@@ -202,6 +202,7 @@ def find_root_scipy(
     # Solve for an initial guess by using f = 2
     a = np.sum(fLKa, axis=2)
     b = 1 + a
+
     # quadratic formula
     f0 = (-b + np.sqrt(b**2 + 4 * a * np.sum(KaRT, axis=2))) / 2 / a
 

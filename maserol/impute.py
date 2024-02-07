@@ -17,8 +17,6 @@ def assemble_residual_mask(data: xr.DataArray, ligand_missingness: Dict):
     """
     Adds missingness along particular ligands specified in `ligand_missingness`.
     """
-    if len(data.dims) == 3:
-        return assemble_residual_mask_3d(data, ligand_missingness)
     mask = data.copy()
     mask.values = np.ones_like(data, dtype=bool)
     n_cplx = data.shape[0]
@@ -29,28 +27,6 @@ def assemble_residual_mask(data: xr.DataArray, ligand_missingness: Dict):
         zeros = np.random.choice(n_cplx, n_dropped, replace=False)
         for lig in ligand:
             mask.sel(Ligand=lig)[zeros] = 0
-    return mask.values
-
-
-def assemble_residual_mask_3d(data: xr.DataArray, ligand_missingness: Dict):
-    """
-    Adds missingness along particular ligands in 3d tensor.
-    """
-    assert data.dims == ("Sample", "Ligand", "Antigen")
-    mask = data.copy()
-    mask.values = np.ones_like(data, dtype=bool)
-    for ligand, missingness in ligand_missingness.items():
-        if not isinstance(ligand, tuple):
-            ligand = (ligand,)
-        n_dropped = int(data.shape[0] * data.shape[2] * missingness)
-        zeros = np.random.choice(
-            data.shape[0] * data.shape[2], n_dropped, replace=False
-        )
-        for lig in ligand:
-            mask.sel(Ligand=lig).values[
-                [idx // data.shape[1] for idx in zeros],
-                [idx % data.shape[1] for idx in zeros],
-            ] = 0
     return mask.values
 
 
@@ -147,22 +123,4 @@ def run_repeated_imputation(
                 lig,
                 missingness,
             ]
-    return df
-
-
-def gen_imputation_df(tensor, Lbound, residual_mask):
-    """Generates a dataframe containing only the imputed values and the corresponding ligand"""
-    assert tensor.shape == Lbound.shape and Lbound.shape == residual_mask.shape
-    impute_mask = ~residual_mask
-    actual = tensor.values[impute_mask]
-    imputed = Lbound[impute_mask]
-    df = pd.DataFrame(
-        {
-            "Imputed": imputed,
-            "Actual": actual,
-            "Ligand": np.array(
-                [tensor.Ligand.values[i] for i in np.where(impute_mask)[1]]
-            ),
-        }
-    )
     return df
