@@ -3,16 +3,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.stats import ttest_ind
 from statannotations.Annotator import Annotator
 
 from tensordata.alter import data as alter, load_file
 from maserol.core import optimize_loss
-from maserol.figures.common import getSetup, add_subplot_labels
+from maserol.figures.common import (
+    getSetup,
+    add_subplot_labels,
+    CACHE_DIR,
+    annotate_mann_whitney,
+)
 from maserol.preprocess import prepare_data, assemble_options, Rtot_to_df
 
-THIS_DIR = Path(__file__).parent
-CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 UPDATE_CACHE = False
 
 
@@ -93,21 +95,9 @@ def makeFigure():
 
     sns.move_legend(ax, "lower right")
 
-    pairs = []
-    for ag in df.Antigen.unique():
-        df_ag = df[(df["Antigen"] == ag) & (~df[y].isna())]
-        if (
-            ttest_ind(
-                df_ag[df_ag[hue] == True][y], df_ag[df_ag[hue] == False][y]
-            ).pvalue
-            < 0.05
-        ):
-            pairs.append(((ag, False), (ag, True)))
-
-    if pairs:
-        annotator = Annotator(ax, pairs, data=df, x="Antigen", y=y, hue=hue)
-        annotator.configure(test="t-test_ind", text_format="star")
-        annotator.apply_and_annotate()
+    pairs = [((ag, False), (ag, True)) for ag in df.Antigen.unique()]
+    annotator = Annotator(ax, pairs, data=df, x="Antigen", y=y, hue=hue)
+    annotate_mann_whitney(annotator)
 
     ax = axes[2]
     df["Antigen Category"] = np.ones(len(df))
@@ -130,8 +120,7 @@ def makeFigure():
 
     pairs = [("Env trimer", "p24"), ("Env trimer", "IIIb.pr55.Gag")]
     annotator = Annotator(ax, pairs, data=df, x="Antigen Category", y="f")
-    annotator.configure(test="t-test_ind", text_format="star", loc="outside")
-    annotator.apply_and_annotate()
+    annotate_mann_whitney(annotator)
 
     add_subplot_labels(axes)
 

@@ -6,7 +6,7 @@ import pandas as pd
 import seaborn as sns
 from tensordata.zohar import data as zohar
 
-from maserol.figures.common import getSetup, add_subplot_labels
+from maserol.figures.common import getSetup, add_subplot_labels, CACHE_DIR
 from maserol.impute import (
     assemble_residual_mask,
     imputation_scatterplot,
@@ -16,8 +16,6 @@ from maserol.impute import (
 )
 from maserol.preprocess import prepare_data
 
-THIS_DIR = Path(__file__).parent
-CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 UPDATE_CACHE = {"3b": False, "3c": False}
 LIGS_3C = ["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"]
 RUNS_PER_LIG_3C = 3

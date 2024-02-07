@@ -1,4 +1,5 @@
 """ Import binding affinities. """
+
 import re
 from pathlib import Path
 from typing import Iterable, List, Union
@@ -88,6 +89,7 @@ def get_affinity(lig: str, rcp: str) -> float:
         # search for receptor match in affinities dataArray
         for r in list(df.index):
             r_regex = "fc[gr]*" + num + lig[x.end() : :]
+            print(r_regex)
             if re.match(r_regex, r, flags=re.IGNORECASE):
                 return df.at[r, rcp]
     try:

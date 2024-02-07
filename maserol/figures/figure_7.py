@@ -8,12 +8,10 @@ from pathlib import Path
 from scipy.stats import pearsonr
 from sklearn.metrics import r2_score
 
-from maserol.figures.common import getSetup, add_subplot_labels
+from maserol.figures.common import getSetup, add_subplot_labels, CACHE_DIR
 from maserol.impute import assemble_residual_mask, impute_missing_ms
 from maserol.preprocess import assemble_options, get_kaplonek_mgh_data
 
-THIS_DIR = Path(__file__).parent
-CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 UPDATE_CACHE = False
 N_CPLX = 500  # raise this number for final figure version
 RUNS = 3
