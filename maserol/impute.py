@@ -9,8 +9,8 @@ from sklearn.metrics import r2_score
 from statsmodels.multivariate.pca import PCA
 from tensorly.decomposition import parafac
 
-from maserol.preprocess import assemble_options
-from maserol.scatterplot import plot_optimize
+from maserol.core import optimize_loss, infer_Lbound
+from maserol.preprocess import assemble_options, assemble_Ka
 
 
 def assemble_residual_mask(data: xr.DataArray, ligand_missingness: Dict):
@@ -41,23 +41,23 @@ def impute_missing_ms(tensor, residual_mask, opts=None):
         default_opts.update(opts)
     opts = default_opts
     opts["residual_mask"] = residual_mask
-    ax, Lbound, params = plot_optimize(tensor, opts)
-    plt.clf()
+    print(opts.keys())
+    params, ctx = optimize_loss(tensor, **opts, return_reshaped_params=True)
+    # subset the options
+    Lbound_opt_names = ["L0", "KxStar", "f", "logistic_ligands"]
+    Lbound_opts = {opt_name: opts[opt_name] for opt_name in Lbound_opt_names}
+    Lbound = infer_Lbound(
+        tensor,
+        params["Rtot"],
+        Ka=assemble_Ka(
+            tensor.Ligand.values,
+            rcps=opts["rcps"],
+            logistic_ligands=opts["logistic_ligands"],
+        ).values,
+        logistic_params=params["logistic_params"],
+        **Lbound_opts,
+    )
     return Lbound
-
-
-def impute_missing_cp(tensor, residual_mask, ncomp=5):
-    """
-    Imputes the values corresponding to the indices for which residual_mask ==j
-    False using CP.
-    """
-    tensor = np.log(np.copy(tensor.values))
-    tensor[~residual_mask] = 0  # no cheating!
-    weights, factors = parafac(tensor, rank=ncomp, mask=residual_mask)
-    assert np.all(weights == 1)
-    assert factors[0].shape[1] == factors[1].shape[1] == factors[2].shape[1]
-    Lbound = np.einsum("ij,kj,lj->ikl", *factors)
-    return np.exp(Lbound)
 
 
 def impute_missing_pca(tensor, residual_mask, ncomp=5):
