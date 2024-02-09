@@ -1,16 +1,14 @@
 from typing import Dict
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import xarray as xr
 from sklearn.metrics import r2_score
 from statsmodels.multivariate.pca import PCA
-from tensorly.decomposition import parafac
 
 from maserol.core import optimize_loss, infer_Lbound
-from maserol.preprocess import assemble_options, assemble_Ka
+from maserol.util import assemble_options, assemble_Ka
 
 
 def assemble_residual_mask(data: xr.DataArray, ligand_missingness: Dict):
@@ -35,13 +33,13 @@ def impute_missing_ms(tensor, residual_mask, opts=None):
     Imputes the values corresponding to the indices for which residual_mask ==j
     False using mechanistic serology.
     """
+    assert residual_mask.dtype == bool
     default_opts = assemble_options(tensor)
     default_opts["tol"] = 1e-5
     if opts is not None:
         default_opts.update(opts)
     opts = default_opts
     opts["residual_mask"] = residual_mask
-    print(opts.keys())
     params, ctx = optimize_loss(tensor, **opts, return_reshaped_params=True)
     # subset the options
     Lbound_opt_names = ["L0", "KxStar", "f", "logistic_ligands"]
@@ -65,6 +63,7 @@ def impute_missing_pca(tensor, residual_mask, ncomp=5):
     Imputes the values corresponding to the indices for which residual_mask ==j
     False using PCA.
     """
+    assert residual_mask.dtype == bool
     tensor = np.log(tensor)
     tensor.values[~residual_mask] = np.NaN
     opt = PCA(tensor, ncomp, missing="fill-em")
@@ -73,9 +72,9 @@ def impute_missing_pca(tensor, residual_mask, ncomp=5):
 
 def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
     """Plots imputed vs actual."""
+    assert residual_mask.dtype == bool
     assert tensor.shape == Lbound.shape
     test_mask = ~residual_mask
-    print(tensor.shape)
     y = np.log10(tensor.values[test_mask])
     x = np.log10(Lbound[test_mask])
 

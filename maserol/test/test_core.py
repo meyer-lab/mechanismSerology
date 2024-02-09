@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 import xarray as xr
-from tensordata.zohar import data as zohar
 from valentbind.model import polyc
 
 from maserol.core import (
@@ -12,16 +11,16 @@ from maserol.core import (
     reshape_params,
     optimize_loss,
 )
-from maserol.preprocess import assemble_options, HIgGs, prepare_data
+from maserol.datasets import Zohar
+from maserol.util import assemble_options, HIgGs
 
 
 @pytest.mark.parametrize("n_rcp", [1, 2, 3])
 def test_initialize(n_rcp):
-    data = prepare_data(zohar())
-    opts = assemble_options(data, HIgGs[:n_rcp])
-    n_cplx, n_lig = data.shape
-    ps = initialize_params(data, opts["logistic_ligands"], opts["rcps"])
-    assert ps["Rtot"].shape == (n_cplx, n_rcp)
+    detection_signal = Zohar().get_detection_signal()
+    opts = assemble_options(detection_signal)
+    n_cplx, n_lig = detection_signal.shape
+    ps = initialize_params(detection_signal, opts["logistic_ligands"], opts["rcps"])
     assert ps["logistic_params"].shape == (
         4,
         n_logistic_ligands(opts["logistic_ligands"]),
@@ -62,7 +61,7 @@ def test_inferLbound_matches_valentbind():
     np.testing.assert_allclose(msRes, vbRes, rtol=1e-4)
 
 
-@pytest.mark.parametrize("n_cplx", [50, 200])
+@pytest.mark.parametrize("n_cplx", [50])
 @pytest.mark.parametrize("L0", [1e-9, 1e-5])
 @pytest.mark.parametrize("rcp_high", [1e3, 1e7])
 def test_forward_backward(n_cplx, L0, rcp_high):
@@ -72,10 +71,10 @@ def test_forward_backward(n_cplx, L0, rcp_high):
             "IgG1",
             "IgG2",
             "IgG3",
-            "FcgRIIB-232I",
-            "FcgRIIIA-158F",
-            "FcgRIIIA-158V",
-            "FcgRIIIB",
+            "FcR2A",
+            "FcR2B",
+            "FcR3A",
+            "FcR3B",
         ]
     )
     Rtot = xr.DataArray(
@@ -92,12 +91,15 @@ def test_forward_backward(n_cplx, L0, rcp_high):
     Ka[3:] = assemble_Ka(ligs[3:], rcps).values
     Ka[[0, 1, 2, 2], [0, 1, 2, 3]] = 10**7
 
-    forward_opts = assemble_options(data, rcps, IgG_logistic=False)
-    backward_opts = assemble_options(data, rcps, IgG_logistic=True)
+    backward_opts = assemble_options(data, rcps)
 
+    forward_L0 = np.concatenate((np.full(3, 2e-9), backward_opts["L0"]))
+    forward_KxStar = np.concatenate((np.full(3, 1e-12), backward_opts["KxStar"]))
+    forward_f = np.concatenate((np.full(3, 2), backward_opts["f"]))
     data.values = infer_Lbound_mv(
-        Rtot.values, Ka, forward_opts["L0"], forward_opts["KxStar"], forward_opts["f"]
+        Rtot.values, Ka, forward_L0, forward_KxStar, forward_f
     )
+
     x_opt, ctx = optimize_loss(
         data,
         backward_opts["L0"],

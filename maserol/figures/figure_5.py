@@ -1,106 +1,67 @@
-from pathlib import Path
-
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
-import tensordata
 from statannotations.Annotator import Annotator
-from tensordata.kaplonekVaccineSA import data as get_covid_vaccination_data
-from tensordata.zohar import data as zohar
 
 from maserol.core import optimize_loss
+from maserol.datasets import Zohar, KaplonekVaccine
 from maserol.figures.common import (
-    getSetup,
-    add_subplot_label,
+    Multiplot,
     CACHE_DIR,
     annotate_mann_whitney,
 )
-from maserol.preprocess import prepare_data, assemble_options, Rtot_to_df
+from maserol.util import (
+    assemble_options,
+    Rtot_to_df,
+    compute_fucose_ratio,
+)
 
 UPDATE_CACHE = False
 
 
 def makeFigure():
-    axes, fig = getSetup((10, 5), (2, 3), multz={3: 2})
-    figure_5a(axes[0])
-    figure_5b(axes[3])
-    add_subplot_label(axes[0], "a")
-    add_subplot_label(axes[3], "b")
-    return fig
+    plot = Multiplot((3, 2.5), (3, 2), multz={3: 2})
+    figure_5a(plot.axes[0])
+    figure_5b(plot.axes[3])
+    plot.add_subplot_labels()
+    plot.fig.tight_layout()
+    return plot.fig
 
 
 def figure_5a(ax):
-    data = prepare_data(zohar())
-    data = data.sel(Ligand=[l for l in data.Ligand.values if l != "IgG2"])
-    raw_data = pd.read_csv(tensordata.zohar.DATA_PATH)
-    raw_data.rename(columns={"sample_ID": "Sample"}, inplace=True)
-    opts = assemble_options(data)
+    zohar = Zohar()
+    detection_signal = zohar.get_detection_signal()
+    ARDS = zohar.get_ARDS()
+
+    opts = assemble_options(detection_signal)
 
     if UPDATE_CACHE:
-        x, ctx = optimize_loss(data, **opts, return_reshaped_params=True)
-        df = Rtot_to_df(x["Rtot"], data, rcps=list(opts["rcps"]))
-        df = df.reset_index()
-        df.to_csv(CACHE_DIR / "fig_5a_Rtot.csv")
+        x, ctx = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
+        Rtot = Rtot_to_df(x["Rtot"], detection_signal, rcps=list(opts["rcps"]))
+        Rtot.to_csv(CACHE_DIR / "fig_5a_Rtot.csv")
     else:
-        df = pd.read_csv(CACHE_DIR / "fig_5a_Rtot.csv")
+        Rtot = pd.read_csv(CACHE_DIR / "fig_5a_Rtot.csv").set_index(
+            ["Sample", "Antigen"], drop=True
+        )
 
-    df = df[df["Antigen"] == "S"]
+    fucose_inferred = compute_fucose_ratio(Rtot).xs("S", level="Antigen")
 
-    df["Fucose Ratio"] = (
-        (df["IgG1f"] + df["IgG3f"])
-        / (df["IgG1"] + df["IgG1f"] + df["IgG3"] + df["IgG3f"])
-        * 100
-    )
-
-    df_merged = pd.merge(df, raw_data, how="inner", on="Sample")
+    df_merged = pd.merge(fucose_inferred, ARDS, how="inner", on="Sample")
     df_merged.sort_values("ARDS", inplace=True)
 
-    sns.boxplot(data=df_merged, x="ARDS", y="Fucose Ratio", ax=ax)
+    sns.boxplot(data=df_merged, x="ARDS", y="fucose_inferred", ax=ax)
     ax.set_xlabel(None)
     ax.set_xticklabels(["Non-ARDS", "ARDS"])
     ax.set_ylabel("anti-S IgG Fucosylation (%)")
 
     pairs = (("Yes", "No"),)
-    annotator = Annotator(ax, pairs, data=df_merged, x="ARDS", y="Fucose Ratio")
+    annotator = Annotator(ax, pairs, data=df_merged, x="ARDS", y="fucose_inferred")
     annotate_mann_whitney(annotator)
 
 
 def figure_5b(ax):
-    covid_vaccination_data = get_covid_vaccination_data()
-
-    # prepare luminex
-    lum_data = prepare_data(covid_vaccination_data["Luminex"])
-
-    # prepare meta
-    meta_data = (
-        covid_vaccination_data["Meta"]
-        .to_dataframe()
-        .reset_index(level="Metadata")
-        .pivot(columns="Metadata", values="Meta")
-    )
-    meta_data.columns.name = None
-    meta_data.index.name = "Sample"
-
-    if UPDATE_CACHE:
-        opts = assemble_options(lum_data)
-        params, _ = optimize_loss(lum_data, **opts, return_reshaped_params=True)
-        df = Rtot_to_df(params["Rtot"], lum_data, list(opts["rcps"])).reset_index(
-            level="Antigen"
-        )
-        df.to_csv(CACHE_DIR / "fig_5b_Rtot.csv")
-    else:
-        df = pd.read_csv(CACHE_DIR / "fig_5b_Rtot.csv")
-        df.set_index("Sample", inplace=True)
-
-    df["fucose"] = (
-        (df["IgG1f"] + df["IgG3f"])
-        / (df["IgG1"] + df["IgG1f"] + df["IgG3"] + df["IgG3f"])
-        * 100
-    )
-    df = df.merge(meta_data, on="Sample", how="inner")
-
-    fig = plt.figure(figsize=(13, 5))
-    ag_exclude = [
+    AG_EXCLUDE = [
         "Ebola",
         "HKU1.Spike",
         "Influenza",
@@ -111,13 +72,34 @@ def figure_5b(ax):
         "RSV",
         "CMV",
     ]
-    df_sub = df[~df["Antigen"].isin(ag_exclude)]
-    df_sub = df_sub.sort_values("Antigen")[::-1]
+
+    kaplonek_vaccine = KaplonekVaccine()
+    detection_signal = kaplonek_vaccine.get_detection_signal()
+    ag_include = [
+        ag for ag in np.unique(detection_signal.Antigen.values) if ag not in AG_EXCLUDE
+    ]
+    detection_signal = detection_signal.sel(Complex=pd.IndexSlice[:, ag_include])
+    metadata = kaplonek_vaccine.get_metadata()
+    filepath = CACHE_DIR / "fig_5b_Rtot.csv"
+    if UPDATE_CACHE:
+        opts = assemble_options(detection_signal)
+        params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
+        Rtot = Rtot_to_df(params["Rtot"], detection_signal, list(opts["rcps"]))
+        Rtot.to_csv(filepath)
+    else:
+        Rtot = pd.read_csv(filepath)
+        Rtot.set_index(["Sample", "Antigen"], inplace=True, drop=True)
+
+    fucose_inferred = compute_fucose_ratio(Rtot).reset_index(level="Antigen")
+    df_compare = pd.merge(
+        fucose_inferred, metadata["infection.status"], how="inner", on="Sample"
+    ).reset_index()
+    df_compare = df_compare.sort_values("Antigen")[::-1]
 
     sns.boxplot(
-        data=df_sub,
+        data=df_compare,
         x="Antigen",
-        y="fucose",
+        y="fucose_inferred",
         hue="infection.status",
         ax=ax,
         hue_order=["control", "case"],
@@ -125,9 +107,14 @@ def figure_5b(ax):
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_xlabel("Antigen")
-    pairs = [((ag, "control"), (ag, "case")) for ag in df_sub.Antigen.unique()]
+    pairs = [((ag, "control"), (ag, "case")) for ag in df_compare.Antigen.unique()]
     annotator = Annotator(
-        ax, pairs, data=df_sub, x="Antigen", y="fucose", hue="infection.status"
+        ax,
+        pairs,
+        data=df_compare,
+        x="Antigen",
+        y="fucose_inferred",
+        hue="infection.status",
     )
     annotate_mann_whitney(annotator)
 
@@ -137,5 +124,3 @@ def figure_5b(ax):
     ax.legend(handles, new_labels)
 
     sns.move_legend(ax, "lower right")
-
-    return fig
