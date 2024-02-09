@@ -8,7 +8,7 @@ from maserol.impute import (
     impute_missing_pca,
     run_repeated_imputation,
 )
-from maserol.figures.common import getSetup
+from maserol.figures.common import Multiplot
 
 
 N_CPLX = 300
@@ -25,7 +25,7 @@ def makeFigure():
 
     imputers = [functools.partial(impute_missing_pca, ncomp=ncomp) for ncomp in RANKS]
 
-    axes, fig = getSetup((10, 5 * len(MISSINGNESS)), (len(MISSINGNESS), 1))
+    plot = Multiplot((8, 4), (1, len(MISSINGNESS)))
 
     for i, missingness in enumerate(MISSINGNESS):
         df = pd.concat(
@@ -37,8 +37,8 @@ def makeFigure():
 
         df.rename(columns={"Method": "Rank"}, inplace=True)
 
-        sns.boxplot(data=df, x="Ligand", y="r", hue="Rank", ax=axes[i])
-        axes[i].set_xlabel("Ligand")
-        axes[i].set_ylabel("Pearson Correlation")
-        axes[i].set_title(f"Missingness: {missingness}")
-    return fig
+        sns.boxplot(data=df, x="Ligand", y="r", hue="Rank", ax=plot.axes[i])
+        plot.axes[i].set_xlabel("Ligand")
+        plot.axes[i].set_ylabel("Pearson Correlation")
+        plot.axes[i].set_title(f"Missingness: {missingness}")
+    return plot.fig
