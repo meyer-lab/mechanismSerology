@@ -1,8 +1,8 @@
 import numpy as np
 import xarray as xr
 
-from maserol.core import infer_Lbound_mv, infer_Lbound, optimize_loss, reshape_params
-from maserol.preprocess import assemble_Ka, assemble_options
+from maserol.core import infer_Lbound_mv, optimize_loss, reshape_params
+from maserol.util import assemble_Ka, assemble_options
 
 
 def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
@@ -16,10 +16,10 @@ def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
         "IgG2",
         "IgG3",
         "IgG4",
-        "FcgRIIA-131R",
-        "FcgRIIB-232I",
-        "FcgRIIIA",
-        "FcgRIIIB",
+        "FcR2A",
+        "FcR2B",
+        "FcR3A",
+        "FcR3B",
     ]
     n_lig = len(lig)
 
@@ -32,8 +32,7 @@ def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
         np.zeros((n_cplx, n_lig)), (Rtot.Complex.values, lig), ("Complex", "Ligand")
     )
 
-    forward_opts = assemble_options(data, rcps, IgG_logistic=False)
-    backward_opts = assemble_options(data, rcps, IgG_logistic=True)
+    backward_opts = assemble_options(data, rcps)
     backward_opts["tol"] = tol
 
     forward_Ka = np.ones((n_lig, n_rcp), dtype=float)
@@ -42,12 +41,15 @@ def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
     forward_Ka *= np.maximum(
         1 + np.random.normal(scale=Ka_noise_std, size=forward_Ka.shape), 0
     )
+    forward_L0 = np.concatenate((np.full(4, 2e-9), backward_opts["L0"]))
+    forward_KxStar = np.concatenate((np.full(4, 1e-12), backward_opts["KxStar"]))
+    forward_f = np.concatenate((np.full(4, 2), backward_opts["f"]))
     data.values = infer_Lbound_mv(
         Rtot.values,
         forward_Ka,
-        forward_opts["L0"],
-        forward_opts["KxStar"],
-        forward_opts["f"],
+        forward_L0,
+        forward_KxStar,
+        forward_f,
     )
 
     # lognormal

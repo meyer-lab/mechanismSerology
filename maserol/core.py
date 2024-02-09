@@ -1,6 +1,6 @@
 # Base Python
 from copy import deepcopy
-from typing import Collection, Dict, List, Tuple, Union
+from typing import Collection, Dict, Tuple
 
 # Extended Python
 import numpy as np
@@ -9,7 +9,7 @@ from scipy.optimize import least_squares, newton
 
 
 # Current Package
-from .preprocess import (
+from .util import (
     assemble_Ka,
     HIgGs,
     DEFAULT_RCPS,

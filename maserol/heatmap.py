@@ -1,7 +1,7 @@
 import numpy as np
 import seaborn as sns
 
-from .preprocess import assemble_Ka, DEFAULT_RCPS
+from maserol.util import assemble_Ka, DEFAULT_RCPS
 
 
 def plot_Ka(cube, rcps=DEFAULT_RCPS, Ka=None, ax=None):

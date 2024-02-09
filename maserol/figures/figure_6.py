@@ -1,127 +1,101 @@
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from statannotations.Annotator import Annotator
 
-from tensordata.alter import data as alter, load_file
 from maserol.core import optimize_loss
+from maserol.datasets import Alter
 from maserol.figures.common import (
-    getSetup,
-    add_subplot_labels,
+    Multiplot,
     CACHE_DIR,
     annotate_mann_whitney,
 )
-from maserol.preprocess import prepare_data, assemble_options, Rtot_to_df
+from maserol.util import assemble_options, Rtot_to_df, IgG1_3, compute_fucose_ratio
 
 UPDATE_CACHE = False
 
 
 def makeFigure():
-    data = alter()["Fc"]
-    data = data.sel(
-        Receptor=[
-            "IgG1",
-            "IgG3",
-            "FcgRIIa.H131",
-            "FcgRIIb",
-            "FcgRIIIa.V158",
-            "FcgRIIIb",
-        ]
-    )
-    translate = {
-        "FcgRIIa.H131": "FcgRIIA-131H",
-        "FcgRIIIa.V158": "FcgRIIIA-158V",
-    }
-    data = data.assign_coords(
-        Receptor=[translate.get(r, r) for r in data.Receptor.values]
-    )
-    data = prepare_data(data)
-    subject_class = (
-        load_file("meta-subjects")
-        .rename(columns={"subject": "Sample"})
-        .set_index("Sample")
-    )
+    alter = Alter()
+    detection_signal = alter.get_detection_signal()
+    subject_class = alter.get_subject_class()
 
-    rcps = ["IgG1", "IgG1f", "IgG3", "IgG3f"]
-    opts = assemble_options(data, rcps=rcps)
+    opts = assemble_options(detection_signal)
     if UPDATE_CACHE:
-        params, _ = optimize_loss(data, **opts, return_reshaped_params=True)
-        df = Rtot_to_df(params["Rtot"], data, rcps)
-        df.to_csv(CACHE_DIR / "fig_6_Rtot.csv")
+        params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
+        Rtot = Rtot_to_df(params["Rtot"], data=detection_signal, rcps=list(IgG1_3))
+        Rtot.to_csv(CACHE_DIR / "fig_6_Rtot.csv")
     else:
-        df = pd.read_csv(CACHE_DIR / "fig_6_Rtot.csv")
-        df.set_index(["Sample", "Antigen"], inplace=True)
+        Rtot = pd.read_csv(CACHE_DIR / "fig_6_Rtot.csv")
+        Rtot.set_index(["Sample", "Antigen"], inplace=True)
 
-    get_fucose = (
-        lambda df: (df["IgG1f"] + df["IgG3f"])
-        / (df["IgG1"] + df["IgG1f"] + df["IgG3"] + df["IgG3f"])
-        * 100
-    )
-    df["f"] = get_fucose(df)
-    df["class"] = subject_class.loc[df.index.get_level_values("Sample")][
-        "class.etuv"
-    ].values
+    fucose_inferred = compute_fucose_ratio(Rtot).reset_index(level="Antigen")
+    df_compare = pd.merge(
+        fucose_inferred, subject_class, how="inner", on="Sample"
+    ).reset_index()
 
-    assert (
-        df.loc[(100681, "gp120.Du156.12"), "class"]
-        == subject_class.loc[100681, "class.etuv"]
-    )
+    plot = Multiplot((3, 2.5), (2, 3), multz={0: 1, 2: 1})
 
-    df = df.reset_index()
-
-    axes, fig = getSetup((12, 11), (3, 2), multz={0: 1, 2: 1})
-    y = "f"
-    hue = "class"
-    ax = axes[0]
-    sns.boxplot(data=df, x="Antigen", y=y, hue=hue, ax=ax)
+    # a
+    ax = plot.axes[0]
+    sns.boxplot(data=df_compare, x="Antigen", y="fucose_inferred", hue="class", ax=ax)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=40, fontsize="small")
+    ax.set_xlabel("Antigen", labelpad=0)
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.legend(title=None)
     sns.move_legend(ax, "lower right")
 
-    df["is_EC"] = df["class"] == "EC"
-    y = "f"
-    hue = "is_EC"
-    ax = axes[1]
-    sns.boxplot(data=df, x="Antigen", y=y, hue=hue, ax=ax, hue_order=[True, False])
+    # b
+    ax = plot.axes[1]
+    df_compare["is_EC"] = df_compare["class"] == "EC"
+    sns.boxplot(
+        data=df_compare,
+        x="Antigen",
+        y="fucose_inferred",
+        hue="is_EC",
+        ax=ax,
+        hue_order=[True, False],
+    )
+    ax.set_xlabel("Antigen", labelpad=0)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=40, fontsize="small")
     ax.set_ylabel("IgG Fucosylation (%)")
     handles, labels = ax.get_legend_handles_labels()
-
     new_labels = ["EC", "Others"]
     ax.legend(handles, new_labels)
-
     sns.move_legend(ax, "lower right")
-
-    pairs = [((ag, False), (ag, True)) for ag in df.Antigen.unique()]
-    annotator = Annotator(ax, pairs, data=df, x="Antigen", y=y, hue=hue)
+    pairs = [((ag, False), (ag, True)) for ag in df_compare.Antigen.unique()]
+    annotator = Annotator(
+        ax, pairs, data=df_compare, x="Antigen", y="fucose_inferred", hue="is_EC"
+    )
     annotate_mann_whitney(annotator)
 
-    ax = axes[2]
-    df["Antigen Category"] = np.ones(len(df))
-    for i in df.index:
-        antigen = df.loc[i, "Antigen"]
+    # c
+    ax = plot.axes[2]
+    df_compare["Antigen Category"] = np.ones(len(df_compare))
+    for i in df_compare.index:
+        antigen = df_compare.loc[i, "Antigen"]
         if (
             antigen.startswith("gp120")
             or antigen.startswith("gp140")
             or antigen.startswith("gp41")
             or antigen == "SOSIP"
         ):
-            df.loc[i, "Antigen Category"] = "Env trimer"
+            df_compare.loc[i, "Antigen Category"] = "Env trimer"
         elif antigen.startswith("p24"):
-            df.loc[i, "Antigen Category"] = "p24"
+            df_compare.loc[i, "Antigen Category"] = "p24"
         else:
-            df.loc[i, "Antigen Category"] = antigen
+            df_compare.loc[i, "Antigen Category"] = antigen
 
-    sns.boxplot(data=df, x="Antigen Category", y="f", ax=ax)
+    sns.boxplot(data=df_compare, x="Antigen Category", y="fucose_inferred", ax=ax)
     ax.set_ylabel("IgG Fucosylation (%)")
+    ax.set_xlabel("Antigen type")
 
     pairs = [("Env trimer", "p24"), ("Env trimer", "IIIb.pr55.Gag")]
-    annotator = Annotator(ax, pairs, data=df, x="Antigen Category", y="f")
+    annotator = Annotator(
+        ax, pairs, data=df_compare, x="Antigen Category", y="fucose_inferred"
+    )
     annotate_mann_whitney(annotator)
 
-    add_subplot_labels(axes)
+    plot.add_subplot_labels()
 
-    return fig
+    return plot.fig

@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 import xarray as xr
-from tensordata.zohar import data as zohar
 from valentbind.model import polyc
 
 from maserol.core import (
@@ -12,12 +11,13 @@ from maserol.core import (
     reshape_params,
     optimize_loss,
 )
-from maserol.preprocess import assemble_options, HIgGs, prepare_data
+from maserol.datasets import Zohar
+from maserol.util import assemble_options, HIgGs
 
 
 @pytest.mark.parametrize("n_rcp", [1, 2, 3])
 def test_initialize(n_rcp):
-    data = prepare_data(zohar())
+    data = Zohar().get_detection_signal()
     opts = assemble_options(data, HIgGs[:n_rcp])
     n_cplx, n_lig = data.shape
     ps = initialize_params(data, opts["logistic_ligands"], opts["rcps"])

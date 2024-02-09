@@ -30,57 +30,66 @@ THIS_DIR = Path(__file__).parent
 CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 
 
-def getSetup(figsize, gridd, multz=None, empts=None):
-    """Establish figure set-up with subplots."""
-    sns.set(
-        style="whitegrid",
-        font_scale=0.7,
-        color_codes=True,
-        palette="colorblind",
-        rc={"grid.linestyle": "dotted", "axes.linewidth": 0.6},
-    )
+class Multiplot:
+    def __init__(self, ax_size, grid, multz=None, empts=None):
+        self.ax_size = ax_size
+        self.grid = grid
+        self.fig_size = (self.ax_size[0] * self.grid[0], self.ax_size[1] * self.grid[1])
+        self.multz = multz if multz is not None else {}
+        self.empts = empts if empts is not None else []
+        self.axes, self.fig = self.setup()
 
-    # create empty list if empts isn't specified
-    if empts is None:
-        empts = []
+    def setup(self):
+        """Establish figure set-up with subplots."""
+        sns.set(
+            style="whitegrid",
+            font_scale=0.7,
+            color_codes=True,
+            palette="colorblind",
+            rc={"grid.linestyle": "dotted", "axes.linewidth": 0.6},
+        )
 
-    if multz is None:
-        multz = dict()
+        # Setup plotting space and grid
+        f = plt.figure(figsize=self.fig_size, constrained_layout=True)
+        gs1 = gridspec.GridSpec(self.grid[1], self.grid[0], figure=f)
 
-    # Setup plotting space and grid
-    f = plt.figure(figsize=figsize, constrained_layout=True)
-    gs1 = gridspec.GridSpec(*gridd, figure=f)
+        # Get list of axis objects
+        x = 0
+        ax = list()
+        while x < self.grid[0] * self.grid[1]:
+            if x not in self.empts:
+                if x in self.multz.keys():
+                    ax.append(f.add_subplot(gs1[x : x + self.multz[x] + 1]))
+                else:
+                    ax.append(f.add_subplot(gs1[x]))
+            if x in self.multz.keys():
+                x += self.multz[x]
+            x += 1
 
-    # Get list of axis objects
-    x = 0
-    ax = list()
-    while x < gridd[0] * gridd[1]:
-        if x not in empts and x not in multz.keys():  # If this is just a normal subplot
-            ax.append(f.add_subplot(gs1[x]))
-        elif x in multz.keys():  # If this is a subplot that spans grid elements
-            ax.append(f.add_subplot(gs1[x : x + multz[x] + 1]))
-            x += multz[x]
-        x += 1
+        return ax, f
 
-    return (ax, f)
-
-
-def add_subplot_label(ax, label):
-    ax.text(
-        -0.2,
-        1.2,
-        label,
-        transform=ax.transAxes,
-        fontsize=16,
-        fontweight="bold",
-        va="top",
-    )
-
-
-def add_subplot_labels(axs):
-    """Place subplot labels on figure."""
-    for ii, ax in enumerate(axs):
-        add_subplot_label(ax, ascii_lowercase[ii])
+    def add_subplot_labels(self):
+        x_width = 1 / self.grid[0]
+        y_height = 1 / self.grid[1]
+        skip = [k + i for k in self.multz.keys() for i in range(1, self.multz[k] + 1)]
+        print(skip)
+        for y in range(self.grid[1]):
+            for x in range(self.grid[0]):
+                n = (self.grid[1] - y - 1) * self.grid[0] + x
+                if n in skip:
+                    continue
+                ax_index = n - sum(1 for i in skip if i <= n)
+                print(n)
+                print(ax_index)
+                self.fig.text(
+                    x * x_width,
+                    (y + 1) * y_height,
+                    chr(ord("a") + ax_index),
+                    va="top",
+                    ha="left",
+                    fontsize=16,
+                    fontweight="bold",
+                )
 
 
 def genFigure():
@@ -106,7 +115,10 @@ def remove_ns_annotations(annotator: Annotator):
 def annotate_mann_whitney(annotator: Annotator):
     """Perform Mann-Whitney test and multiple hypothesis correction and annotate."""
     annotator.configure(
-        test="Mann-Whitney", text_format="star", comparisons_correction="Bonferroni"
+        test="Mann-Whitney",
+        text_format="star",
+        comparisons_correction="Bonferroni",
+        loc="outside",
     )
     annotator.apply_test()
     remove_ns_annotations(annotator)

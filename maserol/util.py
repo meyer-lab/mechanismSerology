@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from tensordata.kaplonek import MGH4D
+from maserol.concentration import get_Fc_detection_molarity
 
 
 class AffinityNotFoundException(Exception):
@@ -26,38 +26,6 @@ HIgGFs = ("IgG1", "IgG1f", "IgG2", "IgG2f", "IgG3", "IgG3f", "IgG4", "IgG4f")
 IgG1_3 = ("IgG1", "IgG1f", "IgG3", "IgG3f")
 
 DEFAULT_RCPS = IgG1_3
-
-
-def prepare_data(data: xr.DataArray, ligs=None):
-    """
-    Reshapes data into matrix of size (n_cplx, n_lig), where n_cplx = n_sample x
-    n_ag - missing.
-    """
-    assert len(data.dims) == 3, "Data must be 3 dimensional"
-    # Antigens: remove those with all missing values
-    missing_ag = []
-    for antigen in data.Antigen:
-        if not np.any(
-            np.isfinite(data.sel(Antigen=antigen))
-        ):  # only nan values for antigen
-            missing_ag.append(antigen.values)
-    if "Subject" in data.dims:
-        data = data.rename({"Subject": "Sample"})
-    data = (
-        data.drop_sel(Antigen=missing_ag)
-        .rename({"Receptor": "Ligand"})
-        .stack(Complex=("Sample", "Antigen"))
-        .transpose("Complex", "Ligand")
-    )
-    ligs = ligs or [
-        lig
-        for lig in data.Ligand.values
-        if re.match("^igg|fc[gr]*", lig, flags=re.IGNORECASE) and lig != "FcRalpha"
-    ]
-    data = data.sel(
-        Ligand=ligs,
-    )
-    return data[np.all((data.values != 0) & ~np.isnan(data.values), axis=1)]
 
 
 def get_affinity(lig: str, rcp: str) -> float:
@@ -126,13 +94,9 @@ def assemble_Ka(
 def assemble_options(
     data: xr.DataArray,
     rcps=DEFAULT_RCPS,
-    IgG_L0: float = 1e-9,
-    FcR_L0: float = 1e-9,
-    IgG_KxStar: float = 1e-12,
     FcR_KxStar: float = 1e-12,
-    IgG_logistic: bool = True,
-    IgG_f: int = 2,
     FcR_f: int = 4,
+    FcR_conc_ug_mL: float = 1,
 ):
     """
     Helper function for constructing parameters used in optimization.
@@ -149,53 +113,37 @@ def assemble_options(
     """
     n_lig = data.sizes["Ligand"]
     n_rcp = len(rcps)
-    is_IgG = np.array(
-        [bool(re.search("^IgG[1-4]$", lig)) for lig in data.Ligand.values]
-    )
-    L0 = np.full(n_lig, FcR_L0)
-    L0[is_IgG] = IgG_L0
     KxStar = np.full(n_lig, FcR_KxStar)
-    KxStar[is_IgG] = IgG_KxStar
     f = np.full(n_lig, FcR_f)
-    f[is_IgG] = IgG_f
-    logistic_ligands = np.full((n_lig, n_rcp), False)
 
-    if IgG_logistic:
-        for i in range(n_lig):
-            logistic_ligands[i] = np.array(
-                # rcp name includes ligand name (e.g. IgG1 ligand includes IgG1
-                # and IgG1f receptors)
-                [data.Ligand.values[i] in rcp for rcp in rcps]
-            )
-        mvl = ~logistic_ligand_map(logistic_ligands)
-        L0 = L0[mvl]
-        KxStar = KxStar[mvl]
-        f = f[mvl]
-    return {
+    logistic_ligands = np.full((n_lig, n_rcp), False)
+    for i in range(n_lig):
+        logistic_ligands[i] = np.array(
+            # rcp name includes ligand name (e.g. IgG1 ligand includes IgG1
+            # and IgG1f receptors)
+            [data.Ligand.values[i] in rcp for rcp in rcps]
+        )
+    logistic_ligs = logistic_ligand_map(logistic_ligands)
+    for l in data.Ligand.values[logistic_ligs]:
+        assert "IgG" in l
+    multivalent_ligs = ~logistic_ligs
+    n_mvl = np.count_nonzero(multivalent_ligs)
+    FcRs = data.Ligand.values[multivalent_ligs]
+    for r in FcRs:
+        assert "Fc" in r
+    KxStar = np.full(n_mvl, FcR_KxStar)
+    f = np.full(n_mvl, FcR_f)
+    L0 = np.zeros(n_mvl)
+    for i, r in enumerate(FcRs):
+        L0[i] = get_Fc_detection_molarity(r.split("-")[0], FcR_conc_ug_mL)
+    opts = {
         "L0": L0,
         "KxStar": KxStar,
         "f": f,
         "rcps": rcps,
         "logistic_ligands": logistic_ligands,
     }
-
-
-def get_kaplonek_mgh_data():
-    mgh_4d = MGH4D()["Serology"]
-
-    tensors = [10 ** mgh_4d.isel(Time=i) for i in range(mgh_4d.sizes["Time"])]
-
-    for tensor in tensors:
-        tensor.values[tensor.values == 1] = 0
-        tensor.coords["Subject"] = [
-            f"{sample}_{tensor.Time.values}" for sample in tensor.Subject.values
-        ]
-
-    tensors = [
-        prepare_data(tensor, ligs=["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"])
-        for tensor in tensors
-    ]
-    return xr.concat(tensors, dim="Complex")
+    return opts
 
 
 def logistic_ligand_map(logistic_ligands: np.ndarray) -> int:
@@ -237,3 +185,14 @@ def data_to_df(
     df = df.reset_index(level="Ligand").pivot(columns="Ligand")
     df.columns = [col[1] for col in df.columns]
     return df
+
+
+def compute_fucose_ratio(Rtot: pd.DataFrame) -> pd.Series:
+    assert np.all(Rtot.columns.values == np.array(IgG1_3))
+    fucose = (
+        (Rtot["IgG1f"] + Rtot["IgG3f"])
+        / (Rtot["IgG1"] + Rtot["IgG1f"] + Rtot["IgG3"] + Rtot["IgG3f"])
+        * 100
+    )
+    fucose.name = "fucose_inferred"
+    return fucose
