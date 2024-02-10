@@ -22,17 +22,16 @@ UPDATE_CACHE = False
 
 def makeFigure():
     plot = Multiplot((3, 2.5), (3, 2), multz={3: 2})
-    figure_5a(plot.axes[0])
-    figure_5b(plot.axes[3])
+    figure_5ab(plot.axes[0], plot.axes[1])
+    figure_5c(plot.axes[3])
     plot.add_subplot_labels()
     plot.fig.tight_layout()
     return plot.fig
 
 
-def figure_5a(ax):
+def figure_5ab(ax_a, ax_b):
     zohar = Zohar()
     detection_signal = zohar.get_detection_signal()
-    ARDS = zohar.get_ARDS()
 
     opts = assemble_options(detection_signal)
 
@@ -47,20 +46,32 @@ def figure_5a(ax):
 
     fucose_inferred = compute_fucose_ratio(Rtot).xs("S", level="Antigen")
 
-    df_merged = pd.merge(fucose_inferred, ARDS, how="inner", on="Sample")
+    df_merged = pd.merge(fucose_inferred, zohar.get_ARDS(), how="inner", on="Sample")
     df_merged.sort_values("ARDS", inplace=True)
 
-    sns.boxplot(data=df_merged, x="ARDS", y="fucose_inferred", ax=ax)
-    ax.set_xlabel(None)
-    ax.set_xticklabels(["Non-ARDS", "ARDS"])
-    ax.set_ylabel("anti-S IgG Fucosylation (%)")
+    sns.boxplot(data=df_merged, x="ARDS", y="fucose_inferred", ax=ax_a)
+    ax_a.set_xlabel(None)
+    ax_a.set_xticklabels(["Non-ARDS", "ARDS"])
+    ax_a.set_ylabel("anti-S IgG Fucosylation (%)")
 
     pairs = (("Yes", "No"),)
-    annotator = Annotator(ax, pairs, data=df_merged, x="ARDS", y="fucose_inferred")
+    annotator = Annotator(ax_a, pairs, data=df_merged, x="ARDS", y="fucose_inferred")
     annotate_mann_whitney(annotator)
 
+    sns.lineplot(
+        data=pd.merge(
+            fucose_inferred, zohar.get_days_binned(), how="inner", on="Sample"
+        ),
+        x="days",
+        y="fucose_inferred",
+        ax=ax_b,
+    )
+    ax_b.set_xlabel("Days following symptom onset")
+    ax_b.set_ylabel("anti-S IgG Fucosylation (%)")
+    ax_b.set_xlim(0, 30)
 
-def figure_5b(ax):
+
+def figure_5c(ax):
     AG_EXCLUDE = [
         "Ebola",
         "HKU1.Spike",
