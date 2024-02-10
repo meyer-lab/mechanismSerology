@@ -4,7 +4,7 @@ import re
 import xarray as xr
 import tensordata
 from tensordata.zohar import data as zohar
-from tensordata.kaplonek import MGH4D
+from tensordata.kaplonek import MGH4D, load_file as load_file_kaplonek
 from tensordata.alter import data as alter, load_file as load_file_alter
 from tensordata.kaplonekVaccineSA import data as kaplonek_vaccine
 
@@ -18,14 +18,25 @@ class Zohar:
         data = data.sel(Ligand=LIG_ORDER)
         return data
 
-    def get_ARDS(self) -> pd.Series:
-        ARDS = (
+    def get_metadata(self) -> pd.DataFrame:
+        return (
             pd.read_csv(tensordata.zohar.DATA_PATH)
             .rename(columns={"sample_ID": "Sample"})
-            .set_index("Sample", drop=True)["ARDS"]
+            .set_index("Sample", drop=True)
         )
+
+    def get_ARDS(self) -> pd.Series:
+        ARDS = self.get_metadata()["ARDS"]
         ARDS.name = "ARDS"
         return ARDS
+
+    def get_days_binned(self) -> pd.Series:
+        days = self.get_metadata()["days"]
+        days.name = "days"
+        bins = np.arange(0, 40, 5)
+        days = pd.cut(days, bins=bins, labels=bins[:-1], right=False)
+        print(days.value_counts())
+        return days
 
 
 class Kaplonek:
@@ -42,6 +53,10 @@ class Kaplonek:
 
         tensors = [prepare_data(tensor, ligs=LIG_ORDER) for tensor in tensors]
         return xr.concat(tensors, dim="Complex")
+
+    def get_metadata(self) -> pd.DataFrame:
+        df = load_file_kaplonek("MGH_Sero.Meta.data.WHO124")
+        return df.rename(columns={"Study_ID": "Sample"}).set_index("Sample", drop=True)
 
 
 class Alter:
