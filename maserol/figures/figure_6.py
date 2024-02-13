@@ -34,7 +34,15 @@ def makeFigure():
         fucose_inferred, subject_class, how="inner", on="Sample"
     ).reset_index()
 
-    plot = Multiplot((3, 2.5), (2, 3), multz={0: 1, 2: 1})
+    plot = Multiplot(
+        (3, 2.5),
+        (3, 2),
+        subplot_specs=[
+            (0, 3, 0, 1),
+            (0, 2, 1, 1),
+            (2, 1, 1, 1),
+        ],
+    )
 
     # a
     ax = plot.axes[0]

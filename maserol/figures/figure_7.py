@@ -23,7 +23,7 @@ METRIC_LABEL_MAPPINGS = {
 
 
 def makeFigure():
-    plot = Multiplot((6, 2.5), (1, 4))
+    plot = Multiplot((5.5, 2.2), (1, 4))
 
     if UPDATE_CACHE:
         update_cache(2)

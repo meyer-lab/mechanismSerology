@@ -31,16 +31,27 @@ CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 
 
 class Multiplot:
-    def __init__(self, ax_size, grid, multz=None, empts=None):
-        self.ax_size = ax_size
+    def __init__(self, ax_size, grid, subplot_specs=None, empty=None):
+        """
+        Initialize the plotting grid with more flexibility.
+
+        :param ax_size: Tuple specifying the axis size (width, height)
+        :param grid: Tuple specifying the grid size (columns, rows)
+        :param subplot_specs: List of tuples specifying subplot positions and spans as
+                              (col_start, col_span, row_start, row_span) for each subplot
+        """
+        self.fig_size = (ax_size[0] * grid[0], ax_size[1] * grid[1])
         self.grid = grid
-        self.fig_size = (self.ax_size[0] * self.grid[0], self.ax_size[1] * self.grid[1])
-        self.multz = multz if multz is not None else {}
-        self.empts = empts if empts is not None else []
+        if subplot_specs is None:
+            subplot_specs = [
+                (i, 1, j, 1) for i in range(self.grid[0]) for j in range(self.grid[1])
+            ]
+        self.subplot_specs = subplot_specs
+        self.empty = empty if empty is not None else set()
         self.axes, self.fig = self.setup()
 
     def setup(self):
-        """Establish figure set-up with subplots."""
+        """Establish figure setup with flexible subplots."""
         sns.set(
             style="whitegrid",
             font_scale=0.7,
@@ -49,47 +60,59 @@ class Multiplot:
             rc={"grid.linestyle": "dotted", "axes.linewidth": 0.6},
         )
 
-        # Setup plotting space and grid
+        # Setup figure and grid
         f = plt.figure(figsize=self.fig_size, constrained_layout=True)
-        gs1 = gridspec.GridSpec(self.grid[1], self.grid[0], figure=f)
+        gs = gridspec.GridSpec(self.grid[1], self.grid[0], figure=f)
 
-        # Get list of axis objects
-        x = 0
-        ax = list()
-        while x < self.grid[0] * self.grid[1]:
-            if x not in self.empts:
-                if x in self.multz.keys():
-                    ax.append(f.add_subplot(gs1[x : x + self.multz[x] + 1]))
-                else:
-                    ax.append(f.add_subplot(gs1[x]))
-            if x in self.multz.keys():
-                x += self.multz[x]
-            x += 1
+        # Create subplots according to the specifications
+        ax = []
+        for spec in self.subplot_specs:
+            col_start, col_span, row_start, row_span = spec
+            ax.append(
+                f.add_subplot(
+                    gs[
+                        row_start : row_start + row_span,
+                        col_start : col_start + col_span,
+                    ]
+                )
+            )
+
+        for ax_i in self.empty:
+            ax[ax_i].axis("off")
 
         return ax, f
 
-    def add_subplot_labels(self):
+    def add_subplot_labels(self, labels=None):
+        """Add labels to subplots. If labels are None, use alphabetical labels."""
+        if labels is None:
+            labels = [chr(ord("a") + i) for i in range(len(self.axes))]
+        for ax, label in zip(self.axes, labels):
+            ax.set_title(label, loc="left", fontsize=16, fontweight="bold")
+
+    def subplot_spec_to_bounds(self, spec):
         x_width = 1 / self.grid[0]
         y_height = 1 / self.grid[1]
-        skip = [k + i for k in self.multz.keys() for i in range(1, self.multz[k] + 1)]
-        print(skip)
-        for y in range(self.grid[1]):
-            for x in range(self.grid[0]):
-                n = (self.grid[1] - y - 1) * self.grid[0] + x
-                if n in skip:
-                    continue
-                ax_index = n - sum(1 for i in skip if i <= n)
-                print(n)
-                print(ax_index)
-                self.fig.text(
-                    x * x_width,
-                    (y + 1) * y_height,
-                    chr(ord("a") + ax_index),
-                    va="top",
-                    ha="left",
-                    fontsize=16,
-                    fontweight="bold",
-                )
+        x_left = spec[0] * x_width
+        width = spec[1] * x_width
+        y_bot = (self.grid[1] - (spec[2] + spec[3])) * y_height
+        height = spec[3] * y_height
+        return (x_left, y_bot, width, height)
+
+    def add_subplot_label(self, ax_index, label):
+        bounds = self.subplot_spec_to_bounds(self.subplot_specs[ax_index])
+        self.fig.text(
+            bounds[0],
+            bounds[1] + 1.01 * bounds[3],
+            label,
+            va="top",
+            ha="left",
+            fontsize=16,
+            fontweight="bold",
+        )
+
+    def add_subplot_labels(self):
+        for i in range(len(self.subplot_specs)):
+            self.add_subplot_label(i, chr(ord("a") + i))
 
 
 def genFigure():

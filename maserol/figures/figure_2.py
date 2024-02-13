@@ -17,7 +17,17 @@ UPDATE_CACHE = {"2b": False, "2c": False, "2d": False, "2e": False}
 
 
 def makeFigure():
-    plot = Multiplot((3, 2.5), (3, 2), multz={0: 1})
+    plot = Multiplot(
+        (3, 2.5),
+        (3, 2),
+        subplot_specs=[
+            (0, 2, 0, 1),
+            (2, 1, 0, 1),
+            (0, 1, 1, 1),
+            (1, 1, 1, 1),
+            (2, 1, 1, 1),
+        ],
+    )
     plot.add_subplot_labels()
     axes, fig = plot.axes, plot.fig
     figure_2b(axes[1])

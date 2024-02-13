@@ -20,7 +20,17 @@ RUNS_PER_LIG_3C = 3
 
 
 def makeFigure():
-    plot = Multiplot((3, 2.5), (3, 2), multz={0: 1})
+    plot = Multiplot(
+        (3, 2.5),
+        (3, 2),
+        subplot_specs=[
+            (0, 2, 0, 1),
+            (2, 1, 0, 1),
+            (0, 1, 1, 1),
+            (1, 1, 1, 1),
+            (2, 1, 1, 1),
+        ],
+    )
     plot.add_subplot_labels()
     figure_3b(plot.axes[1])
     figure_3cd(plot.axes[2], plot.axes[3])
