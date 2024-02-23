@@ -13,6 +13,8 @@ from maserol.figures.common import (
 from maserol.util import assemble_options, Rtot_to_df, IgG1_3, compute_fucose_ratio
 
 UPDATE_CACHE = False
+Y_LIM = (-2, 102)
+X_LABEL_ROTATION = 40
 
 
 def makeFigure():
@@ -33,24 +35,45 @@ def makeFigure():
     df_compare = pd.merge(
         fucose_inferred, subject_class, how="inner", on="Sample"
     ).reset_index()
+    df_compare.replace("gp120.Du156.12", "gp120.Du156", inplace=True)
+    df_compare.replace("IIIb.pr55.Gag", "pr55.Gag.IIIb", inplace=True)
 
     plot = Multiplot(
-        (3, 2.5),
-        (3, 2),
+        (5, 2),
+        fig_size=(9, 5),
         subplot_specs=[
-            (0, 3, 0, 1),
-            (0, 2, 1, 1),
-            (2, 1, 1, 1),
+            (0, 5, 0, 1),
+            (0, 4, 1, 1),
+            (4, 1, 1, 1),
         ],
     )
 
     # a
     ax = plot.axes[0]
-    sns.boxplot(data=df_compare, x="Antigen", y="fucose_inferred", hue="class", ax=ax)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=40, fontsize="small")
+    sns.boxplot(
+        data=df_compare,
+        x="Antigen",
+        y="fucose_inferred",
+        hue="class",
+        ax=ax,
+        hue_order=["EC", "VC", "TP", "UP"],
+        showfliers=False,
+    )
+    ax.set_xticklabels(
+        ax.get_xticklabels(), rotation=X_LABEL_ROTATION, fontsize="small"
+    )
     ax.set_xlabel("Antigen", labelpad=0)
     ax.set_ylabel("IgG Fucosylation (%)")
+    ax.set_ylim(*Y_LIM)
     ax.legend(title=None)
+    handles, labels = ax.get_legend_handles_labels()
+    new_labels = [
+        "Elite controller",
+        "Viremic controller",
+        "Treated progressor",
+        "Untreated progressor",
+    ]
+    ax.legend(handles, new_labels)
     sns.move_legend(ax, "lower right")
 
     # b
@@ -63,19 +86,23 @@ def makeFigure():
         hue="is_EC",
         ax=ax,
         hue_order=[True, False],
+        showfliers=False,
     )
     ax.set_xlabel("Antigen", labelpad=0)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=40, fontsize="small")
+    ax.set_xticklabels(
+        ax.get_xticklabels(), rotation=X_LABEL_ROTATION, fontsize="small"
+    )
     ax.set_ylabel("IgG Fucosylation (%)")
+    ax.set_ylim(*Y_LIM)
     handles, labels = ax.get_legend_handles_labels()
-    new_labels = ["EC", "Others"]
+    new_labels = ["Elite controller", "Others"]
     ax.legend(handles, new_labels)
     sns.move_legend(ax, "lower right")
     pairs = [((ag, False), (ag, True)) for ag in df_compare.Antigen.unique()]
     annotator = Annotator(
         ax, pairs, data=df_compare, x="Antigen", y="fucose_inferred", hue="is_EC"
     )
-    annotate_mann_whitney(annotator)
+    annotate_mann_whitney(annotator, correction=None)
 
     # c
     ax = plot.axes[2]
@@ -92,13 +119,23 @@ def makeFigure():
         elif antigen.startswith("p24"):
             df_compare.loc[i, "Antigen Category"] = "p24"
         else:
-            df_compare.loc[i, "Antigen Category"] = antigen
+            df_compare.loc[i, "Antigen Category"] = "pr55.Gag"
 
-    sns.boxplot(data=df_compare, x="Antigen Category", y="fucose_inferred", ax=ax)
-    ax.set_ylabel("IgG Fucosylation (%)")
+    sns.boxplot(
+        data=df_compare,
+        x="Antigen Category",
+        y="fucose_inferred",
+        ax=ax,
+        showfliers=False,
+    )
+    ax.set_ylabel(None)
+    ax.set_ylim(*Y_LIM)
     ax.set_xlabel("Antigen type")
+    ax.set_xticklabels(
+        ax.get_xticklabels(), rotation=X_LABEL_ROTATION, fontsize="small"
+    )
 
-    pairs = [("Env trimer", "p24"), ("Env trimer", "IIIb.pr55.Gag")]
+    pairs = [("Env trimer", "p24"), ("Env trimer", "pr55.Gag")]
     annotator = Annotator(
         ax, pairs, data=df_compare, x="Antigen Category", y="fucose_inferred"
     )

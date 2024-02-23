@@ -22,8 +22,8 @@ UPDATE_CACHE = False
 
 def makeFigure():
     plot = Multiplot(
-        (3, 2.5),
         (3, 2),
+        (3, 2.5),
         subplot_specs=[
             (0, 1, 0, 1),
             (1, 1, 0, 1),
@@ -57,39 +57,51 @@ def figure_5abc(ax_a, ax_b, ax_c):
     fucose_inferred = compute_fucose_ratio(Rtot).xs("S", level="Antigen")
     df_merged = pd.merge(fucose_inferred, metadata, how="inner", on="Sample")
 
+    ax = ax_a
     sns.boxplot(
-        data=df_merged.sort_values("ARDS"), x="ARDS", y="fucose_inferred", ax=ax_a
+        data=df_merged,
+        x="ARDS",
+        y="fucose_inferred",
+        ax=ax,
+        order=["No", "Yes"],
+        palette=sns.color_palette(),
+        showfliers=False,
     )
-    ax_a.set_xlabel(None)
-    ax_a.set_xticklabels(["Non-ARDS", "ARDS"])
-    ax_a.set_ylabel("anti-S IgG Fucosylation (%)")
+    ax.set_ylabel("anti-S IgG Fucosylation (%)")
+    ax.set_ylim(30, 100)
     pairs = (("Yes", "No"),)
-    annotator = Annotator(ax_a, pairs, data=df_merged, x="ARDS", y="fucose_inferred")
+    annotator = Annotator(ax, pairs, data=df_merged, x="ARDS", y="fucose_inferred")
     annotate_mann_whitney(annotator)
 
+    ax = ax_b
+    sns.boxplot(
+        data=df_merged,
+        x="immunosup",
+        y="fucose_inferred",
+        ax=ax,
+        order=[0, 1],
+        showfliers=False,
+    )
+    ax.set_ylim(30, 100)
+    ax.set_ylabel("anti-S IgG Fucosylation (%)")
+    ax.set_xlabel("Immunosuppressed")
+    ax.set_xticklabels(["No", "Yes"])
+    pairs = ((1, 0),)
+    annotator = Annotator(ax, pairs, data=df_merged, x="immunosup", y="fucose_inferred")
+    annotate_mann_whitney(annotator)
+
+    ax = ax_c
     sns.lineplot(
         data=pd.merge(
             fucose_inferred, zohar.get_days_binned(), how="inner", on="Sample"
         ),
         x="days",
         y="fucose_inferred",
-        ax=ax_b,
+        ax=ax,
     )
-    ax_b.set_xlabel("Days following symptom onset")
-    ax_b.set_ylabel("anti-S IgG Fucosylation (%)")
-    ax_b.set_xlim(0, 30)
-
-    sns.boxplot(
-        data=df_merged, x="immunosup", y="fucose_inferred", ax=ax_c, order=[0, 1]
-    )
-    ax_c.set_ylabel("anti-S IgG Fucosylation (%)")
-    ax_c.set_xlabel("Immunosuppressed")
-    ax_c.set_xticklabels(["No", "Yes"])
-    pairs = ((1, 0),)
-    annotator = Annotator(
-        ax_c, pairs, data=df_merged, x="immunosup", y="fucose_inferred"
-    )
-    annotate_mann_whitney(annotator)
+    ax.set_xlabel("Days following symptom onset")
+    ax.set_ylabel("anti-S IgG Fucosylation (%)")
+    ax.set_xlim(0, 30)
 
 
 def figure_5d(ax):
@@ -135,9 +147,11 @@ def figure_5d(ax):
         hue="infection.status",
         ax=ax,
         hue_order=["control", "case"],
+        showfliers=False,
     )
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=30, fontsize="small")
     ax.set_ylabel("IgG Fucosylation (%)")
+    ax.set_ylim(0, 100)
     ax.set_xlabel("Antigen")
     pairs = [((ag, "control"), (ag, "case")) for ag in df_compare.Antigen.unique()]
     annotator = Annotator(
@@ -150,9 +164,8 @@ def figure_5d(ax):
     )
     annotate_mann_whitney(annotator)
 
-    ax.legend(title=None, framealpha=1)
     handles, labels = ax.get_legend_handles_labels()
     new_labels = ["Avoided infection", "Infected"]
-    ax.legend(handles, new_labels, framealpha=1)
+    ax.legend(handles, new_labels, framealpha=1, title=None)
 
     sns.move_legend(ax, "lower right")

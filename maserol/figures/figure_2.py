@@ -18,8 +18,8 @@ UPDATE_CACHE = {"2b": False, "2c": False, "2d": False, "2e": False}
 
 def makeFigure():
     plot = Multiplot(
-        (3, 2.5),
         (3, 2),
+        (3, 2.5),
         subplot_specs=[
             (0, 2, 0, 1),
             (2, 1, 0, 1),
@@ -50,8 +50,8 @@ def figure_2b(ax):
         x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
     )
     ax.set_title("Actual vs predicted antibody abundance")
-    ax.set_xlabel("log10 Inferred IgG1")
-    ax.set_ylabel("log10 Actual IgG1")
+    ax.set_xlabel("$\mathrm{log_{10}}$ Inferred IgG1")
+    ax.set_ylabel("$\mathrm{log_{10}}$ Actual IgG1")
 
 
 def figure_2c(ax):
@@ -67,8 +67,8 @@ def figure_2c(ax):
         x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
     )
     ax.set_title("Actual vs predicted abundance (30% noise)")
-    ax.set_xlabel("log10 Inferred IgG1")
-    ax.set_ylabel("log10 Actual IgG1")
+    ax.set_xlabel("$\mathrm{log_{10}}$ Inferred IgG1")
+    ax.set_ylabel("$\mathrm{log_{10}}$ Actual IgG1")
 
 
 def figure_2d(ax):
