@@ -10,26 +10,20 @@ from maserol.figures.common import (
     CACHE_DIR,
     annotate_mann_whitney,
 )
+from maserol.figures.figure_4 import ALTER_RTOT_CACHE_PATH
 from maserol.util import assemble_options, Rtot_to_df, IgG1_3, compute_fucose_ratio
 
-UPDATE_CACHE = False
 Y_LIM = (-2, 102)
 X_LABEL_ROTATION = 40
 
 
 def makeFigure():
+    """Must generate figure 4 first to populate cache."""
     alter = Alter()
-    detection_signal = alter.get_detection_signal()
     subject_class = alter.get_subject_class()
 
-    opts = assemble_options(detection_signal)
-    if UPDATE_CACHE:
-        params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
-        Rtot = Rtot_to_df(params["Rtot"], data=detection_signal, rcps=list(IgG1_3))
-        Rtot.to_csv(CACHE_DIR / "fig_6_Rtot.csv")
-    else:
-        Rtot = pd.read_csv(CACHE_DIR / "fig_6_Rtot.csv")
-        Rtot.set_index(["Sample", "Antigen"], inplace=True)
+    Rtot = pd.read_csv(ALTER_RTOT_CACHE_PATH)
+    Rtot.set_index(["Sample", "Antigen"], inplace=True)
 
     fucose_inferred = compute_fucose_ratio(Rtot).reset_index(level="Antigen")
     df_compare = pd.merge(

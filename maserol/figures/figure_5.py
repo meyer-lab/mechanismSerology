@@ -48,9 +48,9 @@ def figure_5abc(ax_a, ax_b, ax_c):
     if UPDATE_CACHE:
         x, ctx = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
         Rtot = Rtot_to_df(x["Rtot"], detection_signal, rcps=list(opts["rcps"]))
-        Rtot.to_csv(CACHE_DIR / "fig_5a_Rtot.csv")
+        Rtot.to_csv(CACHE_DIR / "zohar_Rtot.csv")
     else:
-        Rtot = pd.read_csv(CACHE_DIR / "fig_5a_Rtot.csv").set_index(
+        Rtot = pd.read_csv(CACHE_DIR / "zohar_Rtot.csv").set_index(
             ["Sample", "Antigen"], drop=True
         )
 
