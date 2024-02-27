@@ -25,17 +25,11 @@ class Zohar:
             .set_index("Sample", drop=True)
         )
 
-    def get_ARDS(self) -> pd.Series:
-        ARDS = self.get_metadata()["ARDS"]
-        ARDS.name = "ARDS"
-        return ARDS
-
     def get_days_binned(self) -> pd.Series:
         days = self.get_metadata()["days"]
         days.name = "days"
         bins = np.arange(0, 40, 5)
         days = pd.cut(days, bins=bins, labels=bins[:-1], right=False)
-        print(days.value_counts())
         return days
 
 
@@ -56,7 +50,11 @@ class Kaplonek:
 
     def get_metadata(self) -> pd.DataFrame:
         df = load_file_kaplonek("MGH_Sero.Meta.data.WHO124")
-        return df.rename(columns={"Study_ID": "Sample"}).set_index("Sample", drop=True)
+        return (
+            df.rename(columns={"Study_ID": "Sample"})
+            .set_index("Sample", drop=True)
+            .drop(columns=["Unnamed: 0"])
+        )
 
 
 class Alter:

@@ -38,15 +38,27 @@ def makeFigure():
     else:
         df = pd.read_csv(CACHE_DIR / file_name)
 
-    plot = Multiplot((6, 3), (2, 1))
+    plot = Multiplot((2, 2), (4.5, 2.5))
     plot.fig.suptitle("Imputation performance vs PCA rank")
 
     sns.boxplot(data=df, x="Ligand", y="r2", hue="Rank", ax=plot.axes[0])
-    plot.axes[0].set_xlabel("Ligand")
-    plot.axes[0].set_ylabel("$r^2$")
+    plot.axes[0].set_xlabel("Detection")
+    plot.axes[0].set_ylabel("$R^2$")
+    plot.axes[0].set_title("$R^2$ by Detection")
 
     sns.boxplot(data=df, x="Ligand", y="r", hue="Rank", ax=plot.axes[1])
-    plot.axes[1].set_xlabel("Ligand")
-    plot.axes[1].set_ylabel("Pearson correlation")
+    plot.axes[1].set_xlabel("Detection")
+    plot.axes[1].set_ylabel("$r$")
+    plot.axes[1].set_title("$r$ by Detection")
+
+    sns.boxplot(data=df, y="r", x="Rank", ax=plot.axes[3])
+    plot.axes[3].set_xlabel("Rank")
+    plot.axes[3].set_ylabel("$r$")
+    plot.axes[3].set_title("$r$ Total")
+
+    sns.boxplot(data=df, y="r2", x="Rank", ax=plot.axes[2])
+    plot.axes[2].set_xlabel("Rank")
+    plot.axes[2].set_ylabel("$R^2$")
+    plot.axes[2].set_title("$R^2$ Total")
 
     return plot.fig
