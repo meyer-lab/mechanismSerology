@@ -66,6 +66,7 @@ class Alter:
                 "IgG3",
                 "FcgRIIa.H131",
                 "FcgRIIb",
+                "FcgRIIIa.F158",
                 "FcgRIIIa.V158",
                 "FcgRIIIb",
             ]
@@ -74,6 +75,7 @@ class Alter:
             "FcgRIIa.H131": "FcR2A-131H",
             "FcgRIIb": "FcR2B",
             "FcgRIIIa.V158": "FcR3A-158V",
+            "FcgRIIIa.F158": "FcR3A-158F",
             "FcgRIIIb": "FcR3B",
         }
         data = data.assign_coords(
@@ -105,6 +107,13 @@ class Alter:
         subject_class = self.get_metadata()["class.etuv"]
         subject_class.name = "class"
         return subject_class
+
+    def get_effector_functions(self) -> pd.DataFrame:
+        return (
+            load_file_alter("data-function")
+            .rename(columns={"subject": "Sample"})
+            .set_index("Sample", drop=True)
+        )
 
 
 class KaplonekVaccine:

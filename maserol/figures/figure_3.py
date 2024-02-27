@@ -57,6 +57,7 @@ def figure_3b(ax):
     ax.set_ylim(2.5, 7)
     ax.set_xlabel(r"$\mathrm{log_{10}}$ Predicted " + DETECTION_DISPLAY_NAMES["FcR3B"])
     ax.set_ylabel(r"$\mathrm{log_{10}}$ Measured " + DETECTION_DISPLAY_NAMES["FcR3B"])
+    ax.plot([2.5, 7], [2.5, 7], linestyle="--", color="gray", alpha=0.75)
 
 
 def figure_3cd(ax_c, ax_d):
@@ -87,7 +88,8 @@ def figure_3cd(ax_c, ax_d):
     )
     ax_c.set_xlabel("Detection")
     ax_c.set_ylabel("Imputation performance ($r$)")
-    ax_c.legend(title=None, loc="lower right")
+    legend = ax_c.legend(title=None, loc="lower right")
+    legend.get_frame().set_alpha(1)
 
     sns.barplot(data=df, x="Ligand", y="r2", hue="Method", ax=ax_d)
     ax_d.set_xticklabels(
@@ -96,7 +98,8 @@ def figure_3cd(ax_c, ax_d):
     )
     ax_d.set_xlabel("Detection")
     ax_d.set_ylabel("Imputation performance ($R^2$)")
-    ax_d.legend(title=None, loc="lower right")
+    legend = ax_d.legend(title=None, loc="lower right")
+    legend.get_frame().set_alpha(1)
 
 
 def figure_3e(ax):
@@ -123,6 +126,7 @@ def figure_3e(ax):
     sns.lineplot(data=df, x="Missingness", y="r", hue="Detection", ax=ax)
     handles, labels = ax.get_legend_handles_labels()
     labels = [DETECTION_DISPLAY_NAMES[label] for label in labels]
-    ax.legend(handles, labels, loc="lower left")
+    ax.legend(handles, labels, loc="lower left").get_frame().set_alpha(1)
     ax.set_ylabel("Imputation performance ($r$)")
     ax.set_xlabel("Missingness (%)")
+    ax.set_ylim(0.0, 1.0)

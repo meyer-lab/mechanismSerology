@@ -6,9 +6,11 @@ from scipy.stats import pearsonr
 from maserol.core import optimize_loss
 from maserol.datasets import Alter, Zohar
 from maserol.figures.common import Multiplot, CACHE_DIR, DETECTION_DISPLAY_NAMES
-from maserol.util import Rtot_to_df, assemble_options, compute_fucose_ratio
+from maserol.util import Rtot_to_df, assemble_options, compute_fucose_ratio, IgG1_3
 
 ALPHA = 0.72
+UPDATE_CACHE = False
+ALTER_RTOT_CACHE_PATH = CACHE_DIR / "alter_Rtot.csv"
 
 
 def makeFigure():
@@ -31,17 +33,17 @@ def makeFigure():
 
 
 def figure_4b(ax):
-    detection_signal = Alter().get_detection_signal()
-    detection_signal = detection_signal.sel(Complex=pd.IndexSlice[:, "gp120.SF162"])
     fucose_ce = Alter().get_fucose_data()
-    rcps = ["IgG1", "IgG1f", "IgG3", "IgG3f"]
-    opts = assemble_options(detection_signal, rcps=rcps)
-    params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
-    fucose_inferred = compute_fucose_ratio(
-        Rtot_to_df(params["Rtot"], data=detection_signal, rcps=rcps).xs(
-            "gp120.SF162", level="Antigen"
-        )
-    )
+    if UPDATE_CACHE:
+        detection_signal = Alter().get_detection_signal()
+        opts = assemble_options(detection_signal, rcps=IgG1_3)
+        params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
+        Rtot = Rtot_to_df(params["Rtot"], data=detection_signal, rcps=list(IgG1_3))
+        Rtot.to_csv(ALTER_RTOT_CACHE_PATH)
+    else:
+        Rtot = pd.read_csv(ALTER_RTOT_CACHE_PATH)
+        Rtot.set_index(["Sample", "Antigen"], inplace=True)
+    fucose_inferred = compute_fucose_ratio(Rtot).xs("gp120.SF162", level="Antigen")
     fucose_compare = pd.merge(
         left=fucose_inferred, right=fucose_ce, on="Sample", how="inner"
     )
@@ -49,7 +51,7 @@ def figure_4b(ax):
     sns.scatterplot(
         data=fucose_compare, y="fucose_ce", x="fucose_inferred", ax=ax, alpha=ALPHA
     )
-    ax.set_ylabel("Measured IgG Fucosylation (%)")
+    ax.set_ylabel("CE IgG Fucosylation (%)")
     ax.set_xlabel("Inferred IgG Fucosylation (%)")
     r, p = pearsonr(fucose_compare["fucose_ce"], fucose_compare["fucose_inferred"])
     ax.set_title("Model Inferences vs CE Measurements")
@@ -69,16 +71,33 @@ def figure_4b(ax):
         horizontalalignment="left",
         transform=ax.transAxes,
     )
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    lims = [
+        min(xlim[0], ylim[0]),
+        max(xlim[1], ylim[1]),
+    ]
+    ax.set_xlim(*lims)
+    ax.set_ylim(*lims)
+    ax.plot(lims, lims, linestyle="--", color="gray", alpha=0.75)
 
 
 def figure_4cde(ax_c, ax_d, ax_e):
-    Rtot = (
-        pd.read_csv(CACHE_DIR / "fig_5a_Rtot.csv")
-        .set_index(["Sample", "Antigen"], drop=True)
-        .xs("S", level="Antigen")
-    )
+    zohar = Zohar()
+    if UPDATE_CACHE:
+        detection_signal = zohar.get_detection_signal()
+        opts = assemble_options(detection_signal)
+        x, ctx = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
+        Rtot = Rtot_to_df(x["Rtot"], detection_signal, rcps=list(opts["rcps"]))
+        Rtot.to_csv(CACHE_DIR / "zohar_Rtot.csv")
+    else:
+        Rtot = pd.read_csv(CACHE_DIR / "zohar_Rtot.csv").set_index(
+            ["Sample", "Antigen"], drop=True
+        )
+    Rtot = Rtot.xs("S", level="Antigen")
+
     fucose = compute_fucose_ratio(Rtot)
-    df = Zohar().get_metadata()
+    df = zohar.get_metadata()
     df = pd.merge(df, fucose, on="Sample", how="inner")
 
     y = np.log10(df["FcR3A_S"] / df["FcR2A_S"])
