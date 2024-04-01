@@ -19,6 +19,7 @@ statsmodels = "^0.14.0"
 tensorly = "^0.8.1"
 statannotations = "^0.6.0"
 requests = "^2.31.0"
+pingouin = "^0.5.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.2"

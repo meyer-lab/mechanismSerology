@@ -92,7 +92,7 @@ def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
         data=df, x="Imputed", y="Actual", hue="Ligand" if multi_lig else None, ax=ax
     )
     r = np.corrcoef(x, y)[0][1]
-    ax.annotate(f"r = {r:.2f}", xy=(0.8, 0.1), xycoords="axes fraction")
+    ax.annotate(f"r = {r:.2f}", xy=(0.7, 0.1), xycoords="axes fraction")
 
 
 def run_repeated_imputation(

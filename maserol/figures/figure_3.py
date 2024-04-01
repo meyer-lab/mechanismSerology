@@ -22,7 +22,7 @@ RUNS_PER_LIG_3C = 3
 def makeFigure():
     plot = Multiplot(
         (3, 2),
-        (3, 2.5),
+        fig_size=(7.5, 7.5 * 2 / 3),
         subplot_specs=[
             (0, 2, 0, 1),
             (2, 1, 0, 1),
@@ -34,7 +34,7 @@ def makeFigure():
     figure_3b(plot.axes[1])
     figure_3cd(plot.axes[2], plot.axes[3])
     figure_3e(plot.axes[4])
-    plot.fig.tight_layout()
+    plot.fig.tight_layout(pad=0.01, w_pad=0, h_pad=0.2)
     plot.add_subplot_labels(ax_relative=True)
     return plot.fig
 
