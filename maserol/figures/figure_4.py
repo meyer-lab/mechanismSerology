@@ -16,23 +16,23 @@ ALTER_RTOT_CACHE_PATH = CACHE_DIR / "alter_Rtot.csv"
 def makeFigure():
     plot = Multiplot(
         (3, 2),
-        (3, 2.5),
+        fig_size=(7.5, 7.5 * 2 / 3 + 0.1),
         subplot_specs=[
-            (0, 1, 0, 2),
+            (0, 1, 0, 1),
             (1, 1, 0, 1),
             (2, 1, 0, 1),
-            (1, 1, 1, 1),
+            (0, 2, 1, 1),
             (2, 1, 1, 1),
         ],
     )
-    figure_4b(plot.axes[1])
-    figure_4cde(plot.axes[2], plot.axes[3], plot.axes[4])
-    plot.add_subplot_labels()
-    plot.fig.tight_layout()
+    figure_mechanistic_relate(plot.axes[0], plot.axes[1], plot.axes[2])
+    figure_CE(plot.axes[4])
+    plot.add_subplot_labels(ax_relative=True)
+    plot.fig.tight_layout(pad=0, w_pad=0.2, h_pad=1)
     return plot.fig
 
 
-def figure_4b(ax):
+def figure_CE(ax):
     fucose_ce = Alter().get_fucose_data()
     if UPDATE_CACHE:
         detection_signal = Alter().get_detection_signal()
@@ -56,7 +56,7 @@ def figure_4b(ax):
     r, p = pearsonr(fucose_compare["fucose_ce"], fucose_compare["fucose_inferred"])
     ax.set_title("Model Inferences vs CE Measurements")
     ax.text(
-        0.7,
+        0.6,
         0.06,
         r"r = " + str(round(r, 2)),
         verticalalignment="bottom",
@@ -64,7 +64,7 @@ def figure_4b(ax):
         transform=ax.transAxes,
     )
     ax.text(
-        0.7,
+        0.6,
         0.01,
         r"p = " + "{:.2e}".format(p),
         verticalalignment="bottom",
@@ -82,7 +82,7 @@ def figure_4b(ax):
     ax.plot(lims, lims, linestyle="--", color="gray", alpha=0.75)
 
 
-def figure_4cde(ax_c, ax_d, ax_e):
+def figure_mechanistic_relate(ax_0, ax_1, ax_2):
     zohar = Zohar()
     if UPDATE_CACHE:
         detection_signal = zohar.get_detection_signal()
@@ -104,50 +104,50 @@ def figure_4cde(ax_c, ax_d, ax_e):
     sns.scatterplot(
         y=y,
         x=df["fucose_inferred"],
-        ax=ax_c,
+        ax=ax_0,
         alpha=ALPHA,
     )
-    ax_c.set_xlabel("Inferred IgG Fucosylation (%)")
-    ax_c.set_ylabel(
+    ax_0.set_xlabel("Inferred IgG Fucosylation (%)")
+    ax_0.set_ylabel(
         r"$\mathrm{log_{10}}$"
         + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']})"
     )
     r, p = pearsonr(df["fucose_inferred"], y)
-    ax_c.text(
-        0.75,
+    ax_0.text(
+        0.05,
         0.06,
         r"r = " + str(round(r, 2)),
         verticalalignment="bottom",
         horizontalalignment="left",
-        transform=ax_c.transAxes,
+        transform=ax_0.transAxes,
     )
 
     sns.scatterplot(
-        data=df, y="ADNKA_CD107a_S", x="fucose_inferred", ax=ax_d, alpha=ALPHA
+        data=df, y="ADNKA_CD107a_S", x="fucose_inferred", ax=ax_1, alpha=ALPHA
     )
-    ax_d.set_xlabel("Inferred IgG Fucosylation (%)")
-    ax_d.set_ylabel(r"ADCC (CD107a)")
+    ax_1.set_xlabel("Inferred IgG Fucosylation (%)")
+    ax_1.set_ylabel(r"ADCC (CD107a)")
     r, p = pearsonr(df["fucose_inferred"], df["ADNKA_CD107a_S"])
-    ax_d.text(
+    ax_1.text(
         0.05,
         0.86,
         r"r = " + str(round(r, 2)),
         verticalalignment="bottom",
         horizontalalignment="left",
-        transform=ax_d.transAxes,
+        transform=ax_1.transAxes,
     )
 
     sns.scatterplot(
-        data=df, y="ADNKA_MIP1b_S", x="fucose_inferred", ax=ax_e, alpha=ALPHA
+        data=df, y="ADNKA_MIP1b_S", x="fucose_inferred", ax=ax_2, alpha=ALPHA
     )
-    ax_e.set_xlabel("Inferred IgG Fucosylation (%)")
-    ax_e.set_ylabel(r"ADCC (MIP1b)")
+    ax_2.set_xlabel("Inferred IgG Fucosylation (%)")
+    ax_2.set_ylabel(r"ADCC (MIP1b)")
     r, p = pearsonr(df["fucose_inferred"], df["ADNKA_MIP1b_S"])
-    ax_e.text(
+    ax_2.text(
         0.05,
         0.86,
         r"r = " + str(round(r, 2)),
         verticalalignment="bottom",
         horizontalalignment="left",
-        transform=ax_e.transAxes,
+        transform=ax_2.transAxes,
     )

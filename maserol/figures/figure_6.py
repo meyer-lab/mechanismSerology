@@ -33,12 +33,12 @@ def makeFigure():
     df_compare.replace("IIIb.pr55.Gag", "pr55.Gag.IIIb", inplace=True)
 
     plot = Multiplot(
-        (5, 2),
-        fig_size=(9, 5),
+        (7, 2),
+        fig_size=(7.5, 5),
         subplot_specs=[
-            (0, 5, 0, 1),
-            (0, 4, 1, 1),
-            (4, 1, 1, 1),
+            (0, 7, 0, 1),
+            (0, 6, 1, 1),
+            (6, 1, 1, 1),
         ],
     )
 
@@ -67,8 +67,8 @@ def makeFigure():
         "Treated progressor",
         "Untreated progressor",
     ]
-    ax.legend(handles, new_labels)
-    sns.move_legend(ax, "lower right")
+    legend = ax.legend(handles, new_labels, loc="lower right")
+    legend.get_frame().set_alpha(1)
 
     # b
     ax = plot.axes[1]
@@ -128,6 +128,7 @@ def makeFigure():
     ax.set_xticklabels(
         ax.get_xticklabels(), rotation=X_LABEL_ROTATION, fontsize="small"
     )
+    ax.set_yticklabels([])
 
     pairs = [("Env trimer", "p24"), ("Env trimer", "pr55.Gag")]
     annotator = Annotator(
@@ -136,5 +137,6 @@ def makeFigure():
     annotate_mann_whitney(annotator)
 
     plot.add_subplot_labels()
+    plot.fig.tight_layout(pad=0, w_pad=0.2, h_pad=1)
 
     return plot.fig

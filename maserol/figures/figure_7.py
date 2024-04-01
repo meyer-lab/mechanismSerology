@@ -22,11 +22,11 @@ METRIC_LABEL_MAPPINGS = {
 }
 
 
-TITLE_FONT_SIZE = 13
+TITLE_FONT_SIZE = 12.5
 
 
 def makeFigure():
-    plot = Multiplot((2, 2), (4.5, 3))
+    plot = Multiplot((2, 2), fig_size=(7.5, 5))
 
     if UPDATE_CACHE:
         update_cache(2)
@@ -45,8 +45,10 @@ def makeFigure():
     plot_combinations(df_3, "r2", plot.axes[3], ylim=(-1, 1))
     plot.axes[0].set_title("2 Missing Detections", fontsize=TITLE_FONT_SIZE)
     plot.axes[1].set_title("3 Missing Detections", fontsize=TITLE_FONT_SIZE)
+    plot.axes[1].set_yticklabels([])
     plot.axes[1].set_ylabel(None)
     plot.axes[3].set_ylabel(None)
+    plot.axes[3].set_yticklabels([])
 
     plot.axes[0].set_ylabel(
         f"Imputation Accuracy ({METRIC_LABEL_MAPPINGS['r']})", fontsize=TITLE_FONT_SIZE

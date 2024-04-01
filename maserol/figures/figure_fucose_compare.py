@@ -30,7 +30,7 @@ def makeFigure():
     Rtot = pd.read_csv(ALTER_RTOT_CACHE_PATH)
     Rtot.set_index(["Sample", "Antigen"], inplace=True)
     fucose_inferred = compute_fucose_ratio(Rtot).xs("gp120.SF162", level="Antigen")
-    plot = Multiplot((3, 2), fig_size=(7.5, 7.5 * 5 / 6 * 2 / 3))
+    plot = Multiplot((3, 2), fig_size=(7.5, 5))
 
     ax = plot.axes[0]
     df = pd.merge(R3A_R2A, fucose_ce, how="inner", on="Sample")
@@ -187,6 +187,7 @@ def makeFigure():
     )
     ax.set_ylabel("ADNKA / ADNP")
     ax.set_xlabel(r"Inferred IgG Fucosylation (%)")
-    plot.add_subplot_labels()
+    plot.add_subplot_labels(ax_relative=True)
+    plot.fig.tight_layout(pad=0, w_pad=0.5, h_pad=1)
 
     return plot.fig

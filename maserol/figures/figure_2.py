@@ -8,6 +8,7 @@ from sklearn.metrics import r2_score
 from maserol.figures.common import CACHE_DIR, Multiplot
 from maserol.forward_backward import forward_backward
 
+
 N_ITER_2D = 3
 STEPS_2D = 4
 N_ITER_2E = 3
@@ -19,7 +20,7 @@ UPDATE_CACHE = {"2b": False, "2c": False, "2d": False, "2e": False}
 def makeFigure():
     plot = Multiplot(
         (3, 2),
-        (3, 2.5),
+        fig_size=(7.5, 7.5 * 2 / 3),
         subplot_specs=[
             (0, 2, 0, 1),
             (2, 1, 0, 1),
@@ -28,13 +29,13 @@ def makeFigure():
             (2, 1, 1, 1),
         ],
     )
-    plot.add_subplot_labels()
+    plot.add_subplot_labels(ax_relative=True)
     axes, fig = plot.axes, plot.fig
     figure_2b(axes[1])
     figure_2c(axes[2])
     figure_2d(axes[3])
     figure_2e(axes[4])
-    fig.tight_layout()
+    fig.tight_layout(pad=0.01, w_pad=0, h_pad=0.2)
     return fig
 
 
@@ -66,7 +67,7 @@ def figure_2c(ax):
     sns.scatterplot(
         x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
     )
-    ax.set_title("Actual vs predicted abundance (30% noise)")
+    ax.set_title("Actual vs predicted (30% noise)")
     ax.set_xlabel("$\mathrm{log_{10}}$ Inferred IgG1")
     ax.set_ylabel("$\mathrm{log_{10}}$ Actual IgG1")
 
@@ -104,6 +105,7 @@ def figure_2d(ax):
     ax.set_title("Prediction performance vs detection noise")
     ax.set_xlabel("Noise σ")
     ax.set_ylabel("$R^2$")
+    ax.set_ylim(-0.01, 1.01)
 
 
 def figure_2e(ax):
@@ -141,3 +143,4 @@ def figure_2e(ax):
     ax.set_title("Prediction performance vs $K_{a}$ noise")
     ax.set_xlabel("Noise σ")
     ax.set_ylabel("$R^2$")
+    ax.set_ylim(-0.01, 1.01)

@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pingouin as pg
 import seaborn as sns
+from scipy.stats import pearsonr
 from statannotations.Annotator import Annotator
 
 from maserol.core import optimize_loss
@@ -22,19 +24,19 @@ UPDATE_CACHE = False
 
 def makeFigure():
     plot = Multiplot(
-        (3, 2),
-        (3, 2.5),
+        (10, 2),
+        fig_size=(7.5, 7.5 * 2 / 3),
         subplot_specs=[
-            (0, 1, 0, 1),
-            (1, 1, 0, 1),
-            (2, 1, 0, 1),
-            (0, 3, 1, 1),
+            (0, 3, 0, 1),
+            (3, 3, 0, 1),
+            (6, 4, 0, 1),
+            (0, 10, 1, 1),
         ],
     )
     figure_5abc(plot.axes[0], plot.axes[1], plot.axes[2])
     figure_5d(plot.axes[3])
     plot.add_subplot_labels()
-    plot.fig.tight_layout()
+    plot.fig.tight_layout(pad=0, w_pad=0.2, h_pad=1)
     return plot.fig
 
 
@@ -68,7 +70,6 @@ def figure_5abc(ax_a, ax_b, ax_c):
         showfliers=False,
     )
     ax.set_ylabel("anti-S IgG Fucosylation (%)")
-    ax.set_ylim(30, 100)
     pairs = (("Yes", "No"),)
     annotator = Annotator(ax, pairs, data=df_merged, x="ARDS", y="fucose_inferred")
     annotate_mann_whitney(annotator)
@@ -82,8 +83,8 @@ def figure_5abc(ax_a, ax_b, ax_c):
         order=[0, 1],
         showfliers=False,
     )
-    ax.set_ylim(30, 100)
-    ax.set_ylabel("anti-S IgG Fucosylation (%)")
+    # ax.set_ylabel("anti-S IgG Fucosylation (%)")
+    ax.set_ylabel(None)
     ax.set_xlabel("Immunosuppressed")
     ax.set_xticklabels(["No", "Yes"])
     pairs = ((1, 0),)
@@ -91,16 +92,45 @@ def figure_5abc(ax_a, ax_b, ax_c):
     annotate_mann_whitney(annotator)
 
     ax = ax_c
+    fucose_over_time = pd.merge(
+        fucose_inferred, metadata[["days", "patient_ID"]], how="inner", on="Sample"
+    )
+    fucose_over_time.dropna(inplace=True)
+    fucose_over_time = fucose_over_time.groupby("patient_ID").filter(
+        lambda x: x["days"].nunique() >= 2
+    )
+    rmcorr_result = pg.rm_corr(
+        data=fucose_over_time, x="days", y="fucose_inferred", subject="patient_ID"
+    )
+    r, p = rmcorr_result.r.iloc[0], rmcorr_result.pval.iloc[0]
+    fucose_over_time_binned = pd.merge(
+        fucose_inferred, zohar.get_days_binned(), how="inner", on="Sample"
+    )
     sns.lineplot(
-        data=pd.merge(
-            fucose_inferred, zohar.get_days_binned(), how="inner", on="Sample"
-        ),
+        data=fucose_over_time_binned,
         x="days",
         y="fucose_inferred",
         ax=ax,
     )
+    ax.text(
+        0.7,
+        0.8,
+        f"r = " + str(round(r, 2)),
+        verticalalignment="bottom",
+        horizontalalignment="left",
+        transform=ax.transAxes,
+    )
+    ax.text(
+        0.7,
+        0.72,
+        r"p = " + "{:.2e}".format(p),
+        verticalalignment="bottom",
+        horizontalalignment="left",
+        transform=ax.transAxes,
+    )
     ax.set_xlabel("Days following symptom onset")
-    ax.set_ylabel("anti-S IgG Fucosylation (%)")
+    # ax.set_ylabel("anti-S IgG Fucosylation (%)")
+    ax.set_ylabel(None)
     ax.set_xlim(0, 30)
 
 
@@ -151,7 +181,7 @@ def figure_5d(ax):
     )
     ax.set_xticklabels(ax.get_xticklabels(), rotation=30, fontsize="small")
     ax.set_ylabel("IgG Fucosylation (%)")
-    ax.set_ylim(0, 100)
+    ax.set_ylim(-2, 102)
     ax.set_xlabel("Antigen")
     pairs = [((ag, "control"), (ag, "case")) for ag in df_compare.Antigen.unique()]
     annotator = Annotator(
@@ -166,6 +196,5 @@ def figure_5d(ax):
 
     handles, labels = ax.get_legend_handles_labels()
     new_labels = ["Avoided infection", "Infected"]
-    ax.legend(handles, new_labels, framealpha=1, title=None)
-
-    sns.move_legend(ax, "lower right")
+    legend = ax.legend(handles, new_labels, title=None, loc="lower right")
+    legend.get_frame().set_alpha(1)
