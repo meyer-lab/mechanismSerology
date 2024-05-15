@@ -16,14 +16,15 @@ ANNOTATION_SEPARATION = 0.06
 CORRELATION_SYMBOL = "$\mathrm{r_S}$"
 
 
-
 def makeFigure():
     """Relies on result from figure 4"""
     function = Alter().get_effector_functions()
     detection_signal = data_to_df(Alter().get_detection_signal()).xs(
         "gp120.SF162", level="Antigen"
     )
-    R3A_R2A = np.log10(detection_signal["FcR3A-158V"] / detection_signal["FcR2A-131H"] + 1)
+    R3A_R2A = np.log10(
+        detection_signal["FcR3A-158V"] / detection_signal["FcR2A-131H"] + 1
+    )
     R3A_R2A.name = "R3A/R2A"
     R3A_IgG = np.log10(detection_signal["FcR3A-158V"] / detection_signal["IgG1"] + 1)
     R3A_IgG.name = "R3A/IgG1"
@@ -58,10 +59,10 @@ def makeFigure():
         data=df, x="fucose_ce", y="R3A/IgG1", ax=ax, alpha=ALPHA, s=POINT_SIZE
     )
     ax.set_ylabel(
-        r"$\mathrm{log_{10}}$" + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['IgG1']})"
+        r"$\mathrm{log_{10}}$"
+        + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['IgG1']})"
     )
     ax.set_xlabel("CE IgG Fucosylation (%)")
-
 
     ax = plot.axes[3]
     df = pd.merge(R3A_R2A, fucose_ce, how="inner", on="Sample")
@@ -86,7 +87,8 @@ def makeFigure():
         data=df, x="fucose_ce", y="R3A/R2A", ax=ax, alpha=ALPHA, s=POINT_SIZE
     )
     ax.set_ylabel(
-    r"$\mathrm{log_{10}}$" + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']})"
+        r"$\mathrm{log_{10}}$"
+        + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']})"
     )
     ax.set_xlabel("CE IgG Fucosylation (%)")
 
@@ -113,7 +115,8 @@ def makeFigure():
         data=df, x="fucose_inferred", y="R3A/IgG1", ax=ax, alpha=ALPHA, s=POINT_SIZE
     )
     ax.set_ylabel(
-    r"$\mathrm{log_{10}}$" + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['IgG1']})"
+        r"$\mathrm{log_{10}}$"
+        + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['IgG1']})"
     )
     ax.set_xlabel("Inferred IgG Fucosylation (%)")
 
@@ -140,7 +143,8 @@ def makeFigure():
         data=df, x="fucose_inferred", y="R3A/R2A", ax=ax, alpha=ALPHA, s=POINT_SIZE
     )
     ax.set_ylabel(
-    r"$\mathrm{log_{10}}$" + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']})"
+        r"$\mathrm{log_{10}}$"
+        + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']})"
     )
     ax.set_xlabel("Inferred IgG Fucosylation (%)")
 
@@ -199,7 +203,9 @@ def makeFigure():
     ax = plot.axes[6]
     glycan_ce = Alter().get_glycan_data()
     glycan_ce = glycan_ce[glycan_ce["F.total"] > 0]
-    sns.scatterplot(data=glycan_ce, x="F.total", y="B.total", ax=ax, alpha=ALPHA, s=POINT_SIZE)
+    sns.scatterplot(
+        data=glycan_ce, x="F.total", y="B.total", ax=ax, alpha=ALPHA, s=POINT_SIZE
+    )
     # print correlation
     r, p = spearmanr(glycan_ce["F.total"], glycan_ce["B.total"])
     ax.set_ylabel("CE Bisecting GlcNAc (%)")

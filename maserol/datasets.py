@@ -13,10 +13,6 @@ from tensordata.zohar import data as zohar
 
 LIG_ORDER = ["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"]
 
-# there is no need to cache these datasets
-for ds in [zohar, alter, MGH4D]:
-    ds.cache_clear()
-
 
 class Zohar:
     def get_detection_signal(self) -> xr.DataArray:

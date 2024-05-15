@@ -5,10 +5,8 @@ from scipy.stats import pearsonr
 
 from maserol.core import optimize_loss
 from maserol.datasets import Alter, Zohar
-from maserol.figures.common import (CACHE_DIR, DETECTION_DISPLAY_NAMES,
-                                    Multiplot)
-from maserol.util import (IgG1_3, Rtot_to_df, assemble_options,
-                          compute_fucose_ratio)
+from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot
+from maserol.util import IgG1_3, Rtot_to_df, assemble_options, compute_fucose_ratio
 
 ALPHA = 0.72
 UPDATE_CACHE = {

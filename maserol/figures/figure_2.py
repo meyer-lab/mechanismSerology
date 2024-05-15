@@ -6,10 +6,8 @@ import seaborn as sns
 import xarray as xr
 from sklearn.metrics import r2_score
 
-from maserol.figures.common import (CACHE_DIR, DETECTION_DISPLAY_NAMES,
-                                    Multiplot)
-from maserol.forward_backward import (add_Ka_noise, forward_backward,
-                                      perturb_affinity)
+from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot
+from maserol.forward_backward import add_Ka_noise, forward_backward, perturb_affinity
 
 N_ITER_2D = 3
 STEPS_2D = 4

@@ -5,8 +5,13 @@ import numpy as np
 import xarray as xr
 from scipy.optimize import least_squares, newton
 
-from .util import (DEFAULT_RCPS, HIgGs, assemble_Ka, logistic_ligand_map,
-                   n_logistic_ligands)
+from .util import (
+    DEFAULT_RCPS,
+    HIgGs,
+    assemble_Ka,
+    logistic_ligand_map,
+    n_logistic_ligands,
+)
 
 """
 This is an implementation of the binding model from

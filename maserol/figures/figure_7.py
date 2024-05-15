@@ -9,8 +9,7 @@ from scipy.stats import pearsonr
 from sklearn.metrics import r2_score
 
 from maserol.datasets import Zohar
-from maserol.figures.common import (CACHE_DIR, DETECTION_DISPLAY_NAMES,
-                                    Multiplot)
+from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot
 from maserol.impute import assemble_residual_mask, impute_missing_ms
 from maserol.util import assemble_options
 
