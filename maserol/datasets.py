@@ -16,7 +16,6 @@ LIG_ORDER = ["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"]
 
 class Zohar:
     def get_detection_signal(self) -> xr.DataArray:
-        zohar.cache_clear()
         data = zohar(subtract_baseline=True)
         data += np.abs(np.minimum(data.min(dim=["Sample"]), 0))
         data = prepare_data(data)
