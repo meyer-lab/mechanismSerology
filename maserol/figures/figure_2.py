@@ -53,8 +53,8 @@ def figure_2b(ax):
         x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
     )
     ax.set_title("Actual vs predicted antibody abundance")
-    ax.set_xlabel("$\mathrm{log_{10}}$ Inferred IgG1")
-    ax.set_ylabel("$\mathrm{log_{10}}$ Actual IgG1")
+    ax.set_xlabel(r"$\mathrm{log_{10}}$ Inferred IgG1")
+    ax.set_ylabel(r"$\mathrm{log_{10}}$ Actual IgG1")
 
 
 def figure_2c(ax):
@@ -70,8 +70,8 @@ def figure_2c(ax):
         x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
     )
     ax.set_title("Actual vs predicted (30% noise)")
-    ax.set_xlabel("$\mathrm{log_{10}}$ Inferred IgG1")
-    ax.set_ylabel("$\mathrm{log_{10}}$ Actual IgG1")
+    ax.set_xlabel(r"$\mathrm{log_{10}}$ Inferred IgG1")
+    ax.set_ylabel(r"$\mathrm{log_{10}}$ Actual IgG1")
 
 
 def figure_2d(ax):

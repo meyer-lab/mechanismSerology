@@ -1,18 +1,18 @@
-import pytest
 import numpy as np
+import pytest
 import xarray as xr
 from valentbind.model import polyc
 
 from maserol.core import (
-    initialize_params,
-    infer_Lbound_mv,
     assemble_Ka,
+    infer_Lbound_mv,
+    initialize_params,
     n_logistic_ligands,
-    reshape_params,
     optimize_loss,
+    reshape_params,
 )
 from maserol.datasets import Zohar
-from maserol.util import assemble_options, HIgGs
+from maserol.util import HIgGs, assemble_options
 
 
 @pytest.mark.parametrize("n_rcp", [1, 2, 3])
