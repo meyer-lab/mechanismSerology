@@ -5,7 +5,7 @@ from maserol.core import infer_Lbound_mv, optimize_loss, reshape_params
 from maserol.util import assemble_Ka, assemble_options
 
 
-def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
+def forward_backward(noise_std=0, Ka_transform_func=lambda x: x, tol=1e-5):
     n_cplx = int(1000)
 
     rcps = ["IgG1", "IgG2", "IgG3", "IgG4"]
@@ -35,12 +35,14 @@ def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
     backward_opts = assemble_options(data, rcps)
     backward_opts["tol"] = tol
 
-    forward_Ka = np.ones((n_lig, n_rcp), dtype=float)
-    forward_Ka[4:] = assemble_Ka(data.Ligand.values[4:], rcps).values
-    forward_Ka[np.arange(4), np.arange(4)] = 1e7
-    forward_Ka *= np.maximum(
-        1 + np.random.normal(scale=Ka_noise_std, size=forward_Ka.shape), 0
+    forward_Ka = xr.DataArray(
+        np.ones((n_lig, n_rcp), dtype=float), [lig, rcps], ["Ligand", "Receptor"]
     )
+    forward_Ka.values[4:] = assemble_Ka(data.Ligand.values[4:], rcps).values
+    forward_Ka.values[np.arange(4), np.arange(4)] = 1e7
+
+    forward_Ka = Ka_transform_func(forward_Ka).values
+
     forward_L0 = np.concatenate((np.full(4, 2e-9), backward_opts["L0"]))
     forward_KxStar = np.concatenate((np.full(4, 1e-12), backward_opts["KxStar"]))
     forward_f = np.concatenate((np.full(4, 2), backward_opts["f"]))
@@ -63,3 +65,15 @@ def forward_backward(noise_std=0, Ka_noise_std=0, tol=1e-5):
     params = reshape_params(x_opt, data, backward_opts["logistic_ligands"], rcps=rcps)
 
     return Rtot, params["Rtot"]
+
+
+def add_Ka_noise(noise_std: float, Ka: xr.DataArray):
+    return Ka * np.maximum(1 + np.random.normal(scale=noise_std, size=Ka.shape), 0)
+
+
+def perturb_affinity(lig: str, rcp: str, perturbation: float, Ka: xr.DataArray):
+    Ka_perturbed = Ka.copy()
+    Ka_perturbed.loc[dict(Ligand=lig, Receptor=rcp)] = Ka.sel(
+        Ligand=lig, Receptor=rcp
+    ) * (1 + perturbation)
+    return Ka_perturbed

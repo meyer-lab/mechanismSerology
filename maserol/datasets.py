@@ -1,21 +1,29 @@
+import re
+
 import numpy as np
 import pandas as pd
-import re
-import xarray as xr
 import tensordata
-
-from tensordata.zohar import data as zohar
-from tensordata.kaplonek import MGH4D, load_file as load_file_kaplonek
-from tensordata.alter import data as alter, load_file as load_file_alter
+import xarray as xr
+from tensordata.alter import data as alter
+from tensordata.alter import load_file as load_file_alter
+from tensordata.kaplonek import MGH4D
+from tensordata.kaplonek import load_file as load_file_kaplonek
 from tensordata.kaplonekVaccineSA import data as kaplonek_vaccine
-
+from tensordata.zohar import data as zohar
 
 LIG_ORDER = ["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"]
+
+# there is no need to cache these datasets
+for ds in [zohar, alter, MGH4D]:
+    ds.cache_clear()
 
 
 class Zohar:
     def get_detection_signal(self) -> xr.DataArray:
-        data = prepare_data(zohar())
+        zohar.cache_clear()
+        data = zohar(subtract_baseline=True)
+        data += np.abs(np.minimum(data.min(dim=["Sample"]), 0))
+        data = prepare_data(data)
         data = data.sel(Ligand=LIG_ORDER)
         return data
 
@@ -45,17 +53,16 @@ class Kaplonek:
             tensor.coords["Subject"] = [
                 f"{sample}_{tensor.Time.values}" for sample in tensor.Subject.values
             ]
+            antigens = tensor.Antigen.values
+            antigens[antigens == "SARS.CoV2_N"] = "SARS.CoV.2_N"
+            tensor["Antigen"] = antigens
 
         tensors = [prepare_data(tensor, ligs=LIG_ORDER) for tensor in tensors]
         return xr.concat(tensors, dim="Complex")
 
     def get_metadata(self) -> pd.DataFrame:
         df = load_file_kaplonek("MGH_Sero.Meta.data.WHO124")
-        return (
-            df.rename(columns={"Study_ID": "Sample"})
-            .set_index("Sample", drop=True)
-            .drop(columns=["Unnamed: 0"])
-        )
+        return df.drop(columns=["Unnamed: 0"])
 
 
 class Alter:
@@ -66,6 +73,7 @@ class Alter:
                 "IgG1",
                 "IgG3",
                 "FcgRIIa.H131",
+                "FcgRIIa.R131",
                 "FcgRIIb",
                 "FcgRIIIa.F158",
                 "FcgRIIIa.V158",
@@ -74,6 +82,7 @@ class Alter:
         )
         translate = {
             "FcgRIIa.H131": "FcR2A-131H",
+            "FcgRIIa.R131": "FcR2A-131R",
             "FcgRIIb": "FcR2B",
             "FcgRIIIa.V158": "FcR3A-158V",
             "FcgRIIIa.F158": "FcR3A-158F",
@@ -119,7 +128,8 @@ class Alter:
 
 class KaplonekVaccine:
     def get_detection_signal(self) -> xr.DataArray:
-        return prepare_data(kaplonek_vaccine()["Luminex"]).sel(Ligand=LIG_ORDER)
+        data = kaplonek_vaccine()["Luminex"]
+        return prepare_data(data).sel(Ligand=LIG_ORDER)
 
     def get_metadata(self) -> pd.DataFrame:
         metadata = (
@@ -140,17 +150,10 @@ def prepare_data(data: xr.DataArray, ligs=None):
     """
     assert len(data.dims) == 3, "Data must be 3 dimensional"
     # Antigens: remove those with all missing values
-    missing_ag = []
-    for antigen in data.Antigen:
-        if not np.any(
-            np.isfinite(data.sel(Antigen=antigen))
-        ):  # only nan values for antigen
-            missing_ag.append(antigen.values)
     if "Subject" in data.dims:
         data = data.rename({"Subject": "Sample"})
     data = (
-        data.drop_sel(Antigen=missing_ag)
-        .rename({"Receptor": "Ligand"})
+        data.rename({"Receptor": "Ligand"})
         .stack(Complex=("Sample", "Antigen"))
         .transpose("Complex", "Ligand")
     )
@@ -162,4 +165,4 @@ def prepare_data(data: xr.DataArray, ligs=None):
     data = data.sel(
         Ligand=ligs,
     )
-    return data[np.all((data.values != 0) & ~np.isnan(data.values), axis=1)]
+    return data[np.all(~np.isnan(data.values), axis=1)]

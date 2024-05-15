@@ -1,25 +1,15 @@
-# Base Python
 from copy import deepcopy
 from typing import Collection, Dict, Tuple
 
-# Extended Python
 import numpy as np
 import xarray as xr
 from scipy.optimize import least_squares, newton
 
-
-# Current Package
-from .util import (
-    assemble_Ka,
-    HIgGs,
-    DEFAULT_RCPS,
-    logistic_ligand_map,
-    n_logistic_ligands,
-)
-
+from .util import (DEFAULT_RCPS, HIgGs, assemble_Ka, logistic_ligand_map,
+                   n_logistic_ligands)
 
 """
-This implementation relies on the multivalent binding model paper:
+This is an implementation of the binding model from
 https://www.sciencedirect.com/science/article/pii/S002555642100122X. 
 """
 
@@ -70,7 +60,7 @@ def model_loss(
         np.where(
             residual_mask,
             np.nan_to_num(
-                (np.log(Lbound) - np.log(data.values)),
+                (np.log(Lbound + 1) - np.log(data.values + 1)),
                 neginf=0,
                 posinf=0,
             ),

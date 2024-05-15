@@ -16,23 +16,54 @@ ANNOTATION_SEPARATION = 0.06
 CORRELATION_SYMBOL = "$\mathrm{r_S}$"
 
 
+
 def makeFigure():
     """Relies on result from figure 4"""
     function = Alter().get_effector_functions()
     detection_signal = data_to_df(Alter().get_detection_signal()).xs(
         "gp120.SF162", level="Antigen"
     )
-    R3A_R2A = detection_signal["FcR3A-158V"] / detection_signal["FcR2A-131H"]
+    R3A_R2A = np.log10(detection_signal["FcR3A-158V"] / detection_signal["FcR2A-131H"] + 1)
     R3A_R2A.name = "R3A/R2A"
+    R3A_IgG = np.log10(detection_signal["FcR3A-158V"] / detection_signal["IgG1"] + 1)
+    R3A_IgG.name = "R3A/IgG1"
     ADNKA_ADNP = function["MIP1b"] / function["ADNP"]
     ADNKA_ADNP.name = "ADNKA/ADNP"
     fucose_ce = Alter().get_fucose_data()
     Rtot = pd.read_csv(ALTER_RTOT_CACHE_PATH)
     Rtot.set_index(["Sample", "Antigen"], inplace=True)
     fucose_inferred = compute_fucose_ratio(Rtot).xs("gp120.SF162", level="Antigen")
-    plot = Multiplot((3, 2), fig_size=(7.5, 5))
+    plot = Multiplot((3, 3), fig_size=(7.5, 7.3))
 
     ax = plot.axes[0]
+    df = pd.merge(R3A_IgG, fucose_ce, how="inner", on="Sample")
+    r, p = spearmanr(df["fucose_ce"], df["R3A/IgG1"])
+    ax.text(
+        ANNOTATION_LOCATION[0],
+        ANNOTATION_LOCATION[1],
+        f"{CORRELATION_SYMBOL} = " + str(round(r, 2)),
+        verticalalignment="bottom",
+        horizontalalignment="left",
+        transform=ax.transAxes,
+    )
+    ax.text(
+        ANNOTATION_LOCATION[0],
+        ANNOTATION_LOCATION[1] - ANNOTATION_SEPARATION,
+        r"p = " + str(round(p, 2)),
+        verticalalignment="bottom",
+        horizontalalignment="left",
+        transform=ax.transAxes,
+    )
+    sns.scatterplot(
+        data=df, x="fucose_ce", y="R3A/IgG1", ax=ax, alpha=ALPHA, s=POINT_SIZE
+    )
+    ax.set_ylabel(
+        r"$\mathrm{log_{10}}$" + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['IgG1']})"
+    )
+    ax.set_xlabel("CE IgG Fucosylation (%)")
+
+
+    ax = plot.axes[3]
     df = pd.merge(R3A_R2A, fucose_ce, how="inner", on="Sample")
     r, p = spearmanr(df["fucose_ce"], df["R3A/R2A"])
     ax.text(
@@ -55,13 +86,13 @@ def makeFigure():
         data=df, x="fucose_ce", y="R3A/R2A", ax=ax, alpha=ALPHA, s=POINT_SIZE
     )
     ax.set_ylabel(
-        f"{DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']}"
+    r"$\mathrm{log_{10}}$" + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']})"
     )
     ax.set_xlabel("CE IgG Fucosylation (%)")
 
     ax = plot.axes[1]
-    df = pd.merge(R3A_R2A, fucose_inferred, how="inner", on="Sample")
-    r, p = spearmanr(df["fucose_inferred"], df["R3A/R2A"])
+    df = pd.merge(R3A_IgG, fucose_inferred, how="inner", on="Sample")
+    r, p = spearmanr(df["fucose_inferred"], df["R3A/IgG1"])
     ax.text(
         ANNOTATION_LOCATION[0],
         ANNOTATION_LOCATION[1],
@@ -79,10 +110,37 @@ def makeFigure():
         transform=ax.transAxes,
     )
     sns.scatterplot(
+        data=df, x="fucose_inferred", y="R3A/IgG1", ax=ax, alpha=ALPHA, s=POINT_SIZE
+    )
+    ax.set_ylabel(
+    r"$\mathrm{log_{10}}$" + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['IgG1']})"
+    )
+    ax.set_xlabel("Inferred IgG Fucosylation (%)")
+
+    ax = plot.axes[4]
+    df = pd.merge(R3A_R2A, fucose_inferred, how="inner", on="Sample")
+    r, p = spearmanr(df["fucose_inferred"], df["R3A/R2A"])
+    ax.text(
+        ANNOTATION_LOCATION[0],
+        ANNOTATION_LOCATION[1],
+        f"{CORRELATION_SYMBOL} = " + str(round(r, 2)),
+        verticalalignment="bottom",
+        horizontalalignment="left",
+        transform=ax.transAxes,
+    )
+    ax.text(
+        ANNOTATION_LOCATION[0],
+        ANNOTATION_LOCATION[1] - ANNOTATION_SEPARATION,
+        r"p = " + str(round(p, 2)),
+        verticalalignment="bottom",
+        horizontalalignment="left",
+        transform=ax.transAxes,
+    )
+    sns.scatterplot(
         data=df, x="fucose_inferred", y="R3A/R2A", ax=ax, alpha=ALPHA, s=POINT_SIZE
     )
     ax.set_ylabel(
-        f"{DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']}"
+    r"$\mathrm{log_{10}}$" + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']})"
     )
     ax.set_xlabel("Inferred IgG Fucosylation (%)")
 
@@ -113,7 +171,7 @@ def makeFigure():
     ax.set_ylabel("ADNKA")
     ax.set_xlabel(f"{DETECTION_DISPLAY_NAMES['FcR3A']}")
 
-    ax = plot.axes[3]
+    ax = plot.axes[5]
     df = pd.merge(
         detection_signal["FcR2A-131H"], function["ADNP"], how="inner", on="Sample"
     ).dropna()
@@ -138,9 +196,14 @@ def makeFigure():
     ax.set_ylabel("ADNP")
     ax.set_xlabel(f"{DETECTION_DISPLAY_NAMES['FcR2A']}")
 
-    ax = plot.axes[4]
-    df = pd.merge(fucose_ce, ADNKA_ADNP, how="inner", on="Sample").dropna()
-    r, p = spearmanr(df["fucose_ce"], df["ADNKA/ADNP"])
+    ax = plot.axes[6]
+    glycan_ce = Alter().get_glycan_data()
+    glycan_ce = glycan_ce[glycan_ce["F.total"] > 0]
+    sns.scatterplot(data=glycan_ce, x="F.total", y="B.total", ax=ax, alpha=ALPHA, s=POINT_SIZE)
+    # print correlation
+    r, p = spearmanr(glycan_ce["F.total"], glycan_ce["B.total"])
+    ax.set_ylabel("CE Bisecting GlcNAc (%)")
+    ax.set_xlabel("CE Fucosylation (%)")
     ax.text(
         ANNOTATION_LOCATION[0],
         ANNOTATION_LOCATION[1],
@@ -152,42 +215,10 @@ def makeFigure():
     ax.text(
         ANNOTATION_LOCATION[0],
         ANNOTATION_LOCATION[1] - ANNOTATION_SEPARATION,
-        f"p = " + str(round(p, 2)),
+        r"p = " + "{:.2e}".format(p),
         verticalalignment="bottom",
         horizontalalignment="left",
         transform=ax.transAxes,
     )
-    sns.scatterplot(
-        data=df, x="fucose_ce", y="ADNKA/ADNP", ax=ax, alpha=ALPHA, s=POINT_SIZE
-    )
-    ax.set_ylabel("ADNKA / ADNP")
-    ax.set_xlabel(r"CE IgG Fucosylation (%)")
-
-    ax = plot.axes[5]
-    df = pd.merge(fucose_inferred, ADNKA_ADNP, how="inner", on="Sample").dropna()
-    r, p = spearmanr(df["fucose_inferred"], df["ADNKA/ADNP"])
-    ax.text(
-        ANNOTATION_LOCATION[0],
-        ANNOTATION_LOCATION[1],
-        f"{CORRELATION_SYMBOL} = " + str(round(r, 2)),
-        verticalalignment="bottom",
-        horizontalalignment="left",
-        transform=ax.transAxes,
-    )
-    ax.text(
-        ANNOTATION_LOCATION[0],
-        ANNOTATION_LOCATION[1] - ANNOTATION_SEPARATION,
-        r"p = " + str(round(p, 2)),
-        verticalalignment="bottom",
-        horizontalalignment="left",
-        transform=ax.transAxes,
-    )
-    sns.scatterplot(
-        data=df, x="fucose_inferred", y="ADNKA/ADNP", ax=ax, alpha=ALPHA, s=POINT_SIZE
-    )
-    ax.set_ylabel("ADNKA / ADNP")
-    ax.set_xlabel(r"Inferred IgG Fucosylation (%)")
-    plot.add_subplot_labels(ax_relative=True)
-    plot.fig.tight_layout(pad=0, w_pad=0.5, h_pad=1)
-
+    plot.add_subplot_labels()
     return plot.fig

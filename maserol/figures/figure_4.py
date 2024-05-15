@@ -5,11 +5,16 @@ from scipy.stats import pearsonr
 
 from maserol.core import optimize_loss
 from maserol.datasets import Alter, Zohar
-from maserol.figures.common import Multiplot, CACHE_DIR, DETECTION_DISPLAY_NAMES
-from maserol.util import Rtot_to_df, assemble_options, compute_fucose_ratio, IgG1_3
+from maserol.figures.common import (CACHE_DIR, DETECTION_DISPLAY_NAMES,
+                                    Multiplot)
+from maserol.util import (IgG1_3, Rtot_to_df, assemble_options,
+                          compute_fucose_ratio)
 
 ALPHA = 0.72
-UPDATE_CACHE = False
+UPDATE_CACHE = {
+    "zohar": False,
+    "alter": False,
+}
 ALTER_RTOT_CACHE_PATH = CACHE_DIR / "alter_Rtot.csv"
 
 
@@ -34,7 +39,7 @@ def makeFigure():
 
 def figure_CE(ax):
     fucose_ce = Alter().get_fucose_data()
-    if UPDATE_CACHE:
+    if UPDATE_CACHE["alter"]:
         detection_signal = Alter().get_detection_signal()
         opts = assemble_options(detection_signal, rcps=IgG1_3)
         params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
@@ -84,7 +89,7 @@ def figure_CE(ax):
 
 def figure_mechanistic_relate(ax_0, ax_1, ax_2):
     zohar = Zohar()
-    if UPDATE_CACHE:
+    if UPDATE_CACHE["zohar"]:
         detection_signal = zohar.get_detection_signal()
         opts = assemble_options(detection_signal)
         x, ctx = optimize_loss(detection_signal, **opts, return_reshaped_params=True)

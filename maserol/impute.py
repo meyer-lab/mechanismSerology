@@ -7,8 +7,8 @@ import xarray as xr
 from sklearn.metrics import r2_score
 from statsmodels.multivariate.pca import PCA
 
-from maserol.core import optimize_loss, infer_Lbound
-from maserol.util import assemble_options, assemble_Ka
+from maserol.core import infer_Lbound, optimize_loss
+from maserol.util import assemble_Ka, assemble_options
 
 
 def assemble_residual_mask(data: xr.DataArray, ligand_missingness: Dict):
@@ -64,10 +64,10 @@ def impute_missing_pca(tensor, residual_mask, ncomp=5):
     False using PCA.
     """
     assert residual_mask.dtype == bool
-    tensor = np.log(tensor)
+    tensor = np.log(tensor + 1)
     tensor.values[~residual_mask] = np.NaN
     opt = PCA(tensor, ncomp, missing="fill-em")
-    return np.exp(opt.projection)
+    return np.exp(opt.projection) - 1
 
 
 def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
@@ -75,8 +75,8 @@ def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
     assert residual_mask.dtype == bool
     assert tensor.shape == Lbound.shape
     test_mask = ~residual_mask
-    y = np.log10(tensor.values[test_mask])
-    x = np.log10(Lbound[test_mask])
+    y = np.log10(tensor.values[test_mask] + 1)
+    x = np.log10(Lbound[test_mask] + 1)
 
     df = pd.DataFrame(
         {
@@ -89,10 +89,20 @@ def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
     if multi_lig:
         df["Ligand"] = np.array([tensor.Ligand.values[i] for i in lig_idx])
     ax = sns.scatterplot(
-        data=df, x="Imputed", y="Actual", hue="Ligand" if multi_lig else None, ax=ax
+        data=df,
+        x="Imputed",
+        y="Actual",
+        hue="Ligand" if multi_lig else None,
+        ax=ax,
+        alpha=0.72,
     )
     r = np.corrcoef(x, y)[0][1]
-    ax.annotate(f"r = {r:.2f}", xy=(0.7, 0.1), xycoords="axes fraction")
+    ax.annotate(f"$r$ = {r:.2f}", xy=(0.7, 0.1), xycoords="axes fraction")
+    # also show the R2
+    r2 = r2_score(y, x)
+    # use latex for the R2
+    ax.annotate(f"$R^2$ = {r2:.2f}", xy=(0.7, 0.04), xycoords="axes fraction")
+    return ax
 
 
 def run_repeated_imputation(
@@ -106,8 +116,8 @@ def run_repeated_imputation(
     for lig in ligs or tensor.Ligand.values:
         for _ in range(runs):
             residual_mask = assemble_residual_mask(tensor, {lig: missingness})
-            actual = np.log10(tensor.values[~residual_mask])
-            Lbound = np.log10(imputer(tensor, residual_mask)[~residual_mask])
+            actual = np.log10(tensor.values[~residual_mask] + 1)
+            Lbound = np.log10(imputer(tensor, residual_mask)[~residual_mask] + 1)
             df.loc[len(df)] = [
                 # name of function (accessible through func if
                 # functools.partial)

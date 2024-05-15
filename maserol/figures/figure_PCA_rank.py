@@ -13,7 +13,7 @@ from maserol.figures.common import CACHE_DIR, Multiplot, DETECTION_DISPLAY_NAMES
 N_CPLX = 500
 MISSINGNESS = 0.1
 RUNS = 5
-UPDATE_CACHE = False
+UPDATE_CACHE = True
 TITLE_FONT_SIZE = 12.5
 
 
