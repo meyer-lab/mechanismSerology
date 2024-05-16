@@ -11,7 +11,7 @@ python = ">=3.12,<3.13"
 pandas = "^1.5"
 scipy = "^1.10"
 numpy = "^1.24"
-matplotlib = "^3.5.2"
+matplotlib = "3.8.4"
 seaborn = ">=0.11.2"
 tensordata = {git = "https://github.com/meyer-lab/tensordata.git", branch = "main"}
 scikit-learn = "^1.1.2"
