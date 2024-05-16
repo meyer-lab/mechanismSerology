@@ -55,16 +55,15 @@ def test_inferLbound_matches_valentbind():
                 np.array([[f[i_lig]]]),  # f
                 np.array([1]),  # Ctheta
                 Ka[[i_lig], :],
-            )[0]
+            )[0][0]
 
     # compare
     np.testing.assert_allclose(msRes, vbRes, rtol=1e-4)
 
 
 @pytest.mark.parametrize("n_cplx", [50])
-@pytest.mark.parametrize("L0", [1e-9, 1e-5])
 @pytest.mark.parametrize("rcp_high", [1e3, 1e7])
-def test_forward_backward(n_cplx, L0, rcp_high):
+def test_forward_backward(n_cplx, rcp_high):
     rcps = np.array(["IgG1", "IgG2", "IgG3", "IgG3f"])
     ligs = np.array(
         [
@@ -89,7 +88,7 @@ def test_forward_backward(n_cplx, L0, rcp_high):
     )
     Ka = np.ones((len(ligs), len(rcps)))
     Ka[3:] = assemble_Ka(ligs[3:], rcps).values
-    Ka[[0, 1, 2, 2], [0, 1, 2, 3]] = 10**7
+    Ka[[0, 1, 2, 3], [0, 1, 2, 3]] = 10**7
 
     backward_opts = assemble_options(data, rcps)
 
