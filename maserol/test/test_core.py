@@ -88,7 +88,7 @@ def test_forward_backward(n_cplx, rcp_high):
     )
     Ka = np.ones((len(ligs), len(rcps)))
     Ka[3:] = assemble_Ka(ligs[3:], rcps).values
-    Ka[[0, 1, 2, 3], [0, 1, 2, 3]] = 10**7
+    Ka[[0, 1, 2, 2], [0, 1, 2, 3]] = 10**7
 
     backward_opts = assemble_options(data, rcps)
 
