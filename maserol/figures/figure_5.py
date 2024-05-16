@@ -1,36 +1,28 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pingouin as pg
 import seaborn as sns
-from scipy.stats import pearsonr
 from statannotations.Annotator import Annotator
 
 from maserol.core import optimize_loss
-from maserol.datasets import Zohar, KaplonekVaccine
-from maserol.figures.common import (
-    Multiplot,
-    CACHE_DIR,
-    annotate_mann_whitney,
-)
-from maserol.util import (
-    assemble_options,
-    Rtot_to_df,
-    compute_fucose_ratio,
-)
+from maserol.datasets import KaplonekVaccine, Zohar
+from maserol.figures.common import CACHE_DIR, Multiplot, annotate_mann_whitney
+from maserol.util import Rtot_to_df, assemble_options, compute_fucose_ratio
 
-UPDATE_CACHE = False
+UPDATE_CACHE = {
+    "zohar": False,
+    "kaplonek_vaccine": False,
+}
 
 
 def makeFigure():
     plot = Multiplot(
-        (10, 2),
+        (5, 2),
         fig_size=(7.5, 7.5 * 2 / 3),
         subplot_specs=[
-            (0, 3, 0, 1),
-            (3, 3, 0, 1),
-            (6, 4, 0, 1),
-            (0, 10, 1, 1),
+            (0, 2, 0, 1),
+            (2, 1, 0, 1),
+            (3, 2, 0, 1),
+            (0, 5, 1, 1),
         ],
     )
     figure_5abc(plot.axes[0], plot.axes[1], plot.axes[2])
@@ -47,7 +39,7 @@ def figure_5abc(ax_a, ax_b, ax_c):
 
     opts = assemble_options(detection_signal)
 
-    if UPDATE_CACHE:
+    if UPDATE_CACHE["zohar"]:
         x, ctx = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
         Rtot = Rtot_to_df(x["Rtot"], detection_signal, rcps=list(opts["rcps"]))
         Rtot.to_csv(CACHE_DIR / "zohar_Rtot.csv")
@@ -56,82 +48,72 @@ def figure_5abc(ax_a, ax_b, ax_c):
             ["Sample", "Antigen"], drop=True
         )
 
-    fucose_inferred = compute_fucose_ratio(Rtot).xs("S", level="Antigen")
-    df_merged = pd.merge(fucose_inferred, metadata, how="inner", on="Sample")
+    fucose_inferred = compute_fucose_ratio(Rtot).reset_index(level="Antigen")
+
+    y_lim = (26, 103)
 
     ax = ax_a
+    order = ["N", "S", "S2", "S1", "S1 Trimer", "RBD"]
     sns.boxplot(
-        data=df_merged,
-        x="ARDS",
+        data=fucose_inferred,
+        x="Antigen",
         y="fucose_inferred",
         ax=ax,
-        order=["No", "Yes"],
-        palette=sns.color_palette(),
+        order=order,
         showfliers=False,
     )
-    ax.set_ylabel("anti-S IgG Fucosylation (%)")
-    pairs = (("Yes", "No"),)
-    annotator = Annotator(ax, pairs, data=df_merged, x="ARDS", y="fucose_inferred")
+    ax.set_ylabel("IgG Fucosylation (%)")
+    ax.set_ylim(*y_lim)
+    pairs = (("S2", "S1"), ("N", "S"))
+    annotator = Annotator(
+        ax, pairs, data=fucose_inferred, x="Antigen", y="fucose_inferred", order=order
+    )
     annotate_mann_whitney(annotator)
 
     ax = ax_b
+    fucose_inferred["Antigen type"] = [
+        "N" if "N" in ag else "S-associated" for ag in fucose_inferred.Antigen
+    ]
     sns.boxplot(
-        data=df_merged,
-        x="immunosup",
+        data=fucose_inferred,
+        x="Antigen type",
         y="fucose_inferred",
         ax=ax,
-        order=[0, 1],
         showfliers=False,
     )
-    # ax.set_ylabel("anti-S IgG Fucosylation (%)")
     ax.set_ylabel(None)
-    ax.set_xlabel("Immunosuppressed")
-    ax.set_xticklabels(["No", "Yes"])
-    pairs = ((1, 0),)
-    annotator = Annotator(ax, pairs, data=df_merged, x="immunosup", y="fucose_inferred")
+    ax.set_ylim(*y_lim)
+    ax.set_yticklabels([])
+    pairs = (("N", "S-associated"),)
+    annotator = Annotator(
+        ax, pairs, data=fucose_inferred, x="Antigen type", y="fucose_inferred"
+    )
     annotate_mann_whitney(annotator)
 
     ax = ax_c
-    fucose_over_time = pd.merge(
-        fucose_inferred, metadata[["days", "patient_ID"]], how="inner", on="Sample"
-    )
-    fucose_over_time.dropna(inplace=True)
-    fucose_over_time = fucose_over_time.groupby("patient_ID").filter(
-        lambda x: x["days"].nunique() >= 2
-    )
-    rmcorr_result = pg.rm_corr(
-        data=fucose_over_time, x="days", y="fucose_inferred", subject="patient_ID"
-    )
-    r, p = rmcorr_result.r.iloc[0], rmcorr_result.pval.iloc[0]
-    fucose_over_time_binned = pd.merge(
-        fucose_inferred, zohar.get_days_binned(), how="inner", on="Sample"
-    )
-    sns.lineplot(
-        data=fucose_over_time_binned,
-        x="days",
+    df_merged = pd.merge(fucose_inferred, metadata["ARDS"], how="inner", on="Sample")
+    sns.boxplot(
+        data=df_merged,
+        x="Antigen",
+        hue="ARDS",
         y="fucose_inferred",
         ax=ax,
+        hue_order=["No", "Yes"],
+        palette=sns.color_palette(),
+        showfliers=False,
     )
-    ax.text(
-        0.7,
-        0.8,
-        f"r = " + str(round(r, 2)),
-        verticalalignment="bottom",
-        horizontalalignment="left",
-        transform=ax.transAxes,
-    )
-    ax.text(
-        0.7,
-        0.72,
-        r"p = " + "{:.2e}".format(p),
-        verticalalignment="bottom",
-        horizontalalignment="left",
-        transform=ax.transAxes,
-    )
-    ax.set_xlabel("Days following symptom onset")
-    # ax.set_ylabel("anti-S IgG Fucosylation (%)")
     ax.set_ylabel(None)
-    ax.set_xlim(0, 30)
+    ax.set_ylim(*y_lim)
+    ax.set_yticklabels([])
+    pairs = [((ag, "No"), (ag, "Yes")) for ag in df_merged.Antigen.unique()]
+    # set legend items to "No ARDS" and "ARDS"
+    ax.legend_.set_title(None)
+    ax.legend_.texts[0].set_text("non-ARDS")
+    ax.legend_.texts[1].set_text("ARDS")
+    annotator = Annotator(
+        ax, pairs, data=df_merged, x="Antigen", hue="ARDS", y="fucose_inferred"
+    )
+    annotate_mann_whitney(annotator)
 
 
 def figure_5d(ax):
@@ -154,8 +136,8 @@ def figure_5d(ax):
     ]
     detection_signal = detection_signal.sel(Complex=pd.IndexSlice[:, ag_include])
     metadata = kaplonek_vaccine.get_metadata()
-    filepath = CACHE_DIR / "fig_5b_Rtot.csv"
-    if UPDATE_CACHE:
+    filepath = CACHE_DIR / "kaplonek_vaccine_Rtot.csv"
+    if UPDATE_CACHE["kaplonek_vaccine"]:
         opts = assemble_options(detection_signal)
         params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
         Rtot = Rtot_to_df(params["Rtot"], detection_signal, list(opts["rcps"]))

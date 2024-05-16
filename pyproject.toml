@@ -5,12 +5,13 @@ description = ""
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
 
+
 [tool.poetry.dependencies]
-python = ">=3.11,<3.12"
+python = ">=3.12,<3.13"
 pandas = "^1.5"
 scipy = "^1.10"
 numpy = "^1.24"
-matplotlib = "^3.5.2"
+matplotlib = "3.8.4"
 seaborn = ">=0.11.2"
 tensordata = {git = "https://github.com/meyer-lab/tensordata.git", branch = "main"}
 scikit-learn = "^1.1.2"
@@ -19,7 +20,7 @@ statsmodels = "^0.14.0"
 tensorly = "^0.8.1"
 statannotations = "^0.6.0"
 requests = "^2.31.0"
-pingouin = "^0.5.4"
+setuptools = "^69.5.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.2"

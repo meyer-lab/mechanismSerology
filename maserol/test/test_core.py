@@ -1,18 +1,18 @@
-import pytest
 import numpy as np
+import pytest
 import xarray as xr
 from valentbind.model import polyc
 
 from maserol.core import (
-    initialize_params,
-    infer_Lbound_mv,
     assemble_Ka,
+    infer_Lbound_mv,
+    initialize_params,
     n_logistic_ligands,
-    reshape_params,
     optimize_loss,
+    reshape_params,
 )
 from maserol.datasets import Zohar
-from maserol.util import assemble_options, HIgGs
+from maserol.util import HIgGs, assemble_options
 
 
 @pytest.mark.parametrize("n_rcp", [1, 2, 3])
@@ -55,16 +55,15 @@ def test_inferLbound_matches_valentbind():
                 np.array([[f[i_lig]]]),  # f
                 np.array([1]),  # Ctheta
                 Ka[[i_lig], :],
-            )[0]
+            )[0][0]
 
     # compare
     np.testing.assert_allclose(msRes, vbRes, rtol=1e-4)
 
 
 @pytest.mark.parametrize("n_cplx", [50])
-@pytest.mark.parametrize("L0", [1e-9, 1e-5])
 @pytest.mark.parametrize("rcp_high", [1e3, 1e7])
-def test_forward_backward(n_cplx, L0, rcp_high):
+def test_forward_backward(n_cplx, rcp_high):
     rcps = np.array(["IgG1", "IgG2", "IgG3", "IgG3f"])
     ligs = np.array(
         [

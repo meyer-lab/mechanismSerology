@@ -68,8 +68,6 @@ def get_affinity(lig: str, rcp: str) -> float:
 def assemble_Ka(
     ligs: Iterable, rcps: Iterable = DEFAULT_RCPS, logistic_ligands=None
 ) -> xr.DataArray:
-    """Assemble affinity matrix for a given dataset."""
-
     assert len(ligs.shape) == 1, "ligs should be 1d"
     if logistic_ligands is not None:
         ligs = ligs[~logistic_ligand_map(logistic_ligands)]
