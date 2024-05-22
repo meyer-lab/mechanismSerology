@@ -157,6 +157,7 @@ def figure_2f(ax):
     n_runs = 2
     perturbations = [-0.3, 0.3]
     file_path = CACHE_DIR / "2f_perturbations.nc"
+    n_cplx = 1000
     if UPDATE_CACHE["2f"]:
         results = xr.DataArray(
             np.nan,
@@ -174,7 +175,7 @@ def figure_2f(ax):
                 "Ka_Receptor": rcps,
                 "Perturbation": perturbations,
                 "Receptor": rcps,
-                "Complex": np.arange(1000),
+                "Complex": np.arange(n_cplx),
                 "Inferred": [True, False],
                 "Run": np.arange(n_runs),
             },
@@ -186,7 +187,8 @@ def figure_2f(ax):
                         Rtot, Rtot_inferred = forward_backward(
                             Ka_transform_func=functools.partial(
                                 perturb_affinity, Ka_lig, Ka_rcp, perturbation
-                            )
+                            ),
+                            n_cplx=n_cplx,
                         )
                         results.loc[Ka_lig, Ka_rcp, perturbation, run, True] = (
                             Rtot_inferred
