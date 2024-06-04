@@ -14,7 +14,7 @@ N_CPLX = 500
 MISSINGNESS = 0.1
 RUNS = 5
 UPDATE_CACHE = False
-TITLE_FONT_SIZE = 11
+TITLE_FONT_SIZE = 8
 
 
 def makeFigure():

@@ -9,7 +9,7 @@ from scipy.stats import pearsonr
 from sklearn.metrics import r2_score
 
 from maserol.datasets import Zohar
-from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot
+from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot, ANNOTATION_FONT_SIZE
 from maserol.impute import assemble_residual_mask, impute_missing_ms
 from maserol.util import assemble_options
 
@@ -22,13 +22,13 @@ METRIC_LABEL_MAPPINGS = {
 }
 
 
-TITLE_FONT_SIZE = 12.5
+TITLE_FONT_SIZE = 14
 
 
 def makeFigure():
     plot = Multiplot(
         (4, 8),
-        fig_size=(7.5, 7.5),
+        fig_size=(9.2, 8.5),
         subplot_specs=[
             (0, 2, 0, 3),
             (2, 2, 0, 3),
@@ -66,8 +66,11 @@ def makeFigure():
     scatter(["FcR3A", "FcR3B"], plot.axes[6:8], UPDATE_CACHE["scatter"][1])
     for ax in plot.axes[5:]:
         ax.set_ylabel(None)
+    
+    for i in (5, 7):
+        plot.axes[i].set_yticklabels([])
 
-    plot.add_subplot_labels()
+    # plot.add_subplot_labels()
 
     return plot.fig
 
@@ -172,28 +175,38 @@ def scatter(ligs, axes, update_cache):
     for i, lig in enumerate(ligs):
         idx = list(detection_signal.Ligand.values).index(lig)
         subset = np.random.choice(Lbound.shape[0], 1300, replace=False)
-        inferred = np.log10(Lbound[subset, idx] + 1)
-        measured = np.log10(detection_signal[subset, idx] + 1)
+        inferred = Lbound[subset, idx]
+        measured = detection_signal[subset, idx]
+        log_inferred = np.log10(inferred)
+        log_measured = np.log10(measured)
+        # get idx where both are finite
+        finite = np.isfinite(log_inferred) & np.isfinite(log_measured)
+        log_inferred = log_inferred[finite]
+        log_measured = log_measured[finite]
         sns.scatterplot(x=inferred, y=measured, ax=axes[i], alpha=0.4, s=5)
+        axes[i].set_xscale("log")
+        axes[i].set_yscale("log")
         axes[i].set_title(f"{DETECTION_DISPLAY_NAMES[lig]}")
-        axes[i].set_ylabel("$\mathrm{log_{10}}$ Measured")
-        axes[i].set_xlabel("$\mathrm{log_{10}}$ Inferred")
+        axes[i].set_ylabel("Measured")
+        axes[i].set_xlabel("Inferred")
         # annotate with r2 and r
         axes[i].text(
             0.65,
             0.15,
-            f"$R^2$={r2_score(measured, inferred):.2f}",
+            f"$R^2$={r2_score(log_measured, log_inferred):.2f}",
             transform=axes[i].transAxes,
+            fontsize=ANNOTATION_FONT_SIZE,
         )
         axes[i].text(
             0.65,
             0.05,
-            f"$r$={pearsonr(measured, inferred)[0]:.2f}",
+            f"$r$={pearsonr(log_measured, log_inferred)[0]:.2f}",
             transform=axes[i].transAxes,
+            fontsize=ANNOTATION_FONT_SIZE,
         )
         # set ticks
-        axes[i].set_xticks(np.arange(0, 7))
-        axes[i].set_yticks(np.arange(0, 7))
-        axes[i].set_xlim(0, 7)
-        axes[i].set_ylim(0, 7)
-        axes[i].plot([0, 7], [0, 7], color="black", linestyle="--", alpha=0.4)
+        axes[i].set_xlim(1e2 / 20, 1e6 * 20)
+        axes[i].set_ylim(1e2 / 20, 1e6 * 20)
+        axes[i].set_xticks([1e2, 1e4, 1e6])
+        axes[i].set_yticks([1e2, 1e4, 1e6])
+        axes[i].plot([1, 1e8], [1, 1e8], color="black", linestyle="--", alpha=0.4)

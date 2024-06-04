@@ -161,7 +161,7 @@ def figure_5d(ax):
         hue_order=["control", "case"],
         showfliers=False,
     )
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=30, fontsize="small")
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=30)
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_ylim(-2, 102)
     ax.set_xlabel("Antigen")

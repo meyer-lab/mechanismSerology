@@ -5,7 +5,7 @@ import pandas as pd
 import seaborn as sns
 
 from maserol.datasets import Zohar
-from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot
+from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot, LOG10_SYMBOL
 from maserol.impute import (
     assemble_residual_mask,
     imputation_scatterplot,
@@ -24,8 +24,8 @@ def makeFigure():
         (9, 3),
         fig_size=(7.5, 7.7),
         subplot_specs=[
-            (0, 6, 0, 1),
-            (6, 3, 0, 1),
+            (0, 3, 0, 1),
+            (3, 6, 0, 1),
             (0, 3, 1, 1),
             (3, 3, 1, 1),
             (6, 3, 1, 1),
@@ -34,15 +34,15 @@ def makeFigure():
             (6, 3, 2, 1),
         ],
     )
-    figure_3b(plot.axes[2])
-    figure_3cd(plot.axes[3], plot.axes[4])
-    figure_3e(plot.axes[6], plot.axes[7])
-    plot.fig.tight_layout(pad=0.01, w_pad=0, h_pad=0.2)
+    figure_imputation_scatterplot(plot.axes[2])
+    figure_compare_pca(plot.axes[3], plot.axes[4])
+    figure_variable_missingness(plot.axes[6], plot.axes[7])
+    plot.fig.tight_layout(pad=0, w_pad=-0.5, h_pad=-0.5)
     plot.add_subplot_labels(ax_relative=True)
     return plot.fig
 
 
-def figure_3b(ax):
+def figure_imputation_scatterplot(ax):
     inferred_filename = "fig_3b_imputation.txt"
     residual_mask_filename = "fig_3b_res_mask.txt"
     data = Zohar().get_detection_signal()
@@ -56,18 +56,20 @@ def figure_3b(ax):
         Lbound = np.loadtxt(CACHE_DIR / inferred_filename, dtype=float)
         residual_mask = np.loadtxt(CACHE_DIR / residual_mask_filename, dtype=bool)
     imputation_scatterplot(data, Lbound, residual_mask, ax)
-    lim = (0.7, 6.9)
-    ax.set_xlim(*lim)
-    ax.set_ylim(*lim)
-    ax.set_xticks(np.arange(1, 7))
-    ax.set_yticks(np.arange(1, 7))
-    ax.set_xlabel(r"$\mathrm{log_{10}}$ Inferred " + DETECTION_DISPLAY_NAMES["FcR3B"])
-    ax.set_ylabel(r"$\mathrm{log_{10}}$ Measured " + DETECTION_DISPLAY_NAMES["FcR3B"])
+
+    # TODO: change metrics to operate on log values and mention this in caption
+    ax.set_xticks([1e2, 1e4, 1e6])
+    ax.set_yticks([1e2, 1e4, 1e6])
+    ax.set_xlabel(f"Inferred {DETECTION_DISPLAY_NAMES["FcR3B"]}")
+    ax.set_ylabel(f"Measured {DETECTION_DISPLAY_NAMES["FcR3B"]}")
     ax.set_title("10% Missing")
+    lim = [3, 1e7]
+    ax.set_ylim(lim)
+    ax.set_xlim(lim)
     ax.plot(lim, lim, linestyle="--", color="gray", alpha=0.75)
 
 
-def figure_3cd(ax_c, ax_d):
+def figure_compare_pca(ax_c, ax_d):
     filename = "fig_3c_metrics.csv"
     if UPDATE_CACHE["3c"]:
         N_COMP = 1
@@ -111,7 +113,7 @@ def figure_3cd(ax_c, ax_d):
     legend.get_frame().set_alpha(1)
 
 
-def figure_3e(ax, ax_2):
+def figure_variable_missingness(ax_0, ax_1):
     if UPDATE_CACHE["3e"]:
         runs = 2
         missingnesss = np.array([0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1])
@@ -131,17 +133,17 @@ def figure_3e(ax, ax_2):
     df = df.rename(columns={"Ligand": "Detection"})
     df["Missingness"] = df["Missingness"] * 100
 
-    ax = ax
+    ax = ax_0
     df = df[~(df["Detection"].isin(["IgG1", "IgG3"]))]
     sns.lineplot(data=df, x="Missingness", y="r", hue="Detection", ax=ax)
     handles, labels = ax.get_legend_handles_labels()
     labels = [DETECTION_DISPLAY_NAMES[label] for label in labels]
-    ax.legend(handles, labels, loc="lower left").get_frame().set_alpha(1)
+    ax.legend(handles, labels, loc="upper right").get_frame().set_alpha(1)
     ax.set_ylabel("Imputation performance ($r$)")
     ax.set_xlabel("Fraction Missing (%)")
     ax.set_title("Variable missingness")
 
-    ax = ax_2
+    ax = ax_1
     sns.lineplot(data=df, x="Missingness", y="r2", hue="Detection", ax=ax)
     handles, labels = ax.get_legend_handles_labels()
     labels = [DETECTION_DISPLAY_NAMES[label] for label in labels]

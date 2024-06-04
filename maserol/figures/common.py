@@ -25,9 +25,24 @@ matplotlib.rcParams["legend.handlelength"] = 0.5
 matplotlib.rcParams["legend.framealpha"] = 0.5
 matplotlib.rcParams["legend.markerscale"] = 0.7
 matplotlib.rcParams["legend.borderpad"] = 0.35
+matplotlib.rcParams["axes.labelsize"] = 8
+matplotlib.rcParams["axes.titlesize"] = 8
+matplotlib.rcParams["xtick.labelsize"] = 8
+matplotlib.rcParams["ytick.labelsize"] = 8
+matplotlib.rcParams["figure.titlesize"] = 8
+matplotlib.rcParams["axes.linewidth"] = 0.5
+matplotlib.rcParams["axes.edgecolor"] = "black"
+matplotlib.rcParams["grid.linestyle"] = "dotted"
+matplotlib.rcParams["grid.linewidth"] = 0.5
+matplotlib.rcParams["grid.color"] = "black"
+
 
 THIS_DIR = Path(__file__).parent
 CACHE_DIR = THIS_DIR.parent / "data" / "cache"
+
+SUBPLOT_LABEL_FONT_SIZE = 14
+ANNOTATION_FONT_SIZE = 8
+LOG10_SYMBOL = r"$\mathrm{log_{10}}$"
 
 DETECTION_DISPLAY_NAMES = {
     "IgG1": "α-HIgG1",
@@ -37,14 +52,6 @@ DETECTION_DISPLAY_NAMES = {
     "FcR3A": "FcγRIIIA",
     "FcR3B": "FcγRIIIB",
 }
-
-PLOT_CONFIG = dict(
-    style="whitegrid",
-    font_scale=0.7,
-    color_codes=True,
-    palette="colorblind",
-    rc={"grid.linestyle": "dotted", "axes.linewidth": 0.6},
-)
 
 
 class Multiplot:
@@ -76,10 +83,19 @@ class Multiplot:
 
     def setup(self):
         """Establish figure setup with flexible subplots."""
-        sns.set(**PLOT_CONFIG)
+        # sns.set(**PLOT_CONFIG)
+        sns.set_style(
+            "whitegrid",
+            {
+                "axes.edgecolor": "black",
+                "grid.linestyle": "dotted",
+                "grid.color": "black",
+            }
+        )
+        sns.set_palette("colorblind")
 
         # Setup figure and grid
-        f = plt.figure(figsize=self.fig_size, constrained_layout=True)
+        f = plt.figure(figsize=self.fig_size)
         gs = gridspec.GridSpec(self.grid[1], self.grid[0], figure=f)
 
         # Create subplots according to the specifications
@@ -105,7 +121,9 @@ class Multiplot:
         if labels is None:
             labels = [chr(ord("a") + i) for i in range(len(self.axes))]
         for ax, label in zip(self.axes, labels):
-            ax.set_title(label, loc="left", fontsize=16, fontweight="bold")
+            ax.set_title(
+                label, loc="left", fontsize=SUBPLOT_LABEL_FONT_SIZE, fontweight="bold"
+            )
 
     def subplot_spec_to_bounds(self, spec):
         x_width = 1 / self.grid[0]
@@ -127,7 +145,7 @@ class Multiplot:
                 1 + up,
                 label,
                 transform=self.axes[ax_index].transAxes,
-                fontsize=16,
+                fontsize=SUBPLOT_LABEL_FONT_SIZE,
                 fontweight="bold",
                 va="top",
             )
@@ -139,7 +157,7 @@ class Multiplot:
                 label,
                 va="top",
                 ha="left",
-                fontsize=16,
+                fontsize=SUBPLOT_LABEL_FONT_SIZE,
                 fontweight="bold",
             )
 

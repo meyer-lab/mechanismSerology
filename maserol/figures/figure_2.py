@@ -20,7 +20,7 @@ UPDATE_CACHE = {"2b": False, "2c": False, "2d": False, "2e": False, "2f": False}
 def makeFigure():
     plot = Multiplot(
         (3, 3),
-        fig_size=(7.5, 7.5),
+        fig_size=(7.5, 8),
         subplot_specs=[
             (0, 2, 0, 1),
             (2, 1, 0, 1),
@@ -37,7 +37,7 @@ def makeFigure():
     figure_2d(axes[3])
     figure_2e(axes[4])
     figure_2f(axes[5])
-    # fig.tight_layout(pad=0.5, w_pad=3.5, h_pad=1)
+    fig.tight_layout(pad=0, w_pad=0.2, h_pad=-0.5)
     return fig
 
 
@@ -50,11 +50,13 @@ def figure_2b(ax):
         Rtot = np.loadtxt(CACHE_DIR / "figure_2b_Rtot.txt")
         Rtot_inferred = np.loadtxt(CACHE_DIR / "figure_2b_Rtot_inferred.txt")
     sns.scatterplot(
-        x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
+        x=Rtot_inferred[:, 0], y=Rtot[:, 0], alpha=0.6, ax=ax
     )
+    ax.set_xscale("log")
+    ax.set_yscale("log")
     ax.set_title("Actual vs predicted antibody abundance")
-    ax.set_xlabel(r"$\mathrm{log_{10}}$ Inferred IgG1")
-    ax.set_ylabel(r"$\mathrm{log_{10}}$ Actual IgG1")
+    ax.set_xlabel(r"Inferred IgG1")
+    ax.set_ylabel(r"Actual IgG1")
 
 
 def figure_2c(ax):
@@ -67,11 +69,13 @@ def figure_2c(ax):
         Rtot = np.loadtxt(CACHE_DIR / "figure_2c_Rtot.txt")
         Rtot_inferred = np.loadtxt(CACHE_DIR / "figure_2c_Rtot_inferred.txt")
     sns.scatterplot(
-        x=np.log10(Rtot_inferred[:, 0]), y=np.log10(Rtot[:, 0]), alpha=0.6, ax=ax
+        x=Rtot_inferred[:, 0], y=Rtot[:, 0], alpha=0.6, ax=ax
     )
+    ax.set_xscale("log")
+    ax.set_yscale("log")
     ax.set_title("Actual vs predicted (30% noise)")
-    ax.set_xlabel(r"$\mathrm{log_{10}}$ Inferred IgG1")
-    ax.set_ylabel(r"$\mathrm{log_{10}}$ Actual IgG1")
+    ax.set_xlabel(r"Inferred IgG1")
+    ax.set_ylabel(r"Actual IgG1")
 
 
 def figure_2d(ax):
@@ -105,6 +109,9 @@ def figure_2d(ax):
     ax.set_ylim(DE_YLIM)
     ax.set_xlim((0, MAX_NOISE))
     ax.set_title("Prediction performance vs detection noise")
+    xticks = np.linspace(0, MAX_NOISE, STEPS_2D)
+    ax.set_xticks(xticks)
+    ax.set_xticklabels([f"{x:.2f}" for x in xticks])
     ax.set_xlabel("Noise σ")
     ax.set_ylabel("$R^2$")
     ax.set_ylim(-0.01, 1.01)
@@ -146,6 +153,9 @@ def figure_2e(ax):
     ax.set_ylim(DE_YLIM)
     ax.set_xlim((0, MAX_NOISE))
     ax.set_title("Prediction performance vs $K_{a}$ noise")
+    xticks = np.linspace(0, MAX_NOISE, STEPS_2E)
+    ax.set_xticks(xticks)
+    ax.set_xticklabels([f"{x:.2f}" for x in xticks])
     ax.set_xlabel("Noise σ")
     ax.set_ylabel("$R^2$")
     ax.set_ylim(-0.01, 1.01)

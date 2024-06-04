@@ -28,14 +28,15 @@ def makeFigure():
     ).reset_index()
 
     plot = Multiplot(
-        (8, 7),
-        fig_size=(7.5, 9),
+        (10, 12),
+        # the plotting for this function breaks at our required subplot
+        # dimensions, so we make the figure larger than it needs to be
+        fig_size=(9, 9.5),
         subplot_specs=[
-            (0, 8, 0, 2),
-            (0, 8, 2, 2),
-            (0, 3, 4, 3),
-            (4, 6, 4, 3),
-            # (7, 1, 6, 3),
+            (0, 10, 0, 3),
+            (0, 10, 3, 3),
+            (0, 3, 6, 6),
+            (4, 5, 6, 6),
         ],
     )
 
@@ -50,9 +51,7 @@ def makeFigure():
         hue_order=["EC", "VC", "TP", "UP"],
         showfliers=False,
     )
-    ax.set_xticklabels(
-        ax.get_xticklabels(), rotation=X_LABEL_ROTATION, fontsize="small"
-    )
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=X_LABEL_ROTATION)
     ax.set_xlabel("Antigen", labelpad=0)
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_ylim(*Y_LIM)
@@ -80,9 +79,7 @@ def makeFigure():
         showfliers=False,
     )
     ax.set_xlabel("Antigen", labelpad=0)
-    ax.set_xticklabels(
-        ax.get_xticklabels(), rotation=X_LABEL_ROTATION, fontsize="small"
-    )
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=X_LABEL_ROTATION)
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_ylim(*Y_LIM)
     handles, labels = ax.get_legend_handles_labels()
@@ -120,7 +117,7 @@ def makeFigure():
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_ylim(*Y_LIM)
     ax.set_xlabel("Antigen type")
-    ax.set_xticklabels(ax.get_xticklabels(), fontsize="small")
+    ax.set_xticklabels(ax.get_xticklabels())
     pairs = [("Env trimer", "p24"), ("Env trimer", "pr55.Gag")]
     annotator = Annotator(
         ax, pairs, data=df_compare, x="Antigen Category", y="fucose_inferred"
@@ -141,5 +138,11 @@ def makeFigure():
         ax=ax,
         cbar_kws={"label": "Pearson correlation"},
     )
+    # remove the colorbar when generating figures for layout and add it manually
+    # cbar = ax.collections[0].colorbar
+    # cbar.remove()
+
+    plot.add_subplot_labels(ax_relative=True)
+    # plot.fig.tight_layout(pad=0, w_pad=0, h_pad=-1)
 
     return plot.fig
