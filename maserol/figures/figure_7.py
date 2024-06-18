@@ -9,7 +9,12 @@ from scipy.stats import pearsonr
 from sklearn.metrics import r2_score
 
 from maserol.datasets import Zohar
-from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot, ANNOTATION_FONT_SIZE
+from maserol.figures.common import (
+    ANNOTATION_FONT_SIZE,
+    CACHE_DIR,
+    DETECTION_DISPLAY_NAMES,
+    Multiplot,
+)
 from maserol.impute import assemble_residual_mask, impute_missing_ms
 from maserol.util import assemble_options
 
@@ -51,11 +56,12 @@ def makeFigure():
     prepare_metrics_df(df_2)
     prepare_metrics_df(df_3)
 
+    r2_ylim = [-0.1, 1.02]
     plot_combinations(df_2, "r", plot.axes[0], ylim=(0, 1))
-    plot_combinations(df_2, "r2", plot.axes[2], ylim=(-1, 1))
+    plot_combinations(df_2, "r2", plot.axes[2], ylim=r2_ylim)
 
     plot_combinations(df_3, "r", plot.axes[1], ylim=(0, 1))
-    plot_combinations(df_3, "r2", plot.axes[3], ylim=(-1, 1))
+    plot_combinations(df_3, "r2", plot.axes[3], ylim=r2_ylim)
 
     plot.axes[1].set_yticklabels([])
     plot.axes[1].set_ylabel(None)
@@ -66,7 +72,7 @@ def makeFigure():
     scatter(["FcR3A", "FcR3B"], plot.axes[6:8], UPDATE_CACHE["scatter"][1])
     for ax in plot.axes[5:]:
         ax.set_ylabel(None)
-    
+
     for i in (5, 7):
         plot.axes[i].set_yticklabels([])
 
@@ -91,7 +97,7 @@ def plot_combinations(df, metric, ax, ylim=None):
 
     width = 1 / (n_lig + 2)
 
-    palette = sns.color_palette(n_colors=len(rligs))
+    palette = sns.color_palette(palette="colorblind", n_colors=len(rligs))
     colors = {lig: palette[i] for i, lig in enumerate(rligs)}
 
     for i, comb in enumerate(combs):
@@ -128,7 +134,7 @@ def prepare_metrics_df(df):
 def update_cache(n_crligs):
     detection_signal = Zohar().get_detection_signal()
 
-    rligs = [l for l in detection_signal.Ligand.values if "Fc" in l]
+    rligs = [ligand for ligand in detection_signal.Ligand.values if "Fc" in ligand]
 
     opts = assemble_options(detection_signal)
 
