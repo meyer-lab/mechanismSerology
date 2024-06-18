@@ -14,7 +14,7 @@ numpy = "^1.24"
 matplotlib = "3.8.4"
 seaborn = ">=0.11.2"
 tensordata = {git = "https://github.com/meyer-lab/tensordata.git", branch = "main"}
-scikit-learn = "^1.1.2"
+scikit-learn = "^1.5.0"
 PyYAML = ">=6.0"
 statsmodels = "^0.14.0"
 tensorly = "^0.8.1"
