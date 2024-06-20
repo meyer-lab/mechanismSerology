@@ -146,7 +146,7 @@ def figure_variable_missingness(ax_r, ax_r2):
     sns.lineplot(data=df, x="Missingness", y="r", hue="Detection", ax=ax)
     handles, labels = ax.get_legend_handles_labels()
     labels = [DETECTION_DISPLAY_NAMES[label] for label in labels]
-    ax.legend(handles, labels, loc="upper right").get_frame().set_alpha(1)
+    ax.legend(handles, labels, loc="lower left").get_frame().set_alpha(1)
     ax.set_ylabel("Imputation performance ($r$)")
     ax.set_xlabel("Fraction Missing (%)")
     ax.set_title("Variable missingness")
