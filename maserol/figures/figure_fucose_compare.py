@@ -46,7 +46,7 @@ def makeFigure():
     fucose_inferred = compute_fucose_ratio(Rtot).xs("gp120.SF162", level="Antigen")
     plot = Multiplot(
         (3, 4),
-        fig_size=(7.5, 10),
+        fig_size=(7.5, 8.75),
         subplot_specs=[
             (0, 2, 0, 1),
             (2, 1, 0, 1),
@@ -143,7 +143,7 @@ def makeFigure():
     annotate_spearman(ax, glycan_ce["F.total"], glycan_ce["B.total"])
 
     plot.add_subplot_labels(ax_relative=True)
-    plot.fig.tight_layout(pad=0, w_pad=0, h_pad=0.5)
+    plot.fig.tight_layout(pad=0, w_pad=2, h_pad=0.3)
     return plot.fig
 
 
@@ -164,7 +164,12 @@ def figure_CE(ax):
     )
 
     sns.scatterplot(
-        data=fucose_compare, y="fucose_ce", x="fucose_inferred", ax=ax, alpha=ALPHA, s=POINT_SIZE
+        data=fucose_compare,
+        y="fucose_ce",
+        x="fucose_inferred",
+        ax=ax,
+        alpha=ALPHA,
+        s=POINT_SIZE,
     )
     ax.set_ylabel("CE IgG Fucosylation (%)")
     ax.set_xlabel("Inferred IgG Fucosylation (%)")
@@ -182,7 +187,7 @@ def figure_CE(ax):
     ax.text(
         ANNOTATION_LOCATION[0],
         ANNOTATION_LOCATION[1] - ANNOTATION_SEPARATION,
-        r"p = " + "{:.2e}".format(p),
+        r"p = " + f"{p:.2e}",
         verticalalignment="bottom",
         horizontalalignment="left",
         transform=ax.transAxes,

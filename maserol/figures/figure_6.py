@@ -31,7 +31,7 @@ def makeFigure():
         (10, 12),
         # the plotting for this function breaks at our required subplot
         # dimensions, so we make the figure larger than it needs to be
-        fig_size=(9, 9.5),
+        fig_size=(7.5, 7.5),
         subplot_specs=[
             (0, 10, 0, 3),
             (0, 10, 3, 3),

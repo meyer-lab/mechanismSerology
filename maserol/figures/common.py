@@ -40,7 +40,7 @@ matplotlib.rcParams["grid.color"] = "black"
 THIS_DIR = Path(__file__).parent
 CACHE_DIR = THIS_DIR.parent / "data" / "cache"
 
-SUBPLOT_LABEL_FONT_SIZE = 14
+SUBPLOT_LABEL_FONT_SIZE = 12
 ANNOTATION_FONT_SIZE = 8
 LOG10_SYMBOL = r"$\mathrm{log_{10}}$"
 
