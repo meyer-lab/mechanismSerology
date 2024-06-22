@@ -27,6 +27,7 @@ pytest = "^6.2"
 pytest-cov = "^3.0"
 mypy = "^0.991"
 valentbind = {git = "https://github.com/meyer-lab/valentBind.git", branch = "main"}
+ruff = "^0.4.7"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -34,3 +35,21 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]                                                           
 fbuild = "maserol.figures.common:genFigure"
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # Unused arguments
+    "ARG",
+]

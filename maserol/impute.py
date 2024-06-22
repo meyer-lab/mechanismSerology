@@ -8,6 +8,7 @@ from sklearn.metrics import r2_score
 from statsmodels.multivariate.pca import PCA
 
 from maserol.core import infer_Lbound, optimize_loss
+from maserol.figures.common import ANNOTATION_FONT_SIZE
 from maserol.util import assemble_Ka, assemble_options
 
 
@@ -75,8 +76,8 @@ def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
     assert residual_mask.dtype == bool
     assert tensor.shape == Lbound.shape
     test_mask = ~residual_mask
-    y = np.log10(tensor.values[test_mask] + 1)
-    x = np.log10(Lbound[test_mask] + 1)
+    y = tensor.values[test_mask]
+    x = Lbound[test_mask]
 
     df = pd.DataFrame(
         {
@@ -96,12 +97,28 @@ def imputation_scatterplot(tensor, Lbound, residual_mask, ax):
         ax=ax,
         alpha=0.72,
     )
-    r = np.corrcoef(x, y)[0][1]
-    ax.annotate(f"$r$ = {r:.2f}", xy=(0.7, 0.1), xycoords="axes fraction")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    valid_idx = (x > 0) & (y > 0)
+    log_x = np.log10(x[valid_idx])
+    log_y = np.log10(y[valid_idx])
+    # get idx where both are finite
+    r = np.corrcoef(log_x, log_y)[0][1]
+    ax.annotate(
+        f"$r$ = {r:.2f}",
+        xy=(0.7, 0.1),
+        xycoords="axes fraction",
+        fontsize=ANNOTATION_FONT_SIZE,
+    )
     # also show the R2
-    r2 = r2_score(y, x)
+    r2 = r2_score(log_y, log_x)
     # use latex for the R2
-    ax.annotate(f"$R^2$ = {r2:.2f}", xy=(0.7, 0.04), xycoords="axes fraction")
+    ax.annotate(
+        f"$R^2$ = {r2:.2f}",
+        xy=(0.7, 0.04),
+        xycoords="axes fraction",
+        fontsize=ANNOTATION_FONT_SIZE,
+    )
     return ax
 
 
