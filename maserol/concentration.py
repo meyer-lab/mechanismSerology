@@ -27,7 +27,8 @@ def fetch_uniprot_sequence(uniprot_id: str):
     if response.status_code == 200:
         # Process the FASTA format
         fasta_data = response.text
-        # Skip the first line with metadata and join the remaining lines for the sequence
+        # Skip the first line with metadata and join the remaining lines for the
+        # sequence
         sequence = "".join(fasta_data.split("\n")[1:])
         return sequence
     else:
@@ -61,7 +62,7 @@ def get_Fc_detection_molar_mass_cached(FcR: str):
 
 def get_detection_masses():
     masses = {}
-    for rcp in UNIPROT_IDS.keys():
+    for rcp in UNIPROT_IDS:
         masses[rcp] = calculate_Fc_detection_molar_mass(rcp)
     masses = pd.DataFrame(list(masses.items()), columns=["Receptor", "Mass"]).set_index(
         "Receptor", drop=True

@@ -134,7 +134,8 @@ def infer_Lbound_mv(
 
     Args:
         Rtot: see `infer_Lbound`.
-        Ka: matrix of shape (n_lig, n_rcp). Where n_lig may be smaller than n_lig in `infer_Lbound`.
+        Ka: matrix of shape (n_lig, n_rcp). Where n_lig may be smaller than
+          n_lig in `infer_Lbound`.
         L0, KxStar, f: subset of L0, KxStar, f as seen in `infer_Lbound`
           containing entries only for the ligands which are to be inferred by
           multivalent binding model.

@@ -12,11 +12,10 @@ from maserol.core import (
     reshape_params,
 )
 from maserol.datasets import Zohar
-from maserol.util import HIgGs, assemble_options
+from maserol.util import assemble_options
 
 
-@pytest.mark.parametrize("n_rcp", [1, 2, 3])
-def test_initialize(n_rcp):
+def test_initialize():
     detection_signal = Zohar().get_detection_signal()
     opts = assemble_options(detection_signal)
     n_cplx, n_lig = detection_signal.shape
