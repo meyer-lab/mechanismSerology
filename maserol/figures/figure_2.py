@@ -49,9 +49,7 @@ def figure_2b(ax):
     else:
         Rtot = np.loadtxt(CACHE_DIR / "figure_2b_Rtot.txt")
         Rtot_inferred = np.loadtxt(CACHE_DIR / "figure_2b_Rtot_inferred.txt")
-    sns.scatterplot(
-        x=Rtot_inferred[:, 0], y=Rtot[:, 0], alpha=0.6, ax=ax
-    )
+    sns.scatterplot(x=Rtot_inferred[:, 0], y=Rtot[:, 0], alpha=0.6, ax=ax)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_title("Actual vs predicted antibody abundance")
@@ -68,9 +66,7 @@ def figure_2c(ax):
     else:
         Rtot = np.loadtxt(CACHE_DIR / "figure_2c_Rtot.txt")
         Rtot_inferred = np.loadtxt(CACHE_DIR / "figure_2c_Rtot_inferred.txt")
-    sns.scatterplot(
-        x=Rtot_inferred[:, 0], y=Rtot[:, 0], alpha=0.6, ax=ax
-    )
+    sns.scatterplot(x=Rtot_inferred[:, 0], y=Rtot[:, 0], alpha=0.6, ax=ax)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_title("Actual vs predicted (30% noise)")
