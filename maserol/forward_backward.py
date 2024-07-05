@@ -6,7 +6,6 @@ from maserol.util import assemble_Ka, assemble_options
 
 
 def forward_backward(noise_std=0, Ka_transform_func=lambda x: x, tol=1e-5, n_cplx=1000):
-
     rcps = ["IgG1", "IgG2", "IgG3", "IgG4"]
     n_rcp = len(rcps)
 

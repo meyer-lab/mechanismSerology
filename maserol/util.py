@@ -1,4 +1,4 @@
-""" Import binding affinities. """
+"""Import binding affinities."""
 
 import re
 from pathlib import Path
@@ -62,7 +62,7 @@ def get_affinity(lig: str, rcp: str) -> float:
     try:
         return df.at[lig, rcp]
     except KeyError:
-        raise AffinityNotFoundException(lig, rcp)
+        raise AffinityNotFoundException(lig, rcp) from None
 
 
 def assemble_Ka(
@@ -80,9 +80,9 @@ def assemble_Ka(
     )
 
     # fill in remaining affinity values
-    for r in rcps:
-        for l in ligs:
-            Ka.loc[dict(Ligand=l, Receptor=r)] = get_affinity(l, r)
+    for rcp in rcps:
+        for lig in ligs:
+            Ka.loc[dict(Ligand=lig, Receptor=rcp)] = get_affinity(lig, rcp)
 
     Ka.values[np.where(Ka.values < 10.0)] = 10
     Ka.values = Ka.values.astype("float")
@@ -122,8 +122,8 @@ def assemble_options(
             [data.Ligand.values[i] in rcp for rcp in rcps]
         )
     logistic_ligs = logistic_ligand_map(logistic_ligands)
-    for l in data.Ligand.values[logistic_ligs]:
-        assert "IgG" in l
+    for lig in data.Ligand.values[logistic_ligs]:
+        assert "IgG" in lig
     multivalent_ligs = ~logistic_ligs
     n_mvl = np.count_nonzero(multivalent_ligs)
     FcRs = data.Ligand.values[multivalent_ligs]

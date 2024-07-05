@@ -8,7 +8,6 @@ from maserol.datasets import Zohar
 from maserol.figures.common import (
     CACHE_DIR,
     DETECTION_DISPLAY_NAMES,
-    LOG10_SYMBOL,
     Multiplot,
 )
 from maserol.impute import (

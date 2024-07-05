@@ -69,7 +69,8 @@ def figure_mechanistic_relate(ax_0, ax_1, ax_2):
     )
     ax_0.set_xlabel("Inferred IgG Fucosylation (%)")
     ax_0.set_ylabel(
-        f"{LOG10_SYMBOL}({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']} + 1)"
+        f"{LOG10_SYMBOL}"
+        f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']} + 1)"
     )
     r, p = pearsonr(df_fucose_ratio["fucose_inferred"], y)
     ax_0.text(

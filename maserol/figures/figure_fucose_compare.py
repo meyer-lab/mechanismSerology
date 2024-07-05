@@ -72,7 +72,8 @@ def makeFigure():
     )
     ax.set_ylabel(
         r"$\mathrm{log_{10}}$"
-        + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['IgG1']} + 1)"
+        f"({DETECTION_DISPLAY_NAMES['FcR3A']}"
+        f" / {DETECTION_DISPLAY_NAMES['IgG1']} + 1)"
     )
     ax.set_xlabel("CE IgG Fucosylation (%)")
 
@@ -84,7 +85,8 @@ def makeFigure():
     )
     ax.set_ylabel(
         r"$\mathrm{log_{10}}$"
-        + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']} + 1)"
+        f"({DETECTION_DISPLAY_NAMES['FcR3A']}"
+        f" / {DETECTION_DISPLAY_NAMES['FcR2A']} + 1)"
     )
     ax.set_xlabel("CE IgG Fucosylation (%)")
 
@@ -96,7 +98,8 @@ def makeFigure():
     )
     ax.set_ylabel(
         r"$\mathrm{log_{10}}$"
-        + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['IgG1']} + 1)"
+        f"({DETECTION_DISPLAY_NAMES['FcR3A']}"
+        f" / {DETECTION_DISPLAY_NAMES['IgG1']} + 1)"
     )
     ax.set_xlabel("Inferred IgG Fucosylation (%)")
 
@@ -108,7 +111,8 @@ def makeFigure():
     )
     ax.set_ylabel(
         r"$\mathrm{log_{10}}$"
-        + f"({DETECTION_DISPLAY_NAMES['FcR3A']} / {DETECTION_DISPLAY_NAMES['FcR2A']} + 1)"
+        f"({DETECTION_DISPLAY_NAMES['FcR3A']}"
+        f" / {DETECTION_DISPLAY_NAMES['FcR2A']} + 1)"
     )
     ax.set_xlabel("Inferred IgG Fucosylation (%)")
 
@@ -218,7 +222,7 @@ def annotate_spearman(ax, x, y):
     ax.text(
         ANNOTATION_LOCATION[0],
         ANNOTATION_LOCATION[1] - ANNOTATION_SEPARATION,
-        r"p = " + "{:.2e}".format(p),
+        r"p = " + f"{p:.2e}",
         verticalalignment="bottom",
         horizontalalignment="left",
         transform=ax.transAxes,

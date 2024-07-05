@@ -2,17 +2,16 @@
 This file contains functions that are used in multiple figures.
 """
 
+import logging
 import sys
 import time
-import logging
 from pathlib import Path
-from string import ascii_lowercase
 
 import matplotlib
 import seaborn as sns
-from matplotlib import gridspec, pyplot as plt
+from matplotlib import gridspec
+from matplotlib import pyplot as plt
 from statannotations.Annotator import Annotator
-
 
 matplotlib.rcParams["legend.labelspacing"] = 0.2
 matplotlib.rcParams["legend.fontsize"] = 8
@@ -59,10 +58,11 @@ class Multiplot:
         self, grid, ax_size=None, fig_size=None, subplot_specs=None, empty=None
     ):
         """
-        :param ax_size: Tuple specifying the axis size (width, height)
-        :param grid: Tuple specifying the grid size (columns, rows)
-        :param subplot_specs: List of tuples specifying subplot positions and spans as
-                              (col_start, col_span, row_start, row_span) for each subplot
+        Args:
+          ax_size: Tuple specifying the axis size (width, height)
+          grid: Tuple specifying the grid size (columns, rows)
+          subplot_specs: List of tuples specifying subplot positions and
+            spans as (col_start, col_span, row_start, row_span) for each subplot
         """
         if ax_size is None:
             self.fig_size = fig_size
@@ -90,7 +90,7 @@ class Multiplot:
                 "axes.edgecolor": "black",
                 "grid.linestyle": "dotted",
                 "grid.color": "black",
-            }
+            },
         )
         sns.set_palette("colorblind")
 
@@ -115,15 +115,6 @@ class Multiplot:
             ax[ax_i].axis("off")
 
         return ax, f
-
-    def add_subplot_labels(self, labels=None):
-        """Add labels to subplots. If labels are None, use alphabetical labels."""
-        if labels is None:
-            labels = [chr(ord("a") + i) for i in range(len(self.axes))]
-        for ax, label in zip(self.axes, labels):
-            ax.set_title(
-                label, loc="left", fontsize=SUBPLOT_LABEL_FONT_SIZE, fontweight="bold"
-            )
 
     def subplot_spec_to_bounds(self, spec):
         x_width = 1 / self.grid[0]
@@ -174,7 +165,7 @@ def genFigure():
     nameOut = "figure" + sys.argv[1]
 
     exec("from maserol.figures." + nameOut + " import makeFigure", globals())
-    ff = makeFigure()
+    ff = makeFigure()  # noqa: F821
     ff.savefig(fdir + nameOut + ".svg", dpi=300, bbox_inches="tight", pad_inches=0)
 
     logging.info(f"Figure {sys.argv[1]} is done after {time.time() - start} seconds.")

@@ -1,14 +1,15 @@
 import functools
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
 from maserol.datasets import Zohar
+from maserol.figures.common import CACHE_DIR, DETECTION_DISPLAY_NAMES, Multiplot
 from maserol.impute import (
     impute_missing_pca,
     run_repeated_imputation,
 )
-from maserol.figures.common import CACHE_DIR, Multiplot, DETECTION_DISPLAY_NAMES
 
 N_CPLX = 500
 MISSINGNESS = 0.1
