@@ -61,6 +61,7 @@ def figure_5abc(ax_a, ax_b, ax_c):
         ax=ax,
         order=order,
         showfliers=False,
+        palette=["#539ecd"],
     )
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_ylim(*y_lim)
@@ -80,6 +81,8 @@ def figure_5abc(ax_a, ax_b, ax_c):
         y="fucose_inferred",
         ax=ax,
         showfliers=False,
+        palette=["#61bdcd"],
+        saturation=1,
     )
     ax.set_ylabel(None)
     ax.set_ylim(*y_lim)
@@ -99,8 +102,9 @@ def figure_5abc(ax_a, ax_b, ax_c):
         y="fucose_inferred",
         ax=ax,
         hue_order=["No", "Yes"],
-        palette=sns.color_palette(),
+        palette=["#bad6eb", "#0b559f"],
         showfliers=False,
+        order=order,
     )
     ax.set_ylabel(None)
     ax.set_ylim(*y_lim)
@@ -160,6 +164,7 @@ def figure_5d(ax):
         ax=ax,
         hue_order=["control", "case"],
         showfliers=False,
+        palette=["#a9aa35", "#c03d3e"],
     )
     ax.set_xticklabels(ax.get_xticklabels(), rotation=30)
     ax.set_ylabel("IgG Fucosylation (%)")

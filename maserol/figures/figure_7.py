@@ -87,7 +87,7 @@ def plot_combinations(df, metric, ax, ylim=None):
     for comb in combs:
         for lig in comb:
             rligs.add(lig)
-    rligs = list(rligs)
+    rligs = list(sorted(rligs))
     df_sub = df[df["metric"] == metric]
     combs = df_sub["comb"].unique()
     lig_idxs = df_sub["lig"].unique()
@@ -100,14 +100,21 @@ def plot_combinations(df, metric, ax, ylim=None):
     palette = sns.color_palette(palette="colorblind", n_colors=len(rligs))
     colors = {lig: palette[i] for i, lig in enumerate(rligs)}
 
+    legend_handles = {}  # Use a dictionary to store unique legend handles
+
     for i, comb in enumerate(combs):
         for lig_idx, lig in enumerate(comb):
             data = df_sub[(df_sub["comb"] == comb) & (df_sub["lig"] == lig_idx)]["val"]
             position = i - (n_lig - 1) / 2 * width + lig_idx * width
             mean = np.mean(data)
             std = np.std(data)
-            ax.bar(position, mean, width, color=colors[lig], edgecolor="black")
+            bar = ax.bar(position, mean, width, color=colors[lig], edgecolor="black")
             ax.errorbar(position, mean, yerr=std, fmt="none", color="black", capsize=3)
+
+            # Add this block to create unique legend handles
+            if lig not in legend_handles:
+                legend_handles[lig] = bar[0]
+                bar[0].set_label(DETECTION_DISPLAY_NAMES[lig])
 
     offsets = [width / 2 * -(n_lig - 1) + i * width for i in range(n_lig)]
     central_positions = [i + offset for i in range(n_comb) for offset in offsets]
@@ -120,6 +127,15 @@ def plot_combinations(df, metric, ax, ylim=None):
         ax.set_ylim(ylim)
 
     ax.xaxis.grid(False)
+
+    # Add legend with unique handles
+    ax.legend(
+        handles=list(legend_handles.values()),
+        title="Detection",
+        loc="upper left",
+        bbox_to_anchor=(1, 1),
+        framealpha=0.9,
+    )
 
     return plt
 
