@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -15,11 +16,12 @@ LIG_ORDER = ["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"]
 
 
 class Zohar:
-    def get_detection_signal(self) -> xr.DataArray:
+    def get_detection_signal(self, select_ligs: Optional[bool] = True) -> xr.DataArray:
         data = zohar(subtract_baseline=True)
         data += np.abs(np.minimum(data.min(dim=["Sample"]), 0))
         data = prepare_data(data)
-        data = data.sel(Ligand=LIG_ORDER)
+        if select_ligs:
+            data = data.sel(Ligand=LIG_ORDER)
         return data
 
     def get_metadata(self) -> pd.DataFrame:
@@ -38,7 +40,7 @@ class Zohar:
 
 
 class Kaplonek:
-    def get_detection_signal(self) -> xr.DataArray:
+    def get_detection_signal(self, select_ligs: Optional[bool] = True) -> xr.DataArray:
         mgh_4d = MGH4D()["Serology"]
 
         tensors = [10 ** mgh_4d.isel(Time=i) for i in range(mgh_4d.sizes["Time"])]
@@ -52,7 +54,10 @@ class Kaplonek:
             antigens[antigens == "SARS.CoV2_N"] = "SARS.CoV.2_N"
             tensor["Antigen"] = antigens
 
-        tensors = [prepare_data(tensor, ligs=LIG_ORDER) for tensor in tensors]
+        tensors = [
+            prepare_data(tensor, ligs=LIG_ORDER if select_ligs else None)
+            for tensor in tensors
+        ]
         return xr.concat(tensors, dim="Complex")
 
     def get_metadata(self) -> pd.DataFrame:
@@ -61,20 +66,21 @@ class Kaplonek:
 
 
 class Alter:
-    def get_detection_signal(self) -> xr.DataArray:
+    def get_detection_signal(self, select_ligs: Optional[bool] = True) -> xr.DataArray:
         data = alter()["Fc"]
-        data = data.sel(
-            Receptor=[
-                "IgG1",
-                "IgG3",
-                "FcgRIIa.H131",
-                "FcgRIIa.R131",
-                "FcgRIIb",
-                "FcgRIIIa.F158",
-                "FcgRIIIa.V158",
-                "FcgRIIIb",
-            ]
-        )
+        if select_ligs:
+            data = data.sel(
+                Receptor=[
+                    "IgG1",
+                    "IgG3",
+                    "FcgRIIa.H131",
+                    "FcgRIIa.R131",
+                    "FcgRIIb",
+                    "FcgRIIIa.F158",
+                    "FcgRIIIa.V158",
+                    "FcgRIIIb",
+                ]
+            )
         translate = {
             "FcgRIIa.H131": "FcR2A-131H",
             "FcgRIIa.R131": "FcR2A-131R",
@@ -122,9 +128,12 @@ class Alter:
 
 
 class KaplonekVaccine:
-    def get_detection_signal(self) -> xr.DataArray:
+    def get_detection_signal(self, select_ligs: Optional[bool] = True) -> xr.DataArray:
         data = kaplonek_vaccine()["Luminex"]
-        return prepare_data(data).sel(Ligand=LIG_ORDER)
+        data = prepare_data(data)
+        if select_ligs:
+            data = data.sel(Ligand=LIG_ORDER)
+        return data
 
     def get_metadata(self) -> pd.DataFrame:
         metadata = (

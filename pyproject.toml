@@ -21,6 +21,7 @@ tensorly = "^0.8.1"
 statannotations = "^0.6.0"
 requests = "^2.31.0"
 setuptools = "^69.5.1"
+ipykernel = "^6.29.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.2"

@@ -13,6 +13,8 @@ UPDATE_CACHE = {
     "kaplonek_vaccine": False,
 }
 
+ZOHAR_RTOT_CACHE_PATH = CACHE_DIR / "zohar_Rtot.csv"
+KAPLONEK_VACCINE_RTOT_CACHE_PATH = CACHE_DIR / "kaplonek_vaccine_Rtot.csv"
 
 def makeFigure():
     plot = Multiplot(
@@ -42,9 +44,9 @@ def figure_5abc(ax_a, ax_b, ax_c):
     if UPDATE_CACHE["zohar"]:
         x, ctx = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
         Rtot = Rtot_to_df(x["Rtot"], detection_signal, rcps=list(opts["rcps"]))
-        Rtot.to_csv(CACHE_DIR / "zohar_Rtot.csv")
+        Rtot.to_csv(ZOHAR_RTOT_CACHE_PATH)
     else:
-        Rtot = pd.read_csv(CACHE_DIR / "zohar_Rtot.csv").set_index(
+        Rtot = pd.read_csv(ZOHAR_RTOT_CACHE_PATH).set_index(
             ["Sample", "Antigen"], drop=True
         )
 
@@ -140,7 +142,7 @@ def figure_5d(ax):
     ]
     detection_signal = detection_signal.sel(Complex=pd.IndexSlice[:, ag_include])
     metadata = kaplonek_vaccine.get_metadata()
-    filepath = CACHE_DIR / "kaplonek_vaccine_Rtot.csv"
+    filepath = KAPLONEK_VACCINE_RTOT_CACHE_PATH
     if UPDATE_CACHE["kaplonek_vaccine"]:
         opts = assemble_options(detection_signal)
         params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)

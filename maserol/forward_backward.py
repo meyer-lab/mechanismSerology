@@ -5,6 +5,20 @@ from maserol.core import infer_Lbound_mv, optimize_loss, reshape_params
 from maserol.util import assemble_Ka, assemble_options
 
 
+def generate_rtot_distribution(n_samples, n_receptors=4):
+    """
+    Generate the Rtot distribution used in forward_backward.
+    
+    Args:
+    n_samples (int): Number of samples to generate.
+    n_receptors (int): Number of receptors.
+    
+    Returns:
+    numpy.ndarray: Array of shape (n_samples, n_receptors) containing the generated distribution.
+    """
+    return 10 ** np.random.normal(loc=2, scale=0.4, size=(n_samples, n_receptors))
+
+
 def forward_backward(noise_std=0, Ka_transform_func=lambda x: x, tol=1e-5, n_cplx=1000):
     rcps = ["IgG1", "IgG2", "IgG3", "IgG4"]
     n_rcp = len(rcps)
@@ -22,7 +36,7 @@ def forward_backward(noise_std=0, Ka_transform_func=lambda x: x, tol=1e-5, n_cpl
     n_lig = len(lig)
 
     Rtot = xr.DataArray(
-        10 ** np.random.normal(loc=2, scale=0.4, size=(n_cplx, n_rcp)),
+        generate_rtot_distribution(n_cplx, n_rcp),
         [np.arange(n_cplx), list(rcps)],
         ["Complex", "Receptor"],
     )
