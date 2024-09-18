@@ -1,12 +1,14 @@
-name: Build
+name: Test
 
 on: [push]
 
 jobs:
-  build:
+  test:
     runs-on: self-hosted
-
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Get dependencies cache key
         id: dependencies-cache-key
         run: echo "hash=$(md5sum pyproject.toml | awk '{print $1}')" >> $GITHUB_OUTPUT
@@ -18,11 +20,15 @@ jobs:
           version: '0.39.0'
           cache-prefix: ${{ steps.dependencies-cache-key.outputs.hash }}
 
-      - name: Build figures
-        run: make all
+      - name: Run tests
+        run: make coverage.xml
 
-      - name: Upload files
-        uses: actions/upload-artifact@v3
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
         with:
-          name: files
-          path: output/*.svg
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          flags: unittests
+          env_vars: OS,PYTHON
+          name: codecov-umbrella
+          fail_ci_if_error: true

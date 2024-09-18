@@ -1,5 +1,0 @@
-[run]
-
-omit = 
-  syserol/figures/*
-  syserol/data/*
