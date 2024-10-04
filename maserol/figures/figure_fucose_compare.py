@@ -4,7 +4,7 @@ import seaborn as sns
 from scipy.stats import pearsonr, spearmanr
 
 from maserol.core import optimize_loss
-from maserol.datasets import Alter
+from maserol.datasets import Alter, data_to_df
 from maserol.figures.common import (
     ANNOTATION_FONT_SIZE,
     DETECTION_DISPLAY_NAMES,
@@ -16,7 +16,6 @@ from maserol.util import (
     Rtot_to_df,
     assemble_options,
     compute_fucose_ratio,
-    data_to_df,
 )
 
 ALPHA = 0.65

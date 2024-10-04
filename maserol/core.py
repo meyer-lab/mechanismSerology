@@ -1,5 +1,5 @@
+from collections.abc import Collection
 from copy import deepcopy
-from typing import Collection, Dict, Tuple
 
 import numpy as np
 import xarray as xr
@@ -245,7 +245,7 @@ def optimize_loss(
     tol: float = 1e-6,
     Ka: np.ndarray[float] = None,
     return_reshaped_params=False,
-) -> Tuple[np.ndarray, Dict]:
+) -> tuple[np.ndarray, dict]:
     """
     Infer the receptor abundances given the ligand abundances specified in `data`.
 
@@ -374,7 +374,7 @@ def reshape_params(
     return scale_up_params(params)
 
 
-def flatten_params(params: Dict):
+def flatten_params(params: dict):
     """
     Scales down and flattens params.
     """
@@ -386,7 +386,7 @@ def initialize_params(
     data: xr.DataArray,
     logistic_ligands: np.ndarray,
     rcps: Collection = DEFAULT_RCPS,
-) -> Dict:
+) -> dict:
     """
     Randomly initializes parameters using distributions informed by data.
     """
@@ -415,7 +415,7 @@ def initialize_params(
     return params
 
 
-def scale_down_params(params: Dict):
+def scale_down_params(params: dict):
     params = deepcopy(params)
     params["Rtot"] = np.log(params["Rtot"])
     # don't take log of logistic curve inflection slope
@@ -423,7 +423,7 @@ def scale_down_params(params: Dict):
     return params
 
 
-def scale_up_params(params: Dict):
+def scale_up_params(params: dict):
     params = deepcopy(params)
     params["Rtot"] = np.exp(params["Rtot"])
     params["logistic_params"][:3] = np.exp(params["logistic_params"][:3])
@@ -432,7 +432,7 @@ def scale_up_params(params: Dict):
 
 def assemble_jac_sparsity(
     data: xr.DataArray,
-    rcps: Tuple,
+    rcps: tuple,
     logistic_ligands: np.ndarray[bool],
 ):
     """

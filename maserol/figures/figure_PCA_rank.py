@@ -33,7 +33,7 @@ def makeFigure():
             run_repeated_imputation(
                 data, imputer, runs=RUNS, missingness=MISSINGNESS
             ).replace("impute_missing_pca", rank)
-            for imputer, rank in zip(imputers, ranks)
+            for imputer, rank in zip(imputers, ranks, strict=False)
         )
         df.rename(columns={"Method": "Rank"}, inplace=True)
         df.to_csv(CACHE_DIR / file_name)

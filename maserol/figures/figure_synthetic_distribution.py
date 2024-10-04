@@ -211,7 +211,7 @@ def makeFigure():
 
         # Set to 2 significant figures
         @plt.FuncFormatter
-        def sci_formatter(x, p):
+        def sci_formatter(x, _):
             return f"{x:.1e}"
 
         ax.yaxis.set_major_formatter(sci_formatter)

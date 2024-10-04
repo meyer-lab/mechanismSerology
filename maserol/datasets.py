@@ -1,5 +1,5 @@
 import re
-from typing import Optional
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -16,7 +16,7 @@ LIG_ORDER = ["IgG1", "IgG3", "FcR2A", "FcR2B", "FcR3A", "FcR3B"]
 
 
 class Zohar:
-    def get_detection_signal(self, select_ligs: Optional[bool] = True) -> xr.DataArray:
+    def get_detection_signal(self, select_ligs: bool | None = True) -> xr.DataArray:
         data = zohar(subtract_baseline=True)
         data += np.abs(np.minimum(data.min(dim=["Sample"]), 0))
         data = prepare_data(data)
@@ -40,7 +40,7 @@ class Zohar:
 
 
 class Kaplonek:
-    def get_detection_signal(self, select_ligs: Optional[bool] = True) -> xr.DataArray:
+    def get_detection_signal(self, select_ligs: bool | None = True) -> xr.DataArray:
         mgh_4d = MGH4D()["Serology"]
 
         tensors = [10 ** mgh_4d.isel(Time=i) for i in range(mgh_4d.sizes["Time"])]
@@ -66,7 +66,7 @@ class Kaplonek:
 
 
 class Alter:
-    def get_detection_signal(self, select_ligs: Optional[bool] = True) -> xr.DataArray:
+    def get_detection_signal(self, select_ligs: bool | None = True) -> xr.DataArray:
         data = alter()["Fc"]
         if select_ligs:
             data = data.sel(
@@ -128,7 +128,7 @@ class Alter:
 
 
 class KaplonekVaccine:
-    def get_detection_signal(self, select_ligs: Optional[bool] = True) -> xr.DataArray:
+    def get_detection_signal(self, select_ligs: bool | None = True) -> xr.DataArray:
         data = kaplonek_vaccine()["Luminex"]
         data = prepare_data(data)
         if select_ligs:
@@ -147,7 +147,7 @@ class KaplonekVaccine:
         return metadata
 
 
-def prepare_data(data: xr.DataArray, ligs=None):
+def prepare_data(data: xr.DataArray, ligs: list[str] | Literal["all"] | None = None):
     """
     Reshapes data into matrix of size (n_cplx, n_lig), where n_cplx = n_sample x
     n_ag - missing.
@@ -161,12 +161,27 @@ def prepare_data(data: xr.DataArray, ligs=None):
         .stack(Complex=("Sample", "Antigen"))
         .transpose("Complex", "Ligand")
     )
-    ligs = ligs or [
-        lig
-        for lig in data.Ligand.values
-        if re.match("^igg|fc[gr]*", lig, flags=re.IGNORECASE) and lig != "FcRalpha"
-    ]
-    data = data.sel(
-        Ligand=ligs,
-    )
+    if ligs != "all":
+        ligs = (
+            ligs
+            if ligs is not None
+            else [
+                lig
+                for lig in data.Ligand.values
+                if re.match("^igg|fc[gr]*", lig, flags=re.IGNORECASE)
+                and lig != "FcRalpha"
+            ]
+        )
+        data = data.sel(
+            Ligand=ligs,
+        )
     return data[np.all(~np.isnan(data.values), axis=1)]
+
+
+def data_to_df(
+    data: xr.DataArray = None,
+):
+    df = data.to_dataframe(name="Abundance").drop(columns=["Antigen", "Sample"])
+    df = df.reset_index(level="Ligand").pivot(columns="Ligand")
+    df.columns = [col[1] for col in df.columns]
+    return df

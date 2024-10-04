@@ -16,6 +16,7 @@ UPDATE_CACHE = {
 ZOHAR_RTOT_CACHE_PATH = CACHE_DIR / "zohar_Rtot.csv"
 KAPLONEK_VACCINE_RTOT_CACHE_PATH = CACHE_DIR / "kaplonek_vaccine_Rtot.csv"
 
+
 def makeFigure():
     plot = Multiplot(
         (5, 2),
@@ -63,7 +64,7 @@ def figure_5abc(ax_a, ax_b, ax_c):
         ax=ax,
         order=order,
         showfliers=False,
-        palette=["#539ecd"],
+        palette=sns.color_palette("Greens").as_hex()[2:3],
     )
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_ylim(*y_lim)
@@ -83,7 +84,7 @@ def figure_5abc(ax_a, ax_b, ax_c):
         y="fucose_inferred",
         ax=ax,
         showfliers=False,
-        palette=["#61bdcd"],
+        palette=sns.color_palette("Greens").as_hex()[3:4],
         saturation=1,
     )
     ax.set_ylabel(None)
@@ -104,7 +105,10 @@ def figure_5abc(ax_a, ax_b, ax_c):
         y="fucose_inferred",
         ax=ax,
         hue_order=["No", "Yes"],
-        palette=["#bad6eb", "#0b559f"],
+        palette=[
+            sns.color_palette("Blues").as_hex()[3],
+            sns.color_palette("Oranges").as_hex()[3],
+        ],
         showfliers=False,
         order=order,
     )
@@ -166,7 +170,10 @@ def figure_5d(ax):
         ax=ax,
         hue_order=["control", "case"],
         showfliers=False,
-        palette=["#a9aa35", "#c03d3e"],
+        palette=[
+            sns.color_palette("Blues").as_hex()[4],
+            sns.color_palette("Oranges").as_hex()[4],
+        ],
     )
     ax.set_xticklabels(ax.get_xticklabels(), rotation=30)
     ax.set_ylabel("IgG Fucosylation (%)")

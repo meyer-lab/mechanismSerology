@@ -30,6 +30,15 @@ h5py==3.11.0
     # via anndata
 idna==3.10
     # via requests
+jax==0.4.33
+    # via jaxopt
+    # via valentbind
+jaxlib==0.4.33
+    # via jax
+    # via jaxopt
+    # via valentbind
+jaxopt==0.8.3
+    # via valentbind
 joblib==1.4.2
     # via scikit-learn
 kiwisolver==1.4.7
@@ -38,14 +47,21 @@ matplotlib==3.7.0
     # via maserol
     # via seaborn
     # via statannotations
+ml-dtypes==0.5.0
+    # via jax
+    # via jaxlib
 natsort==8.4.0
     # via anndata
 numpy==1.26.4
     # via anndata
     # via contourpy
     # via h5py
+    # via jax
+    # via jaxlib
+    # via jaxopt
     # via maserol
     # via matplotlib
+    # via ml-dtypes
     # via pandas
     # via patsy
     # via scikit-learn
@@ -54,7 +70,10 @@ numpy==1.26.4
     # via statannotations
     # via statsmodels
     # via tensordata
+    # via valentbind
     # via xarray
+opt-einsum==3.4.0
+    # via jax
 packaging==24.1
     # via anndata
     # via matplotlib
@@ -85,11 +104,15 @@ scikit-learn==1.5.2
     # via maserol
 scipy==1.14.1
     # via anndata
+    # via jax
+    # via jaxlib
+    # via jaxopt
     # via maserol
     # via scikit-learn
     # via seaborn
     # via statannotations
     # via statsmodels
+    # via valentbind
 seaborn==0.11.2
     # via maserol
     # via statannotations
@@ -106,5 +129,7 @@ threadpoolctl==3.5.0
     # via scikit-learn
 urllib3==2.2.3
     # via requests
+valentbind @ git+https://github.com/meyer-lab/valentBind.git@406673faf3ec6fa5bff13f53d4b1070461230759
+    # via maserol
 xarray==2024.3.0
     # via tensordata
