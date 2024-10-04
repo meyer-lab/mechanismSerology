@@ -10,37 +10,31 @@ See our
 
 ## Installation
 
-This project uses [Poetry](https://python-poetry.org/) for dependency
+This project uses [Rye](https://rye.astral.sh/guide/installation/#installing-rye) for dependency
 management.
 
-You can install our project as a dependency by adding the following to your `pyproject.toml` file:
-
-```toml
-[tool.poetry.dependencies]
-maserol = { git = "https://github.com/meyer-lab/mechanismSerology.git", branch = "main" }
-```
-
-Otherwise, you can clone the repository and install the dependencies by running the following commands:
+You can clone the repository and install the dependencies by running the following commands:
 
 ```bash
 git clone https://github.com/meyer-lab/mechanismSerology.git
 cd mechanismSerology
-poetry install
+rye sync
 ```
 
 ## Running the code
 
 ### Figure generation
+
 The figures can be generated using:
 
 ```bash
-poetry run make all
+rye run make all
 ```
 
 or for a specific figure:
 
 ```bash
-poetry run make output/figure_X.svg
+rye run make output/figure_X.svg
 ```
 
 ### Using the model
@@ -76,4 +70,3 @@ zohar_data = zohar.get_detection_signal()
 
 zohar_meta = zohar.get_metadata()
 ```
-
