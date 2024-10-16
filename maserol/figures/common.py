@@ -13,27 +13,31 @@ from matplotlib import gridspec
 from matplotlib import pyplot as plt
 from statannotations.Annotator import Annotator
 
-matplotlib.rcParams["legend.labelspacing"] = 0.2
-matplotlib.rcParams["legend.fontsize"] = 8
-matplotlib.rcParams["xtick.major.pad"] = 1.0
-matplotlib.rcParams["ytick.major.pad"] = 1.0
-matplotlib.rcParams["xtick.minor.pad"] = 0.9
-matplotlib.rcParams["ytick.minor.pad"] = 0.9
-matplotlib.rcParams["legend.handletextpad"] = 0.5
-matplotlib.rcParams["legend.handlelength"] = 0.5
-matplotlib.rcParams["legend.framealpha"] = 0.5
-matplotlib.rcParams["legend.markerscale"] = 0.7
-matplotlib.rcParams["legend.borderpad"] = 0.35
-matplotlib.rcParams["axes.labelsize"] = 8
-matplotlib.rcParams["axes.titlesize"] = 8
-matplotlib.rcParams["xtick.labelsize"] = 8
-matplotlib.rcParams["ytick.labelsize"] = 8
-matplotlib.rcParams["figure.titlesize"] = 8
-matplotlib.rcParams["axes.linewidth"] = 0.5
-matplotlib.rcParams["axes.edgecolor"] = "black"
-matplotlib.rcParams["grid.linestyle"] = "dotted"
-matplotlib.rcParams["grid.linewidth"] = 0.5
-matplotlib.rcParams["grid.color"] = "black"
+rc_param_updates = {
+    "legend.labelspacing": 0.2,
+    "legend.fontsize": 8,
+    "xtick.major.pad": 1.0,
+    "ytick.major.pad": 1.0,
+    "xtick.minor.pad": 0.9,
+    "ytick.minor.pad": 0.9,
+    "legend.handletextpad": 0.5,
+    "legend.handlelength": 0.5,
+    "legend.framealpha": 0.5,
+    "legend.markerscale": 0.7,
+    "legend.borderpad": 0.35,
+    "axes.labelsize": 8,
+    "axes.titlesize": 8,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    "figure.titlesize": 8,
+    "font.size": 8,
+    "axes.linewidth": 0.5,
+    "axes.edgecolor": "black",
+    "grid.linestyle": "dotted",
+    "grid.linewidth": 0.5,
+    "grid.color": "black",
+}
+matplotlib.rcParams.update(rc_param_updates)
 
 
 THIS_DIR = Path(__file__).parent
@@ -83,7 +87,6 @@ class Multiplot:
 
     def setup(self):
         """Establish figure setup with flexible subplots."""
-        # sns.set(**PLOT_CONFIG)
         sns.set_style(
             "whitegrid",
             {
@@ -96,6 +99,7 @@ class Multiplot:
 
         # Setup figure and grid
         f = plt.figure(figsize=self.fig_size)
+        plt.rcParams.update(rc_param_updates)
         gs = gridspec.GridSpec(self.grid[1], self.grid[0], figure=f)
 
         # Create subplots according to the specifications
@@ -171,21 +175,16 @@ def genFigure():
     logging.info(f"Figure {sys.argv[1]} is done after {time.time() - start} seconds.")
 
 
-def remove_ns_annotations(annotator: Annotator):
-    """The provided annotator has no way to exclude annotating pairs which are
-    not significant. This prevents those ns annotations from showing."""
-    annotator.annotations = [an for an in annotator.annotations if an.text != "ns"]
-
-
-def annotate_mann_whitney(annotator: Annotator, correction="Benjamini-Hochberg"):
+def annotate_mann_whitney(
+    annotator: Annotator, correction="Benjamini-Hochberg", loc="outside"
+):
     """Perform Mann-Whitney test and multiple hypothesis correction and annotate."""
     annotator.configure(
         test="Mann-Whitney",
         text_format="star",
         comparisons_correction=correction,
         correction_format="replace",
-        loc="outside",
+        loc=loc,
+        hide_non_significant=True,
     )
-    annotator.apply_test()
-    remove_ns_annotations(annotator)
-    annotator.annotate()
+    annotator.apply_and_annotate()

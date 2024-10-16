@@ -1,11 +1,35 @@
+from copy import deepcopy
+
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from maserol.core import infer_Lbound_mv, optimize_loss, reshape_params
 from maserol.util import assemble_Ka, assemble_options
 
 
-def forward_backward(noise_std=0, Ka_transform_func=lambda x: x, tol=1e-5, n_cplx=1000):
+def generate_rtot_distribution(n_samples, n_receptors=4):
+    """
+    Generate the Rtot distribution used in forward_backward.
+
+    Args:
+    n_samples (int): Number of samples to generate.
+    n_receptors (int): Number of receptors.
+
+    Returns:
+    numpy.ndarray: Array of shape (n_samples, n_receptors) containing the
+    generated distribution.
+    """
+    return 10 ** np.random.normal(loc=2, scale=0.4, size=(n_samples, n_receptors))
+
+
+def forward_backward(
+    noise_std=0,
+    Ka_transform_func=lambda x: x,
+    tol=1e-5,
+    n_cplx=1000,
+    KxStar_perturb=None,
+) -> tuple[np.ndarray, pd.DataFrame]:
     rcps = ["IgG1", "IgG2", "IgG3", "IgG4"]
     n_rcp = len(rcps)
 
@@ -22,7 +46,7 @@ def forward_backward(noise_std=0, Ka_transform_func=lambda x: x, tol=1e-5, n_cpl
     n_lig = len(lig)
 
     Rtot = xr.DataArray(
-        10 ** np.random.normal(loc=2, scale=0.4, size=(n_cplx, n_rcp)),
+        generate_rtot_distribution(n_cplx, n_rcp),
         [np.arange(n_cplx), list(rcps)],
         ["Complex", "Receptor"],
     )
@@ -58,11 +82,40 @@ def forward_backward(noise_std=0, Ka_transform_func=lambda x: x, tol=1e-5, n_cpl
     # normal
     data.values *= np.maximum(1 + np.random.normal(scale=noise_std, size=data.shape), 0)
 
-    x_opt, ctx = optimize_loss(data, **backward_opts)
-    assert ctx["opt"].status > 0
-    params = reshape_params(x_opt, data, backward_opts["logistic_ligands"], rcps=rcps)
+    if KxStar_perturb is not None:
+        n_segs = len(KxStar_perturb)
+        seg_size = n_cplx // n_segs
+        Rtot_inferred_list = []
 
-    return Rtot, params["Rtot"]
+        for i in range(KxStar_perturb.size):
+            backward_opts_seg = deepcopy(backward_opts)
+            backward_opts_seg["KxStar"] *= KxStar_perturb[i]
+
+            if i == n_segs - 1:
+                data_seg = data[i * seg_size :]
+            else:
+                data_seg = data[i * seg_size : (i + 1) * seg_size]
+
+            x_opt, ctx = optimize_loss(data_seg, **backward_opts_seg)
+            assert ctx["opt"].status > 0
+            params = reshape_params(
+                x_opt, data_seg, backward_opts["logistic_ligands"], rcps=rcps
+            )
+            Rtot_inferred_seg = params["Rtot"]
+            Rtot_inferred_df = pd.DataFrame(Rtot_inferred_seg, columns=rcps)
+            Rtot_inferred_df["Perturbation"] = KxStar_perturb[i]
+            Rtot_inferred_list.append(Rtot_inferred_df)
+
+        Rtot_inferred = pd.concat(Rtot_inferred_list, ignore_index=True)
+    else:
+        x_opt, ctx = optimize_loss(data, **backward_opts)
+        assert ctx["opt"].status > 0
+        params = reshape_params(
+            x_opt, data, backward_opts["logistic_ligands"], rcps=rcps
+        )
+        Rtot_inferred = params["Rtot"]
+
+    return Rtot, Rtot_inferred
 
 
 def add_Ka_noise(noise_std: float, Ka: xr.DataArray):

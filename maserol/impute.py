@@ -1,5 +1,3 @@
-from typing import Dict
-
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -12,7 +10,7 @@ from maserol.figures.common import ANNOTATION_FONT_SIZE
 from maserol.util import assemble_Ka, assemble_options
 
 
-def assemble_residual_mask(data: xr.DataArray, ligand_missingness: Dict):
+def assemble_residual_mask(data: xr.DataArray, ligand_missingness: dict):
     """
     Adds missingness along particular ligands specified in `ligand_missingness`.
     """

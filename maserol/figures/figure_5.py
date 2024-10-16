@@ -13,6 +13,9 @@ UPDATE_CACHE = {
     "kaplonek_vaccine": False,
 }
 
+ZOHAR_RTOT_CACHE_PATH = CACHE_DIR / "zohar_Rtot.csv"
+KAPLONEK_VACCINE_RTOT_CACHE_PATH = CACHE_DIR / "kaplonek_vaccine_Rtot.csv"
+
 
 def makeFigure():
     plot = Multiplot(
@@ -42,9 +45,9 @@ def figure_5abc(ax_a, ax_b, ax_c):
     if UPDATE_CACHE["zohar"]:
         x, ctx = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
         Rtot = Rtot_to_df(x["Rtot"], detection_signal, rcps=list(opts["rcps"]))
-        Rtot.to_csv(CACHE_DIR / "zohar_Rtot.csv")
+        Rtot.to_csv(ZOHAR_RTOT_CACHE_PATH)
     else:
-        Rtot = pd.read_csv(CACHE_DIR / "zohar_Rtot.csv").set_index(
+        Rtot = pd.read_csv(ZOHAR_RTOT_CACHE_PATH).set_index(
             ["Sample", "Antigen"], drop=True
         )
 
@@ -61,6 +64,7 @@ def figure_5abc(ax_a, ax_b, ax_c):
         ax=ax,
         order=order,
         showfliers=False,
+        palette=sns.color_palette("Greens").as_hex()[2:3],
     )
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_ylim(*y_lim)
@@ -80,6 +84,8 @@ def figure_5abc(ax_a, ax_b, ax_c):
         y="fucose_inferred",
         ax=ax,
         showfliers=False,
+        palette=sns.color_palette("Greens").as_hex()[3:4],
+        saturation=1,
     )
     ax.set_ylabel(None)
     ax.set_ylim(*y_lim)
@@ -99,8 +105,12 @@ def figure_5abc(ax_a, ax_b, ax_c):
         y="fucose_inferred",
         ax=ax,
         hue_order=["No", "Yes"],
-        palette=sns.color_palette(),
+        palette=[
+            sns.color_palette("Blues").as_hex()[3],
+            sns.color_palette("Oranges").as_hex()[3],
+        ],
         showfliers=False,
+        order=order,
     )
     ax.set_ylabel(None)
     ax.set_ylim(*y_lim)
@@ -136,7 +146,7 @@ def figure_5d(ax):
     ]
     detection_signal = detection_signal.sel(Complex=pd.IndexSlice[:, ag_include])
     metadata = kaplonek_vaccine.get_metadata()
-    filepath = CACHE_DIR / "kaplonek_vaccine_Rtot.csv"
+    filepath = KAPLONEK_VACCINE_RTOT_CACHE_PATH
     if UPDATE_CACHE["kaplonek_vaccine"]:
         opts = assemble_options(detection_signal)
         params, _ = optimize_loss(detection_signal, **opts, return_reshaped_params=True)
@@ -160,6 +170,10 @@ def figure_5d(ax):
         ax=ax,
         hue_order=["control", "case"],
         showfliers=False,
+        palette=[
+            sns.color_palette("Blues").as_hex()[4],
+            sns.color_palette("Oranges").as_hex()[4],
+        ],
     )
     ax.set_xticklabels(ax.get_xticklabels(), rotation=30)
     ax.set_ylabel("IgG Fucosylation (%)")

@@ -65,8 +65,8 @@ def figure_imputation_scatterplot(ax):
 
     ax.set_xticks([1e2, 1e4, 1e6])
     ax.set_yticks([1e2, 1e4, 1e6])
-    ax.set_xlabel(f"Inferred {DETECTION_DISPLAY_NAMES["FcR3B"]} (RFU)")
-    ax.set_ylabel(f"Measured {DETECTION_DISPLAY_NAMES["FcR3B"]} (RFU)")
+    ax.set_xlabel(f"Inferred {DETECTION_DISPLAY_NAMES['FcR3B']} (RFU)")
+    ax.set_ylabel(f"Measured {DETECTION_DISPLAY_NAMES['FcR3B']} (RFU)")
     ax.set_title("10% Missing")
     lim = [3, 1e7]
     ax.set_ylim(lim)

@@ -7,13 +7,22 @@ jobs:
     runs-on: self-hosted
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install dependencies
-      run: poetry install --no-root
-    - name: Build figures
-      run: make all
-    - name: Upload files
-      uses: actions/upload-artifact@v3
-      with:
-        name: files
-        path: output/*.svg
+      - name: Get dependencies cache key
+        id: dependencies-cache-key
+        run: echo "hash=$(md5sum pyproject.toml | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Setup rye
+        uses: eifinger/setup-rye@v4
+        with:
+          enable-cache: true
+          version: '0.39.0'
+          cache-prefix: ${{ steps.dependencies-cache-key.outputs.hash }}
+
+      - name: Build figures
+        run: make all
+
+      - name: Upload files
+        uses: actions/upload-artifact@v3
+        with:
+          name: files
+          path: output/*.svg
