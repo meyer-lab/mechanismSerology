@@ -39,6 +39,10 @@ rc_param_updates = {
 }
 matplotlib.rcParams.update(rc_param_updates)
 
+flier_kwargs = {
+    "fliersize": 1.5,
+    "flierprops": {"alpha": 0.35},
+}
 
 THIS_DIR = Path(__file__).parent
 CACHE_DIR = THIS_DIR.parent / "data" / "cache"

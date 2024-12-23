@@ -4,7 +4,7 @@ import seaborn as sns
 from statannotations.Annotator import Annotator
 
 from maserol.datasets import Alter
-from maserol.figures.common import Multiplot, annotate_mann_whitney
+from maserol.figures.common import Multiplot, annotate_mann_whitney, flier_kwargs
 from maserol.figures.figure_4 import ALTER_RTOT_CACHE_PATH
 from maserol.util import compute_fucose_ratio
 
@@ -65,8 +65,9 @@ def makeFigure():
         ax=ax,
         hue_order=["EC", "VC", "TP", "UP"],
         order=ag_order,
-        showfliers=False,
+        showfliers=True,
         palette=[palette[2], palette[8], palette[1], palette[3]],
+        **flier_kwargs,
     )
     ax.set_xticklabels(ax.get_xticklabels(), rotation=X_LABEL_ROTATION)
     ax.set_xlabel("Antigen", labelpad=0)
@@ -93,9 +94,10 @@ def makeFigure():
         hue="is_EC",
         ax=ax,
         hue_order=[True, False],
-        showfliers=False,
+        showfliers=True,
         order=ag_order,
         palette=[palette[2], palette[7]],
+        **flier_kwargs,
     )
     ax.set_xlabel("Antigen", labelpad=0)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=X_LABEL_ROTATION)
@@ -132,8 +134,9 @@ def makeFigure():
         x="fucose_inferred",
         orient="h",
         ax=ax,
-        showfliers=False,
+        showfliers=True,
         palette=palette[0:1],
+        **flier_kwargs,
     )
     ax.set_xlabel("IgG Fucosylation (%)")
     ax.set_xlim(*Y_LIM)
@@ -157,9 +160,10 @@ def makeFigure():
         hue="is_EC",
         orient="h",
         ax=ax,
-        showfliers=False,
+        showfliers=True,
         hue_order=[True, False],
         palette=[palette[2], palette[7]],
+        **flier_kwargs,
     )
     ax.set_xlabel("IgG Fucosylation (%)")
     ax.set_xlim(*Y_LIM)

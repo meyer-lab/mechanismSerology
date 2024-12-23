@@ -5,7 +5,7 @@ from statannotations.Annotator import Annotator
 
 from maserol.core import optimize_loss
 from maserol.datasets import KaplonekVaccine, Zohar
-from maserol.figures.common import CACHE_DIR, Multiplot, annotate_mann_whitney
+from maserol.figures.common import CACHE_DIR, Multiplot, annotate_mann_whitney, flier_kwargs
 from maserol.util import Rtot_to_df, assemble_options, compute_fucose_ratio
 
 UPDATE_CACHE = {
@@ -63,8 +63,9 @@ def figure_5abc(ax_a, ax_b, ax_c):
         y="fucose_inferred",
         ax=ax,
         order=order,
-        showfliers=False,
+        showfliers=True,
         palette=sns.color_palette("Greens").as_hex()[2:3],
+        **flier_kwargs,
     )
     ax.set_ylabel("IgG Fucosylation (%)")
     ax.set_ylim(*y_lim)
@@ -83,9 +84,10 @@ def figure_5abc(ax_a, ax_b, ax_c):
         x="Antigen type",
         y="fucose_inferred",
         ax=ax,
-        showfliers=False,
+        showfliers=True,
         palette=sns.color_palette("Greens").as_hex()[3:4],
         saturation=1,
+        **flier_kwargs,
     )
     ax.set_ylabel(None)
     ax.set_ylim(*y_lim)
@@ -109,8 +111,9 @@ def figure_5abc(ax_a, ax_b, ax_c):
             sns.color_palette("Blues").as_hex()[3],
             sns.color_palette("Oranges").as_hex()[3],
         ],
-        showfliers=False,
+        showfliers=True,
         order=order,
+        **flier_kwargs,
     )
     ax.set_ylabel(None)
     ax.set_ylim(*y_lim)
@@ -169,11 +172,12 @@ def figure_5d(ax):
         hue="infection.status",
         ax=ax,
         hue_order=["control", "case"],
-        showfliers=False,
+        showfliers=True,
         palette=[
             sns.color_palette("Blues").as_hex()[4],
             sns.color_palette("Oranges").as_hex()[4],
         ],
+        **flier_kwargs,
     )
     ax.set_xticklabels(ax.get_xticklabels(), rotation=30)
     ax.set_ylabel("IgG Fucosylation (%)")
