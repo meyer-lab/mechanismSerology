@@ -3,10 +3,7 @@
 This model helps us learn relationships between antibody Fc structural features
 and immune receptor interaction, effector cell recruitment, and disease outcome.
 See our
-[manuscript](https://www.biorxiv.org/content/10.1101/2024.07.05.602296v1).
-
-[![Test](https://github.com/meyer-lab/mechanismSerology/actions/workflows/pytest.yml/badge.svg)](https://github.com/meyer-lab/mechanismSerology/actions/workflows/pytest.yml)
-[![codecov](https://codecov.io/gh/meyer-lab/mechanismSerology/branch/master/graph/badge.svg)](https://codecov.io/gh/meyer-lab/mechanismSerology)
+[manuscript](https://doi.org/10.1371/journal.pcbi.1012663).
 
 ## Installation
 
